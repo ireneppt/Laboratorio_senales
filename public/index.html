@@ -18,8 +18,15 @@
       --grid: #e1e0d9;
       --axis: #c3c2b7;
       --border: rgba(11, 11, 11, 0.10);
+      /* un color por serie, siempre en este orden */
       --series-1: #2a78d6;
       --series-2: #eb6834;
+      --series-3: #1baf7a;
+      --series-4: #eda100;
+      --series-5: #e87ba4;
+      --series-6: #008300;
+      --series-7: #6250d6;
+      --series-8: #e34948;
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -35,6 +42,12 @@
         --border: rgba(255, 255, 255, 0.10);
         --series-1: #3987e5;
         --series-2: #d95926;
+        --series-3: #199e70;
+        --series-4: #c98500;
+        --series-5: #d55181;
+        --series-6: #008300;
+        --series-7: #9085e9;
+        --series-8: #e66767;
       }
     }
 
@@ -50,7 +63,6 @@
     .pagina { max-width: 1400px; margin: 0 auto; }
     header { margin-bottom: 20px; }
     h1 { margin: 0; font-size: 1.5rem; font-weight: 650; letter-spacing: -0.01em; }
-    header p { margin: 4px 0 0; color: var(--ink-2); font-size: 0.95rem; }
 
     .layout { display: grid; grid-template-columns: 460px minmax(0, 1fr); gap: 20px; align-items: start; }
     .panel, .tarjeta-grafica {
@@ -59,10 +71,38 @@
       border-radius: 14px;
     }
     .panel { padding: 20px; }
-    .tarjeta-grafica { padding: 20px 20px 12px; position: sticky; top: 16px; }
+    .tarjeta-grafica { padding: 16px 20px 12px; position: sticky; top: 16px; }
     .graf-cab h2 { margin: 0; font-size: 1.05rem; font-weight: 650; }
     .graf-cab p { margin: 2px 0 12px; color: var(--ink-2); font-size: 0.85rem; min-height: 1.2em; }
     #chart { width: 100%; height: clamp(260px, 42vh, 400px); }
+
+    /* Pestañas (series del panel y vistas de la gráfica) */
+    .pestanas { display: flex; flex-wrap: wrap; gap: 6px; }
+    .panel > .pestanas { margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--grid); }
+    .tarjeta-grafica > .pestanas { margin-bottom: 16px; }
+    .punto-color { flex: none; width: 10px; height: 10px; border-radius: 50%; }
+    .pestanas button {
+      width: auto; height: 34px; padding: 0 12px;
+      display: inline-flex; align-items: center; gap: 8px;
+      border: 1px solid transparent; border-radius: 8px;
+      background: transparent; color: var(--ink-2); font-size: 0.9rem;
+    }
+    .pestanas button:hover:not(:disabled) { background: var(--surface-2); }
+    .pestanas .tab {
+      display: inline-flex; align-items: center; border: 1px solid transparent; border-radius: 8px;
+    }
+    .pestanas .tab button { border: 0; }
+    .pestanas .tab .tab-nombre { padding-right: 6px; }
+    .pestanas .tab .cerrar {
+      width: 24px; height: 24px; padding: 0; margin-right: 6px; justify-content: center;
+      border-radius: 6px; font-size: 1.1rem; line-height: 1;
+    }
+    .pestanas .tab.activa, .pestanas button.activa {
+      background: var(--surface-2); border-color: var(--axis); color: var(--ink); font-weight: 650;
+    }
+    .pestanas .tab.activa button:hover:not(:disabled) { background: transparent; }
+    .pestanas .tab.activa .cerrar:hover:not(:disabled) { background: var(--grid); }
+    .pestanas .anadir-serie { border-color: var(--axis); color: var(--ink); }
 
     /* Secciones del panel */
     fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
@@ -72,7 +112,7 @@
     legend + * { clear: both; }
 
     label { display: block; margin-bottom: 14px; color: var(--ink-2); font-size: 0.9rem; }
-    input[type=number], select {
+    input[type=number], input[type=text], select {
       display: block;
       width: 100%;
       height: 40px;
@@ -90,6 +130,40 @@
       outline-offset: 1px;
     }
     input:disabled, select:disabled { opacity: 0.45; }
+
+    [hidden] { display: none !important; }
+
+    /* Color y nombre de la serie */
+    .identidad { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+    .nombre-texto { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.05rem; font-weight: 650; }
+    .identidad input[type=text] { flex: 1; min-width: 0; height: 36px; margin-top: 0; }
+    .color-selector { position: relative; flex: none; }
+    button.punto-grande {
+      display: block; width: 28px; height: 28px; padding: 0; border-radius: 50%;
+      border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--axis); cursor: pointer;
+    }
+    button.icono {
+      flex: none; display: inline-flex; align-items: center; justify-content: center;
+      width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px; color: var(--ink-2);
+    }
+    button.icono:hover:not(:disabled) { color: var(--ink); }
+    /* La paleta flota sobre el panel y solo se ve al pulsar el punto de color */
+    .paleta {
+      position: absolute; top: calc(100% + 8px); left: 0; z-index: 20; width: 232px;
+      display: flex; flex-wrap: wrap; gap: 10px; padding: 14px;
+      background: var(--surface); border: 1px solid var(--axis); border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    }
+    button.muestra, .muestra-otro {
+      position: relative; display: block; flex: none; width: 30px; height: 30px; margin: 0; padding: 0;
+      border: 2px solid var(--surface); border-radius: 50%; cursor: pointer;
+    }
+    .muestra-otro {
+      background: conic-gradient(#e34948, #eda100, #1baf7a, #2a78d6, #6250d6, #e87ba4, #e34948);
+    }
+    /* El selector del navegador queda encima, invisible: el círculo de color es el botón */
+    #color-otro { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; opacity: 0; cursor: pointer; }
+    button.muestra.elegida, .muestra-otro.elegida { box-shadow: 0 0 0 2px var(--ink); }
 
     /* Interruptor de cada sección */
     label.toggle { display: flex; align-items: center; gap: 8px; margin: 0; cursor: pointer; color: inherit; font-size: inherit; }
@@ -154,11 +228,28 @@
 
     <div class="layout">
       <aside class="panel">
+        <!-- Una pestaña por serie: cada una guarda su propia configuración -->
+        <div class="pestanas" id="pestanas-series" role="tablist" aria-label="Series"></div>
+
         <form id="controls">
           <fieldset>
             <legend>Serie</legend>
+            <div class="identidad">
+              <div class="color-selector">
+                <button type="button" id="boton-color" class="punto-grande" title="Cambiar color" aria-haspopup="true" aria-expanded="false"></button>
+                <div class="paleta" id="colores" hidden></div>
+              </div>
+              <span id="nombre-texto" class="nombre-texto"></span>
+              <input type="text" name="nombre" maxlength="30" autocomplete="off" aria-label="Nombre de la serie" hidden>
+              <button type="button" id="boton-nombre" class="icono" title="Cambiar nombre" aria-label="Cambiar nombre">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+              </button>
+            </div>
             <label>Número de puntos (eje x)
               <input type="number" name="puntos" value="500" min="10" max="5000" step="10">
+            </label>
+            <label>Nivel base (valor inicial)
+              <input type="number" name="nivel_base" value="100" min="1" max="1000000" step="10">
             </label>
           </fieldset>
 
@@ -216,6 +307,7 @@
                 <option value="colas_pesadas">Colas pesadas</option>
               </select>
             </label>
+            <button type="button" id="regenerar-ruido">Regenerar ruido</button>
           </fieldset>
 
           <fieldset>
@@ -272,8 +364,10 @@
       </aside>
 
       <section class="tarjeta-grafica">
+        <!-- Una pestaña por serie y, si hay más de una, otra "Todas" que las superpone -->
+        <div class="pestanas" id="pestanas-grafica" role="tablist" aria-label="Vista de la gráfica"></div>
         <div class="graf-cab">
-          <h2>Serie generada</h2>
+          <h2 id="titulo-grafica"></h2>
           <p id="resumen"></p>
         </div>
         <div id="chart"></div>
@@ -285,6 +379,17 @@
     const form = document.getElementById("controls");
 
     const toggles = ["tendencia_activa", "estacionalidad_activa", "ruido_activo", "anomalias_activas"];
+
+    const MAX_SERIES = 8;            // un color de la paleta por serie
+    const MAX_ESTACIONALIDADES = 20; // mismo tope que app.py
+    const MAX_ANOMALIAS = 20;        // mismo tope que app.py
+
+    const lista = document.getElementById("estacionalidades");
+    const plantilla = document.getElementById("plantilla-estac");
+    const anadir = document.getElementById("anadir");
+    const listaAnomalias = document.getElementById("anomalias");
+    const plantillaAnomalia = document.getElementById("plantilla-anomalia");
+    const anadirAnomalia = document.getElementById("anadir-anomalia");
 
     // Un fieldset desactivado deshabilita sus campos; el interruptor del legend queda activo.
     function syncDisabled() {
@@ -308,17 +413,13 @@
       }
     }
 
-    // Anomalías: una fila por anomalía (tipo + punto + magnitud, cada uno fijo o aleatorio).
-    const MAX_ANOMALIAS = 20; // mismo tope que app.py
+    // ---------- Anomalías (filas del panel) ----------
     // Cómo arranca cada fila nueva (van rotando)
     const ANOMALIAS_INICIALES = [
       { tipo: "cambio_nivel", punto: 30 },
       { tipo: "puntual", punto: 100 },
       { tipo: "transitorio", punto: 200 },
     ];
-    const listaAnomalias = document.getElementById("anomalias");
-    const plantillaAnomalia = document.getElementById("plantilla-anomalia");
-    const anadirAnomalia = document.getElementById("anadir-anomalia");
 
     function renumerarAnomalias() {
       [...listaAnomalias.children].forEach((fila, i) => {
@@ -326,13 +427,14 @@
       });
     }
 
-    // Añade una fila al final. Si es aleatoria, punto y magnitud los elige el servidor.
-    function nuevaFilaAnomalia({ tipo, punto = 30, aleatoria = false }) {
+    // Añade una fila al final. Con "aleatorio" marcado, punto o magnitud los elige el servidor.
+    function nuevaFilaAnomalia({ tipo, punto = 30, puntoAlea = false, magnitud = 20, magnitudAlea = false }) {
       const fila = plantillaAnomalia.content.firstElementChild.cloneNode(true);
       fila.querySelector(".a-tipo").value = tipo;
       fila.querySelector(".a-punto").value = punto;
-      fila.querySelector(".a-punto-alea").checked = aleatoria;
-      fila.querySelector(".a-magnitud-alea").checked = aleatoria;
+      fila.querySelector(".a-punto-alea").checked = puntoAlea;
+      fila.querySelector(".a-magnitud").value = magnitud;
+      fila.querySelector(".a-magnitud-alea").checked = magnitudAlea;
       listaAnomalias.appendChild(fila);
     }
 
@@ -347,7 +449,7 @@
       for (const tipo of ["puntual", "cambio_nivel", "transitorio"]) {
         const n = parseInt(document.getElementById("n-" + tipo).value) || 0;
         for (let i = 0; i < n && listaAnomalias.children.length < MAX_ANOMALIAS; i++) {
-          nuevaFilaAnomalia({ tipo, aleatoria: true });
+          nuevaFilaAnomalia({ tipo, puntoAlea: true, magnitudAlea: true });
         }
       }
       renumerarAnomalias();
@@ -363,21 +465,15 @@
     });
 
     // Texto "tipo,punto,magnitud" que entiende la API; null si falta algún número.
-    function textoAnomalia(fila) {
-      const valor = (campo) =>
-        fila.querySelector(`.a-${campo}-alea`).checked ? "aleatorio" : fila.querySelector(`.a-${campo}`).value;
-      const punto = valor("punto");
-      const magnitud = valor("magnitud");
+    function textoAnomalia(a) {
+      const punto = a.puntoAlea ? "aleatorio" : a.punto;
+      const magnitud = a.magnitudAlea ? "aleatorio" : a.magnitud;
       if (punto === "" || magnitud === "") return null;
-      return `${fila.querySelector(".a-tipo").value},${punto},${magnitud}`;
+      return `${a.tipo},${punto},${magnitud}`;
     }
 
-    // Estacionalidades: una fila por onda (periodo + modo), tantas como se quieran.
-    const MAX_ESTACIONALIDADES = 20; // mismo tope que app.py
+    // ---------- Estacionalidades (filas del panel) ----------
     const PERIODOS_INICIALES = [50, 30, 12, 5, 7]; // periodo con el que arranca cada fila nueva
-    const lista = document.getElementById("estacionalidades");
-    const plantilla = document.getElementById("plantilla-estac");
-    const anadir = document.getElementById("anadir");
 
     function renumerar() {
       [...lista.children].forEach((fila, i) => {
@@ -385,10 +481,11 @@
       });
     }
 
-    function anadirEstacionalidad() {
+    function anadirEstacionalidad(periodo, modo = "aditiva") {
       const fila = plantilla.content.firstElementChild.cloneNode(true);
       fila.querySelector("[name=estacionalidad_periodo]").value =
-        PERIODOS_INICIALES[lista.children.length % PERIODOS_INICIALES.length];
+        periodo ?? PERIODOS_INICIALES[lista.children.length % PERIODOS_INICIALES.length];
+      fila.querySelector("[name=estacionalidad_modo]").value = modo;
       lista.appendChild(fila);
       renumerar();
     }
@@ -406,9 +503,390 @@
       draw();
     });
 
+    // ---------- Series: cada una guarda su configuración ----------
+    let series = [];          // { id, nombre, slot, estado, datos, incluidas }
+    let contadorSeries = 0;
+    let activa = null;        // la serie que se edita en el panel
+    let vista = null;         // lo que muestra la gráfica: id de una serie, o "todas"
+
+    // Serie añadida a mano: solo la línea del nivel base. Los bloques están apagados, con valores
+    // listos para cuando se enciendan.
+    function estadoSoloNivel() {
+      return {
+        puntos: "500", nivel_base: "100",
+        tendencia_activa: false, tendencia_valor: "0.5", tendencia_tipo: "lineal",
+        estacionalidad_activa: false, estacionalidades: [{ periodo: PERIODOS_INICIALES[0], modo: "aditiva" }],
+        ruido_activo: false, ruido_grado: "3", ruido_tipo: "blanco",
+        anomalias_activas: false, anomalias: [],
+      };
+    }
+
+    // Semilla al azar para el ruido (y otra para las anomalías aleatorias): cada serie arranca con
+    // la suya, y "Regenerar ruido" sortea otra. Con la misma semilla el resultado se repite.
+    const nuevaSemilla = () => Math.floor(Math.random() * 1_000_000);
+
+    // Toda serie nueva, también la inicial, arranca solo con la línea del nivel.
+    function nuevaSerie() {
+      // El color es de la serie y no cambia si se cierran otras: se reutiliza el primer hueco libre.
+      const usados = new Set(series.map((s) => s.slot));
+      let slot = 0;
+      while (usados.has(slot)) slot++;
+      contadorSeries++;
+      // slot = su hueco de la paleta (también decide su semilla); color = el que se ve, editable:
+      // un número de la paleta o un "#rrggbb" elegido a mano.
+      return { id: contadorSeries, nombre: "Serie " + contadorSeries, slot, color: slot, semilla: nuevaSemilla(), semillaAnomalias: nuevaSemilla(), estado: estadoSoloNivel(), datos: null, incluidas: [] };
+    }
+
+    // Si se borra el nombre, se muestra "Serie N" para que la pestaña nunca quede vacía.
+    const nombreDe = (s) => s.nombre.trim() || "Serie " + s.id;
+    const colorDe = (s, c) => (typeof s.color === "number" ? c.series[s.color] : s.color);
+
+    // ---------- Identidad de la serie: color y nombre ----------
+    const botonColor = document.getElementById("boton-color");
+    const contenedorColores = document.getElementById("colores"); // la paleta flotante
+    const textoNombre = document.getElementById("nombre-texto");
+    const inputNombre = form.elements.nombre;
+    const botonNombre = document.getElementById("boton-nombre");
+
+    // Paleta: los 8 colores validados y uno libre (selector del navegador).
+    for (let i = 0; i < MAX_SERIES; i++) {
+      const muestra = document.createElement("button");
+      muestra.type = "button";
+      muestra.className = "muestra";
+      muestra.dataset.color = i;
+      muestra.title = "Color " + (i + 1);
+      muestra.style.background = `var(--series-${i + 1})`;
+      contenedorColores.append(muestra);
+    }
+    const muestraOtro = document.createElement("label");
+    muestraOtro.className = "muestra-otro";
+    muestraOtro.title = "Otro color";
+    const colorOtro = document.createElement("input");
+    colorOtro.type = "color";
+    colorOtro.id = "color-otro";
+    muestraOtro.append(colorOtro);
+    contenedorColores.append(muestraOtro);
+
+    // Pone al día el punto de color y el nombre de la serie activa, y marca el color elegido en la paleta.
+    function refrescarColor() {
+      const propio = typeof activa.color === "string";
+      contenedorColores.querySelectorAll(".muestra").forEach((m) => {
+        m.classList.toggle("elegida", activa.color === Number(m.dataset.color));
+      });
+      muestraOtro.classList.toggle("elegida", propio);
+      // Sin color propio, el círculo "otro" muestra un arcoíris; con uno elegido, ese color.
+      muestraOtro.style.background = propio ? activa.color : "";
+      if (propio) colorOtro.value = activa.color;
+      botonColor.style.background = propio ? activa.color : `var(--series-${activa.color + 1})`;
+    }
+
+    function refrescarNombre() {
+      textoNombre.textContent = nombreDe(activa);
+    }
+
+    function cambiarColor(color) {
+      activa.color = color;
+      refrescarColor();
+      renderPestanas();
+      repintar();
+    }
+
+    // La paleta solo aparece al pulsar el punto de color; se cierra al elegir o al pulsar fuera.
+    function abrirPaleta(abrir) {
+      contenedorColores.hidden = !abrir;
+      botonColor.setAttribute("aria-expanded", abrir);
+    }
+    botonColor.addEventListener("click", () => abrirPaleta(contenedorColores.hidden));
+    document.addEventListener("click", (e) => {
+      if (!contenedorColores.hidden && !e.target.closest(".color-selector")) abrirPaleta(false);
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") abrirPaleta(false);
+    });
+    contenedorColores.addEventListener("click", (e) => {
+      const muestra = e.target.closest(".muestra");
+      if (!muestra) return;
+      cambiarColor(Number(muestra.dataset.color));
+      abrirPaleta(false);
+    });
+    colorOtro.addEventListener("input", (e) => {
+      e.stopPropagation(); // no es un parámetro de la API: que no dispare una petición
+      cambiarColor(colorOtro.value);
+    });
+
+    // El nombre se ve como texto; el lápiz lo convierte en un campo para editarlo.
+    let nombreAntes = ""; // lo que había al empezar a editar, por si se cancela con Escape
+    function editarNombre(editar) {
+      inputNombre.hidden = !editar;
+      textoNombre.hidden = editar;
+      botonNombre.hidden = editar;
+      if (editar) {
+        nombreAntes = inputNombre.value;
+        inputNombre.focus();
+        inputNombre.select();
+      }
+    }
+    botonNombre.addEventListener("click", () => editarNombre(true));
+    inputNombre.addEventListener("blur", () => editarNombre(false));
+    inputNombre.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") inputNombre.blur();
+      if (e.key === "Escape") {
+        inputNombre.value = nombreAntes; // descarta lo escrito
+        draw();
+        inputNombre.blur();
+      }
+    });
+
+    // Lo que hay ahora en el panel, como un objeto.
+    function leerEstado() {
+      const e = {};
+      for (const name of ["puntos", "nivel_base", "tendencia_valor", "tendencia_tipo", "ruido_grado", "ruido_tipo"]) {
+        e[name] = form.elements[name].value;
+      }
+      for (const name of toggles) e[name] = form.elements[name].checked;
+      e.estacionalidades = [...lista.children].map((fila) => ({
+        periodo: fila.querySelector("[name=estacionalidad_periodo]").value,
+        modo: fila.querySelector("[name=estacionalidad_modo]").value,
+      }));
+      e.anomalias = [...listaAnomalias.children].map((fila) => ({
+        tipo: fila.querySelector(".a-tipo").value,
+        punto: fila.querySelector(".a-punto").value,
+        puntoAlea: fila.querySelector(".a-punto-alea").checked,
+        magnitud: fila.querySelector(".a-magnitud").value,
+        magnitudAlea: fila.querySelector(".a-magnitud-alea").checked,
+      }));
+      return e;
+    }
+
+    // Vuelca la configuración de una serie en el panel.
+    // Vuelca una serie entera (nombre, color y configuración) en el panel.
+    function aplicarSerie(s) {
+      editarNombre(false); // si se estaba editando el nombre de otra serie, se cierra
+      abrirPaleta(false);
+      form.elements.nombre.value = s.nombre;
+      refrescarColor();
+      refrescarNombre();
+      aplicarEstado(s.estado);
+    }
+
+    function aplicarEstado(e) {
+      for (const name of ["puntos", "nivel_base", "tendencia_valor", "tendencia_tipo", "ruido_grado", "ruido_tipo"]) {
+        form.elements[name].value = e[name];
+      }
+      for (const name of toggles) form.elements[name].checked = e[name];
+      lista.replaceChildren();
+      e.estacionalidades.forEach((est) => anadirEstacionalidad(est.periodo, est.modo));
+      listaAnomalias.replaceChildren();
+      e.anomalias.forEach((a) => nuevaFilaAnomalia(a));
+      renumerar();
+      renumerarAnomalias();
+      syncDisabled();
+    }
+
+    // Parámetros de la API para una serie. Solo se envían los bloques activos, así un campo
+    // vacío en un bloque apagado no provoca error.
+    function paramsDeSerie(s) {
+      const e = s.estado;
+      const p = new URLSearchParams();
+      p.set("puntos", e.puntos);
+      p.set("nivel_base", e.nivel_base);
+      p.set("semilla", s.semilla);
+      p.set("semilla_anomalias", s.semillaAnomalias);
+      p.set("tendencia_activa", e.tendencia_activa);
+      if (e.tendencia_activa) {
+        p.set("tendencia_valor", e.tendencia_valor);
+        p.set("tendencia_tipo", e.tendencia_tipo);
+      }
+      // Sin ninguna fila de estacionalidad no hay onda que dibujar (el servidor usaría una por defecto).
+      const conOndas = e.estacionalidad_activa && e.estacionalidades.length > 0;
+      p.set("estacionalidad_activa", conOndas);
+      if (conOndas) {
+        for (const est of e.estacionalidades) {
+          p.append("estacionalidad_periodo", est.periodo);
+          p.append("estacionalidad_modo", est.modo);
+        }
+      }
+      p.set("ruido_activo", e.ruido_activo);
+      if (e.ruido_activo) {
+        p.set("ruido_grado", e.ruido_grado);
+        p.set("ruido_tipo", e.ruido_tipo);
+      }
+      p.set("anomalias_activas", e.anomalias_activas);
+      // Una anomalía por fila; las que tienen un campo vacío se saltan hasta que se rellenen.
+      const incluidas = []; // posición en el panel de cada anomalía enviada
+      if (e.anomalias_activas) {
+        e.anomalias.forEach((a, i) => {
+          const texto = textoAnomalia(a);
+          if (texto) {
+            p.append("anomalia", texto);
+            incluidas.push(i);
+          }
+        });
+      }
+      return { params: p, incluidas };
+    }
+
+    let ultimaPeticion = 0; // si llegan respuestas desordenadas, solo cuenta la última de la serie activa
+
+    // Pide los datos de una serie. Devuelve false si la API los rechaza (se conservan los anteriores).
+    async function cargarSerie(s, numero) {
+      const { params, incluidas } = paramsDeSerie(s);
+      try {
+        const res = await fetch("/api/series?" + params);
+        if (!res.ok) return false; // valores fuera de rango mientras se escribe
+        const datos = await res.json();
+        if (numero !== undefined && numero !== ultimaPeticion) return false; // llegó una petición más nueva
+        s.datos = datos;
+        s.incluidas = incluidas;
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    // Nuevo ruido para la serie activa (mismo tipo y grado, otra muestra aleatoria).
+    document.getElementById("regenerar-ruido").addEventListener("click", () => {
+      activa.semilla = nuevaSemilla();
+      draw();
+    });
+
+    // ---------- Pestañas ----------
+    function crearPunto(color) {
+      const punto = document.createElement("span");
+      punto.className = "punto-color";
+      punto.style.background = typeof color === "number" ? `var(--series-${color + 1})` : color;
+      return punto;
+    }
+
+    function renderPestanasPanel() {
+      const cont = document.getElementById("pestanas-series");
+      cont.replaceChildren();
+      for (const s of series) {
+        const tab = document.createElement("div");
+        tab.className = "tab" + (s === activa ? " activa" : "");
+        const boton = document.createElement("button");
+        boton.type = "button";
+        boton.className = "tab-nombre";
+        boton.dataset.accion = "elegir";
+        boton.dataset.id = s.id;
+        boton.setAttribute("role", "tab");
+        boton.setAttribute("aria-selected", s === activa);
+        boton.append(crearPunto(s.color), nombreDe(s));
+        tab.append(boton);
+        if (series.length > 1) {
+          const cerrar = document.createElement("button");
+          cerrar.type = "button";
+          cerrar.className = "cerrar";
+          cerrar.dataset.accion = "cerrar";
+          cerrar.dataset.id = s.id;
+          cerrar.title = "Cerrar " + nombreDe(s);
+          cerrar.textContent = "×";
+          tab.append(cerrar);
+        }
+        cont.append(tab);
+      }
+      const nueva = document.createElement("button");
+      nueva.type = "button";
+      nueva.className = "anadir-serie";
+      nueva.dataset.accion = "nueva";
+      nueva.disabled = series.length >= MAX_SERIES;
+      nueva.textContent = "+ Añadir serie";
+      cont.append(nueva);
+    }
+
+    function renderPestanasGrafica() {
+      const cont = document.getElementById("pestanas-grafica");
+      cont.replaceChildren();
+      const pestana = (id, texto, slot) => {
+        const boton = document.createElement("button");
+        boton.type = "button";
+        boton.dataset.vista = id;
+        boton.className = vista === id ? "activa" : "";
+        boton.setAttribute("role", "tab");
+        boton.setAttribute("aria-selected", vista === id);
+        if (slot !== undefined) boton.append(crearPunto(slot));
+        boton.append(texto);
+        cont.append(boton);
+      };
+      for (const s of series) pestana(s.id, nombreDe(s), s.color);
+      if (series.length > 1) pestana("todas", "Todas");
+    }
+
+    function renderPestanas() {
+      renderPestanasPanel();
+      renderPestanasGrafica();
+      refrescarColor();
+      refrescarNombre();
+    }
+
+    // Guarda lo que hay en el panel en la serie activa (antes de cambiar de serie).
+    function guardarActiva() {
+      activa.estado = leerEstado();
+      activa.nombre = form.elements.nombre.value;
+    }
+
+    function elegirSerie(s) {
+      if (s === activa) return;
+      guardarActiva();
+      activa = s;
+      aplicarSerie(s);
+      if (vista !== "todas") vista = s.id; // la gráfica sigue a la serie que editas
+      renderPestanas();
+      mostrarResueltos();
+      repintar();
+    }
+
+    function anadirSerie() {
+      if (series.length >= MAX_SERIES) return;
+      guardarActiva();
+      const s = nuevaSerie();
+      series.push(s);
+      activa = s;
+      aplicarSerie(s);
+      if (vista !== "todas") vista = s.id;
+      renderPestanas();
+      draw();
+    }
+
+    function cerrarSerie(s) {
+      if (series.length < 2) return;
+      guardarActiva();
+      const posicion = series.indexOf(s);
+      series = series.filter((x) => x !== s);
+      if (activa === s) {
+        activa = series[Math.max(0, posicion - 1)];
+        aplicarSerie(activa);
+      }
+      if (vista === s.id) vista = activa.id;
+      if (series.length < 2) vista = series[0].id; // con una sola serie ya no hay pestaña "Todas"
+      renderPestanas();
+      mostrarResueltos();
+      repintar();
+    }
+
+    document.getElementById("pestanas-series").addEventListener("click", (e) => {
+      const boton = e.target.closest("button");
+      if (!boton) return;
+      const s = series.find((x) => x.id === Number(boton.dataset.id));
+      if (boton.dataset.accion === "elegir") elegirSerie(s);
+      else if (boton.dataset.accion === "cerrar") cerrarSerie(s);
+      else if (boton.dataset.accion === "nueva") anadirSerie();
+    });
+
+    document.getElementById("pestanas-grafica").addEventListener("click", (e) => {
+      const boton = e.target.closest("button");
+      if (!boton) return;
+      vista = boton.dataset.vista === "todas" ? "todas" : Number(boton.dataset.vista);
+      renderPestanasGrafica();
+      repintar();
+    });
+
     // ---------- Gráfica ----------
-    const NOMBRES_ANOMALIA = { puntual: "puntual", cambio_nivel: "cambio de nivel", transitorio: "transitorio" };
-    let ultimosDatos = null; // se guarda para repintar si cambia el tema claro/oscuro
+    // Texto de cada opción de los desplegables, para el resumen ("lineal", "blanco"...).
+    const TEXTO_OPCION = {};
+    for (const name of ["tendencia_tipo", "ruido_tipo"]) {
+      TEXTO_OPCION[name] = Object.fromEntries([...form.elements[name].options].map((o) => [o.value, o.textContent.toLowerCase()]));
+    }
 
     // Los colores salen de las variables CSS, así la gráfica sigue al modo claro/oscuro.
     function colores() {
@@ -416,35 +894,57 @@
       const c = (nombre) => css.getPropertyValue(nombre).trim();
       return {
         ink: c("--ink"), ink2: c("--ink-2"), muted: c("--muted"), grid: c("--grid"), axis: c("--axis"),
-        surface: c("--surface"), serie: c("--series-1"), anomalia: c("--series-2"),
+        surface: c("--surface"),
+        series: Array.from({ length: MAX_SERIES }, (_, i) => c(`--series-${i + 1}`)),
         fuente: getComputedStyle(document.body).fontFamily,
       };
     }
 
-    function pintar() {
-      if (!ultimosDatos) return;
-      const { x, y, anomalias } = ultimosDatos;
-      const c = colores();
+    // Línea bajo el título con lo que hay activo en una serie.
+    function resumen(e, anomaliasAplicadas) {
+      const partes = [`${e.puntos} puntos`, `nivel ${e.nivel_base}`];
+      if (e.tendencia_activa) partes.push(`tendencia ${TEXTO_OPCION.tendencia_tipo[e.tendencia_tipo]}`);
+      const n = e.estacionalidades.length;
+      if (e.estacionalidad_activa && n > 0) partes.push(n === 1 ? "1 estacionalidad" : `${n} estacionalidades`);
+      if (e.ruido_activo) partes.push(`ruido ${TEXTO_OPCION.ruido_tipo[e.ruido_tipo]} ${e.ruido_grado} %`);
+      if (anomaliasAplicadas > 0) {
+        partes.push(anomaliasAplicadas === 1 ? "1 anomalía" : `${anomaliasAplicadas} anomalías`);
+      }
+      return partes.join("  ·  ");
+    }
 
-      const trazas = [{
-        x, y, type: "scatter", mode: "lines", name: "Serie",
-        line: { color: c.serie, width: 2 },
-        hovertemplate: "<b>%{y:.1f}</b>  ·  punto %{x}<extra></extra>",
-      }];
-      // Cada anomalía aplicada se marca con un punto (anillo del color de la superficie).
-      if (anomalias.length > 0) {
+    function pintar() {
+      const c = colores();
+      const todas = vista === "todas";
+      const visibles = (todas ? series : series.filter((s) => s.id === vista)).filter((s) => s.datos);
+
+      const trazas = [];
+      for (const s of visibles) {
+        const color = colorDe(s, c);
+        const { x, y } = s.datos;
+        // Con varias series el tooltip lleva el nombre de la traza; en una sola sobra.
+        const etiqueta = todas ? "%{fullData.name}" : "";
         trazas.push({
-          x: anomalias.map((a) => a.punto),
-          y: anomalias.map((a) => y[a.punto]),
-          customdata: anomalias.map((a) => NOMBRES_ANOMALIA[a.tipo]),
-          type: "scatter", mode: "markers", name: "Anomalías",
-          marker: { size: 10, color: c.anomalia, line: { color: c.surface, width: 2 } },
-          hovertemplate: "<b>%{y:.1f}</b>  ·  anomalía %{customdata}<extra></extra>",
+          x, y, type: "scatter", mode: "lines", name: nombreDe(s),
+          line: { color, width: 2 },
+          hovertemplate: `<b>%{y:.1f}</b>  ·  punto %{x}<extra>${etiqueta}</extra>`,
         });
       }
 
-      const eje = (titulo) => ({
-        title: { text: titulo, font: { color: c.muted, size: 12 }, standoff: 8 },
+      // Título y resumen
+      const titulo = document.getElementById("titulo-grafica");
+      const resumenEl = document.getElementById("resumen");
+      if (todas) {
+        titulo.textContent = "Todas las series";
+        resumenEl.textContent = `${series.length} series superpuestas`;
+      } else {
+        const s = series.find((x) => x.id === vista);
+        titulo.textContent = nombreDe(s);
+        resumenEl.textContent = s.datos ? resumen(s.estado, s.datos.anomalias.length) : "";
+      }
+
+      const eje = (texto) => ({
+        title: { text: texto, font: { color: c.muted, size: 12 }, standoff: 8 },
         gridcolor: c.grid, gridwidth: 1, zeroline: false,
         linecolor: c.axis, tickfont: { color: c.muted, size: 11 }, ticks: "", automargin: true,
       });
@@ -458,72 +958,54 @@
           spikethickness: 1, spikedash: "solid", spikecolor: c.muted,
         },
         yaxis: { ...eje("Valor"), showline: false },
-        hovermode: "x",
+        hovermode: todas ? "x unified" : "x",
         hoverlabel: { bgcolor: c.surface, bordercolor: c.axis, font: { color: c.ink, family: c.fuente, size: 13 } },
-        showlegend: anomalias.length > 0,
+        showlegend: todas && visibles.length > 1, // con una sola serie la leyenda sobra
         legend: { orientation: "h", x: 0, y: 1.08, font: { color: c.ink2, size: 12 } },
       }, { responsive: true, displaylogo: false, displayModeBar: false });
     }
 
-    // Línea bajo el título con lo que hay activo ahora mismo.
-    function resumen(anomaliasAplicadas) {
-      const activo = (nombre) => form.elements[nombre].checked;
-      const elegida = (nombre) => form.elements[nombre].selectedOptions[0].textContent.toLowerCase();
-      const partes = [`${form.elements.puntos.value} puntos`];
-      if (activo("tendencia_activa")) partes.push(`tendencia ${elegida("tendencia_tipo")}`);
-      if (activo("estacionalidad_activa") && lista.children.length > 0) {
-        const n = lista.children.length;
-        partes.push(n === 1 ? "1 estacionalidad" : `${n} estacionalidades`);
-      }
-      if (activo("ruido_activo")) partes.push(`ruido ${elegida("ruido_tipo")} ${form.elements.ruido_grado.value} %`);
-      if (anomaliasAplicadas > 0) {
-        partes.push(anomaliasAplicadas === 1 ? "1 anomalía" : `${anomaliasAplicadas} anomalías`);
-      }
-      return partes.join("  ·  ");
+    // Antes de pintar, se piden las series que aún no tienen datos (por ejemplo al abrir "Todas").
+    async function repintar() {
+      const necesarias = vista === "todas" ? series : series.filter((s) => s.id === vista);
+      await Promise.all(necesarias.filter((s) => !s.datos).map((s) => cargarSerie(s)));
+      pintar();
     }
 
-    let ultimaPeticion = 0; // si llegan varias respuestas desordenadas, solo se pinta la última
+    // Debajo de cada anomalía del panel, lo que se aplicó de verdad (útil con las aleatorias).
+    function mostrarResueltos() {
+      for (const fila of listaAnomalias.children) fila.querySelector(".resuelto").textContent = "";
+      if (!activa.datos || !activa.estado.anomalias_activas) return;
+      activa.incluidas.forEach((posicion, i) => {
+        const a = activa.datos.anomalias[i];
+        const fila = listaAnomalias.children[posicion];
+        if (a && fila) fila.querySelector(".resuelto").textContent =
+          `Aplicada en el punto ${a.punto}, ${a.magnitud > 0 ? "+" : ""}${a.magnitud} %`;
+      });
+    }
 
     async function draw() {
       const numero = ++ultimaPeticion;
       syncDisabled();
-      const params = new URLSearchParams(new FormData(form));
-      // Un checkbox sin marcar no se envía, así que se manda explícito (el servidor asume true).
-      for (const name of toggles) params.set(name, form.elements[name].checked);
-      // Sin ninguna fila de estacionalidad no hay onda que dibujar (el servidor usaría una por defecto).
-      if (lista.children.length === 0) params.set("estacionalidad_activa", false);
-      // Una anomalía por fila; las que tienen un campo vacío se saltan hasta que se rellenen.
-      const incluidas = [];
-      for (const fila of listaAnomalias.children) {
-        const texto = textoAnomalia(fila);
-        if (texto) {
-          params.append("anomalia", texto);
-          incluidas.push(fila);
-        }
-      }
-      const res = await fetch("/api/series?" + params);
-      if (!res.ok) return; // valores fuera de rango mientras se escribe: se conserva la gráfica anterior
-      const datos = await res.json();
-      if (numero !== ultimaPeticion) return; // llegó una petición más nueva mientras esperábamos
-      // Debajo de cada anomalía, lo que se aplicó de verdad (sobre todo útil con las aleatorias).
-      for (const fila of listaAnomalias.children) fila.querySelector(".resuelto").textContent = "";
-      if (form.elements.anomalias_activas.checked) {
-        incluidas.forEach((fila, i) => {
-          const a = datos.anomalias[i];
-          if (a) fila.querySelector(".resuelto").textContent =
-            `Aplicada en el punto ${a.punto}, ${a.magnitud > 0 ? "+" : ""}${a.magnitud} %`;
-        });
-      }
-      ultimosDatos = datos;
-      document.getElementById("resumen").textContent = resumen(datos.anomalias.length);
-      pintar();
+      guardarActiva();
+      renderPestanas(); // por si se ha cambiado el nombre de la serie
+      const ok = await cargarSerie(activa, numero);
+      if (numero !== ultimaPeticion) return;
+      if (ok) mostrarResueltos();
+      await repintar();
     }
 
     form.addEventListener("input", draw);
     form.addEventListener("submit", (e) => e.preventDefault());
     // Si el sistema cambia entre claro y oscuro, se repinta con los colores del nuevo tema.
     window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", pintar);
-    anadirEstacionalidad(); // arranca con una estacionalidad
+
+    // Arranca con una serie
+    series = [nuevaSerie()];
+    activa = series[0];
+    vista = activa.id;
+    aplicarSerie(activa);
+    renderPestanas();
     draw();
   </script>
 </body>

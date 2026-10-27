@@ -7,10 +7,8 @@ from pydantic import Field
 app = FastAPI()
 
 # Valores fijos por ahora
-BASE = 100           # nivel base: la serie arranca en este valor
-AMPLITUD_ESTACIONAL = 0.10  # la onda estacional mide un 10 % de BASE
+AMPLITUD_ESTACIONAL = 0.10  # la onda estacional mide un 10 % del nivel base
 MAX_ESTACIONALIDADES = 20  # tope de ondas estacionales por petición
-SEMILLA = 42        # para que el ruido sea siempre el mismo
 MAX_ANOMALIAS = 20  # tope de anomalías por petición
 DECAIMIENTO_TRANSITORIO = 0.7  # el transitorio pierde un 30 % de su efecto en cada punto
 MAGNITUD_ALEATORIA = (10, 30)  # una anomalía aleatoria mide entre 10 y 30 % (con signo al azar)
@@ -21,6 +19,11 @@ TIPOS_ANOMALIA = ("puntual", "cambio_nivel", "transitorio")
 def get_series(
     # Serie
     puntos: int = Query(500, ge=10, le=5000),  # número de puntos (eje x)
+    # Semillas de lo aleatorio: misma semilla = mismo resultado. Una para el ruido y otra para los
+    # valores "aleatorio" de las anomalías, así se puede regenerar una sin tocar la otra.
+    semilla: int = Query(42, ge=0, le=1_000_000),
+    semilla_anomalias: int = Query(43, ge=0, le=1_000_000),
+    nivel_base: float = Query(100, ge=1, le=1_000_000),  # valor en el que arranca la serie
     # Tendencia
     tendencia_activa: bool = True,
     tendencia_valor: float = Query(0.5, ge=-1, le=5),  # 0.5 = la serie sube un 50 %
@@ -65,9 +68,9 @@ def get_series(
         forma = (np.exp(3 * u) - 1) / (np.exp(3) - 1)
 
     if tendencia_activa:
-        nivel = BASE * (1 + tendencia_valor * forma)
+        nivel = nivel_base * (1 + tendencia_valor * forma)
     else:
-        nivel = np.full(puntos, BASE)  # sin tendencia: línea plana en BASE
+        nivel = np.full(puntos, nivel_base)  # sin tendencia: línea plana en el nivel base
 
     # ---------- 2. ESTACIONALIDAD ----------
     if estacionalidad_activa:
@@ -88,7 +91,7 @@ def get_series(
 
         # aditivas: oscilan en puntos fijos (±10 con una sola onda)
         # multiplicativas: oscilan un % del nivel (más amplias si la serie sube)
-        serie = nivel * (1 + suma_multiplicativas) + BASE * suma_aditivas
+        serie = nivel * (1 + suma_multiplicativas) + nivel_base * suma_aditivas
     else:
         serie = nivel
 
@@ -98,8 +101,8 @@ def get_series(
         # y al final se escala: el ruido es PROPORCIONAL al valor de la serie en cada punto.
         # Con grado 3, un punto que vale 100 se mueve ~3 y uno que vale 150 se mueve ~4.5.
 
-        # misma muestra aleatoria siempre (semilla fija)
-        rng = np.random.default_rng(SEMILLA)
+        # con la misma semilla sale siempre la misma muestra aleatoria
+        rng = np.random.default_rng(semilla)
         azar = rng.normal(size=puntos)   # números normales (media 0, desviación 1)
 
         if ruido_tipo == "blanco":
@@ -151,8 +154,8 @@ def get_series(
     # ---------- 4. ANOMALÍAS ----------
     resueltas = []  # lo que se aplicó de verdad (útil para ver dónde cayeron las aleatorias)
     if anomalias_activas and anomalia:
-        # los valores aleatorios salen de una semilla fija: siempre los mismos
-        rng_anomalia = np.random.default_rng(SEMILLA + 1)
+        # los valores aleatorios salen de su semilla: con la misma, siempre los mismos
+        rng_anomalia = np.random.default_rng(semilla_anomalias)
         factor = np.zeros(puntos)  # efecto acumulado de todas las anomalías, como fracción
 
         for texto in anomalia:
