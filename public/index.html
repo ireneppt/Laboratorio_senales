@@ -29,12 +29,12 @@
     <aside>
       <form id="controls">
         <fieldset>
-          <legend><label class="toggle"><input type="checkbox" name="trend_on" checked> Tendencia</label></legend>
+          <legend><label class="toggle"><input type="checkbox" name="tendencia_activa" checked> Tendencia</label></legend>
           <label>Valor (cambio total, 0.5 = +50 %)
-            <input type="number" name="trend_value" value="0.5" min="-1" max="5" step="0.1">
+            <input type="number" name="tendencia_valor" value="0.5" min="-1" max="5" step="0.1">
           </label>
           <label>Tipo
-            <select name="trend_type">
+            <select name="tendencia_tipo">
               <option value="lineal">Lineal</option>
               <option value="cuadratica">Cuadrática</option>
               <option value="amortiguada">Amortiguada</option>
@@ -44,28 +44,28 @@
           </label>
         </fieldset>
         <fieldset>
-          <legend><label class="toggle"><input type="checkbox" name="seasonal_on" checked> Estacionalidad</label></legend>
+          <legend><label class="toggle"><input type="checkbox" name="estacionalidad_activa" checked> Estacionalidad</label></legend>
           <label>Periodo (puntos)
-            <input type="number" name="seasonal_period" value="12" min="2" max="100" step="1">
+            <input type="number" name="estacionalidad_periodo" value="12" min="2" max="100" step="1">
           </label>
           <label>Modo
-            <select name="seasonal_mode">
+            <select name="estacionalidad_modo">
               <option value="aditiva">Aditiva</option>
               <option value="multiplicativa">Multiplicativa</option>
             </select>
           </label>
         </fieldset>
         <fieldset>
-          <legend><label class="toggle"><input type="checkbox" name="noise_on" checked> Ruido</label></legend>
+          <legend><label class="toggle"><input type="checkbox" name="ruido_activo" checked> Ruido</label></legend>
           <label>Nivel
-            <select name="noise_level">
+            <select name="ruido_nivel">
               <option value="bajo">Bajo</option>
               <option value="medio" selected>Medio</option>
               <option value="alto">Alto</option>
             </select>
           </label>
           <label>Tipo
-            <select name="noise_type">
+            <select name="ruido_tipo">
               <option value="blanco">Blanco</option>
               <option value="heterocedastico">Heterocedástico</option>
             </select>
@@ -77,7 +77,7 @@
   <script>
     const form = document.getElementById("controls");
 
-    const toggles = ["trend_on", "seasonal_on", "noise_on"];
+    const toggles = ["tendencia_activa", "estacionalidad_activa", "ruido_activo"];
 
     // Un fieldset desactivado deshabilita sus campos; el checkbox del legend queda activo.
     function syncDisabled() {
