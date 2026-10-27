@@ -10,9 +10,23 @@ app = FastAPI()
 AMPLITUD_ESTACIONAL = 0.10  # la onda estacional mide un 10 % del nivel base
 MAX_ESTACIONALIDADES = 20  # tope de ondas estacionales por petición
 MAX_ANOMALIAS = 20  # tope de anomalías por petición
+MAX_CICLOS = 20  # tope de ciclos por petición
 DECAIMIENTO_TRANSITORIO = 0.7  # el transitorio pierde un 30 % de su efecto en cada punto
 MAGNITUD_ALEATORIA = (10, 30)  # una anomalía aleatoria mide entre 10 y 30 % (con signo al azar)
 TIPOS_ANOMALIA = ("puntual", "cambio_nivel", "transitorio")
+
+
+def ruido_lento(rng, n, escala):
+    """Serie aleatoria que cambia despacio, de media 0 y desviación 1.
+
+    Es ruido normal suavizado con una campana: cuanto mayor la escala (en puntos), más tarda
+    en cambiar. Se usa para que la duración y la altura de un ciclo varíen de forma gradual.
+    """
+    mitad = int(3 * escala) + 1
+    campana = np.exp(-0.5 * (np.arange(-mitad, mitad + 1) / escala) ** 2)
+    campana = campana / np.sqrt(np.sum(campana ** 2))  # así el resultado mantiene desviación 1
+    azar = rng.normal(size=n + 2 * mitad)               # de más en los bordes, que luego se recortan
+    return np.convolve(azar, campana, mode="valid")
 
 
 @app.get("/api/series")
@@ -26,7 +40,7 @@ def get_series(
     nivel_base: float = Query(100, ge=1, le=1_000_000),  # valor en el que arranca la serie
     # Tendencia
     tendencia_activa: bool = True,
-    tendencia_valor: float = Query(0.5, ge=-1, le=5),  # 0.5 = la serie sube un 50 %
+    tendencia_valor: float = Query(0.5, ge=-1, le=100),  # 0.5 = la serie sube un 50 %; 100 = sube un 10 000 %
     tendencia_tipo: Literal["lineal", "cuadratica", "amortiguada", "logaritmica", "exponencial"] = "lineal",
     # Estacionalidad
     estacionalidad_activa: bool = True,
@@ -35,6 +49,20 @@ def get_series(
     # Si no se envía ninguna, se usa una sola onda de periodo 50 aditiva.
     estacionalidad_periodo: list[Annotated[int, Field(ge=2, le=100)]] | None = Query(None, max_length=MAX_ESTACIONALIDADES),
     estacionalidad_modo: list[Literal["aditiva", "multiplicativa"]] | None = Query(None, max_length=MAX_ESTACIONALIDADES),
+    # Ciclos: como la estacionalidad, pero con duración y altura irregulares. Una lista de ciclos,
+    # cada uno con sus seis valores (se envían repetidos y deben ir todas las listas con la misma longitud).
+    #   periodo: duración media, en puntos            var_periodo: cuánto varía la duración (%)
+    #   amplitud: altura media (% del valor)          var_amplitud: cuánto varía la altura (%)
+    #   fase: dónde empieza (% del ciclo)             modo: aditivo o multiplicativo
+    # Por defecto apagado, para que quien llame a la API sin pedirlo no reciba ciclos.
+    ciclo_activo: bool = False,
+    ciclo_periodo: list[Annotated[int, Field(ge=10, le=2000)]] | None = Query(None, max_length=MAX_CICLOS),
+    ciclo_var_periodo: list[Annotated[float, Field(ge=0, le=80)]] | None = Query(None, max_length=MAX_CICLOS),
+    ciclo_amplitud: list[Annotated[float, Field(ge=0, le=100)]] | None = Query(None, max_length=MAX_CICLOS),
+    ciclo_var_amplitud: list[Annotated[float, Field(ge=0, le=100)]] | None = Query(None, max_length=MAX_CICLOS),
+    ciclo_fase: list[Annotated[float, Field(ge=0, le=100)]] | None = Query(None, max_length=MAX_CICLOS),
+    ciclo_modo: list[Literal["aditiva", "multiplicativa"]] | None = Query(None, max_length=MAX_CICLOS),
+    semilla_ciclo: int = Query(44, ge=0, le=1_000_000),
     # Ruido
     ruido_activo: bool = True,
     ruido_grado: float = Query(3, ge=0, le=20),  # desviación típica, en % del valor de la serie
@@ -97,7 +125,47 @@ def get_series(
 
     con_estacionalidad = serie  # para la descomposición: la serie hasta este punto
 
-    # ---------- 3. RUIDO ----------
+    # ---------- 3. CICLOS ----------
+    # Como la estacionalidad, pero irregular: la duración y la altura de cada ciclo van cambiando
+    # despacio, así que no se repite exactamente igual. Con variabilidad 0 sería una onda fija.
+    if ciclo_activo:
+        periodos = ciclo_periodo or [100]
+        var_periodos = ciclo_var_periodo or [20.0]
+        amplitudes = ciclo_amplitud or [10.0]
+        var_amplitudes = ciclo_var_amplitud or [25.0]
+        fases = ciclo_fase or [0.0]
+        modos = ciclo_modo or ["aditiva"]
+        if len({len(periodos), len(var_periodos), len(amplitudes), len(var_amplitudes), len(fases), len(modos)}) != 1:
+            raise HTTPException(422, "Cada ciclo necesita sus seis valores")
+
+        suma_aditivos = np.zeros(puntos)         # ciclos que se SUMAN
+        suma_multiplicativos = np.zeros(puntos)  # ciclos que MULTIPLICAN
+        for i in range(len(periodos)):
+            # cada ciclo tiene su propia muestra aleatoria (misma semilla + número de ciclo)
+            rng_ciclo = np.random.default_rng([semilla_ciclo, i])
+            escala = periodos[i] / 3  # los cambios se notan de un ciclo al siguiente, no de un punto al otro
+
+            # duración de cada vuelta: varía alrededor del periodo medio (nunca menos de un 20 % de él)
+            duracion = periodos[i] * (1 + var_periodos[i] / 100 * ruido_lento(rng_ciclo, puntos, escala))
+            duracion = np.maximum(duracion, 0.2 * periodos[i])
+            # posición dentro del ciclo: 0 a 1 es una vuelta. Empieza en la fase pedida y avanza 1/duración por punto.
+            posicion = fases[i] / 100 + np.concatenate([[0], np.cumsum(1 / duracion[:-1])])
+
+            # altura de cada vuelta: también varía despacio alrededor de la amplitud media (nunca negativa)
+            altura = amplitudes[i] / 100 * np.maximum(0, 1 + var_amplitudes[i] / 100 * ruido_lento(rng_ciclo, puntos, escala))
+
+            onda = altura * np.sin(2 * np.pi * posicion)
+            if modos[i] == "aditiva":
+                suma_aditivos = suma_aditivos + onda
+            elif modos[i] == "multiplicativa":
+                suma_multiplicativos = suma_multiplicativos + onda
+
+        # aditivos: oscilan en puntos (un % del nivel base); multiplicativos: un % del valor de la serie
+        serie = serie * (1 + suma_multiplicativos) + nivel_base * suma_aditivos
+
+    con_ciclo = serie  # para la descomposición
+
+    # ---------- 4. RUIDO ----------
     if ruido_activo:
         # Primero se genera un ruido "de tamaño 1" (desviación típica 1) según el tipo,
         # y al final se escala: el ruido es PROPORCIONAL al valor de la serie en cada punto.
@@ -155,7 +223,7 @@ def get_series(
 
     con_ruido = serie  # para la descomposición
 
-    # ---------- 4. ANOMALÍAS ----------
+    # ---------- 5. ANOMALÍAS ----------
     resueltas = []  # lo que se aplicó de verdad (útil para ver dónde cayeron las aleatorias)
     if anomalias_activas and anomalia:
         # los valores aleatorios salen de su semilla: con la misma, siempre los mismos
@@ -202,12 +270,13 @@ def get_series(
         serie = serie * (1 + factor)
 
     # Descomposición: cada pieza es lo que aporta ese bloque, de modo que
-    # tendencia + estacionalidad + ruido + anomalías = serie. "tendencia" es el nivel con su
+    # tendencia + estacionalidad + ciclo + ruido + anomalías = serie. "tendencia" es el nivel con su
     # tendencia, y también sirve para dibujarla aparte sobre la serie.
     componentes = {
         "tendencia": nivel,
         "estacionalidad": con_estacionalidad - nivel,
-        "ruido": con_ruido - con_estacionalidad,
+        "ciclo": con_ciclo - con_estacionalidad,
+        "ruido": con_ruido - con_ciclo,
         "anomalias": serie - con_ruido,
     }
     return {

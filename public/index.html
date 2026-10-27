@@ -18,6 +18,7 @@
       --grid: #e1e0d9;
       --axis: #c3c2b7;
       --border: rgba(11, 11, 11, 0.10);
+      --error: #d03b3b;
       /* un color por serie, siempre en este orden */
       --series-1: #2a78d6;
       --series-2: #eb6834;
@@ -40,6 +41,7 @@
         --grid: #2c2c2a;
         --axis: #383835;
         --border: rgba(255, 255, 255, 0.10);
+        --error: #e66767;
         --series-1: #3987e5;
         --series-2: #d95926;
         --series-3: #199e70;
@@ -137,6 +139,9 @@
       outline-offset: 1px;
     }
     input:disabled, select:disabled { opacity: 0.45; }
+    /* Campo con un valor no válido: borde rojo y un texto que dice qué se espera */
+    input.invalido { border-color: var(--error); }
+    small.error { display: block; margin-top: 4px; color: var(--error); font-size: 0.8rem; }
 
     [hidden] { display: none !important; }
 
@@ -196,6 +201,11 @@
     .estac-cab { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
     .estac-titulo { font-size: 0.9rem; font-weight: 650; }
     .estac label:last-child { margin-bottom: 0; }
+    /* Los seis valores de un ciclo, de dos en dos */
+    .rejilla2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+    .rejilla2 label { margin-bottom: 12px; font-size: 0.85rem; }
+    .rejilla2 input[type=number], .rejilla2 select { padding: 0 10px; font-size: 0.95rem; }
+    button.separado { margin-top: 10px; }
     .campo { margin-bottom: 14px; color: var(--ink-2); font-size: 0.9rem; }
     .fila { display: flex; gap: 12px; align-items: center; }
     .fila input[type=number] { flex: 1; min-width: 0; margin-top: 6px; }
@@ -264,7 +274,7 @@
           <fieldset>
             <legend><label class="toggle"><input type="checkbox" class="switch" name="tendencia_activa" checked> Tendencia</label></legend>
             <label>Valor
-              <input type="number" name="tendencia_valor" value="0.5" min="-1" max="5" step="0.1">
+              <input type="number" name="tendencia_valor" value="0.5" min="-1" max="100" step="0.1">
             </label>
             <label>Tipo
               <select name="tendencia_tipo">
@@ -299,6 +309,44 @@
                     <option value="multiplicativa">Multiplicativa</option>
                   </select>
                 </label>
+              </div>
+            </template>
+          </fieldset>
+
+          <fieldset>
+            <legend><label class="toggle"><input type="checkbox" class="switch" name="ciclo_activo" checked> Ciclo</label></legend>
+            <div id="ciclos"></div>
+            <button type="button" id="anadir-ciclo">+ Añadir ciclo</button>
+            <button type="button" id="regenerar-ciclo" class="separado">Regenerar ciclo</button>
+            <template id="plantilla-ciclo">
+              <div class="estac">
+                <div class="estac-cab">
+                  <span class="estac-titulo"></span>
+                  <button type="button" class="quitar" title="Quitar este ciclo">×</button>
+                </div>
+                <div class="rejilla2">
+                  <label>Periodo medio (puntos)
+                    <input type="number" name="ciclo_periodo" value="100" min="10" max="2000" step="10">
+                  </label>
+                  <label>Variación del periodo (%)
+                    <input type="number" name="ciclo_var_periodo" value="20" min="0" max="80" step="5">
+                  </label>
+                  <label>Amplitud (%)
+                    <input type="number" name="ciclo_amplitud" value="10" min="0" max="100" step="1">
+                  </label>
+                  <label>Variación de la amplitud (%)
+                    <input type="number" name="ciclo_var_amplitud" value="25" min="0" max="100" step="5">
+                  </label>
+                  <label>Fase inicial (% del ciclo)
+                    <input type="number" name="ciclo_fase" value="0" min="0" max="100" step="5">
+                  </label>
+                  <label>Modo
+                    <select name="ciclo_modo">
+                      <option value="aditiva">Aditivo</option>
+                      <option value="multiplicativa">Multiplicativo</option>
+                    </select>
+                  </label>
+                </div>
               </div>
             </template>
           </fieldset>
@@ -394,11 +442,12 @@
   <script>
     const form = document.getElementById("controls");
 
-    const toggles = ["tendencia_activa", "estacionalidad_activa", "ruido_activo", "anomalias_activas"];
+    const toggles = ["tendencia_activa", "estacionalidad_activa", "ciclo_activo", "ruido_activo", "anomalias_activas"];
 
     const N_COLORES = 8;             // colores de la paleta validada; más series reciben un color generado
     const MAX_ESTACIONALIDADES = 20; // mismo tope que app.py
     const MAX_ANOMALIAS = 20;        // mismo tope que app.py
+    const MAX_CICLOS = 20;           // mismo tope que app.py
 
     const lista = document.getElementById("estacionalidades");
     const plantilla = document.getElementById("plantilla-estac");
@@ -406,6 +455,40 @@
     const listaAnomalias = document.getElementById("anomalias");
     const plantillaAnomalia = document.getElementById("plantilla-anomalia");
     const anadirAnomalia = document.getElementById("anadir-anomalia");
+
+    // Escribe (o borra) el aviso que va debajo de un campo numérico y lo marca en rojo.
+    function mostrarError(el, mensaje) {
+      const destino = el.closest(".fila") || el; // en las filas con casilla "aleatorio", el aviso va debajo de la fila
+      let aviso = destino.nextElementSibling;
+      if (!aviso || !aviso.classList.contains("error")) {
+        if (!mensaje) return;
+        aviso = document.createElement("small");
+        aviso.className = "error";
+        destino.after(aviso);
+      }
+      aviso.textContent = mensaje;
+      aviso.hidden = !mensaje;
+      el.classList.toggle("invalido", Boolean(mensaje));
+    }
+
+    // Revisa los campos numéricos activos: vacíos o fuera de su mínimo/máximo. Devuelve false si hay alguno mal.
+    // Así un valor imposible se explica en pantalla, en vez de que la gráfica se quede quieta sin avisar.
+    function validarCampos() {
+      let todoBien = true;
+      form.querySelectorAll("input[type=number]").forEach((el) => {
+        if (el.disabled || el.closest(".trio")) return mostrarError(el, ""); // apagados y contadores: no se envían
+        let mensaje = "";
+        if (el.value === "" || el.validity.badInput) {
+          mensaje = "Escribe un número";
+        } else if (el.validity.rangeUnderflow || el.validity.rangeOverflow) {
+          if (el.min !== "" && el.max !== "") mensaje = `Entre ${el.min} y ${el.max}`;
+          else mensaje = el.validity.rangeUnderflow ? `Mínimo ${el.min}` : `Máximo ${el.max}`;
+        }
+        mostrarError(el, mensaje);
+        if (mensaje) todoBien = false;
+      });
+      return todoBien;
+    }
 
     // Un fieldset desactivado deshabilita sus campos; el interruptor del legend queda activo.
     function syncDisabled() {
@@ -423,6 +506,7 @@
       }
       // Los botones de añadir se bloquean al llegar al tope del servidor.
       if (lista.children.length >= MAX_ESTACIONALIDADES) anadir.disabled = true;
+      if (listaCiclos.children.length >= MAX_CICLOS) anadirCiclo.disabled = true;
       if (listaAnomalias.children.length >= MAX_ANOMALIAS) {
         anadirAnomalia.disabled = true;
         document.getElementById("anadir-aleatorias").disabled = true;
@@ -519,6 +603,48 @@
       draw();
     });
 
+    // ---------- Ciclos (filas del panel) ----------
+    const listaCiclos = document.getElementById("ciclos");
+    const plantillaCiclo = document.getElementById("plantilla-ciclo");
+    const anadirCiclo = document.getElementById("anadir-ciclo");
+    // Los seis valores de un ciclo, con el nombre del campo del formulario y de la API
+    const CAMPOS_CICLO = ["periodo", "var_periodo", "amplitud", "var_amplitud", "fase", "modo"];
+    const CICLO_INICIAL = { periodo: "100", var_periodo: "20", amplitud: "10", var_amplitud: "25", fase: "0", modo: "aditiva" };
+    const PERIODOS_CICLO = [100, 250, 60, 400]; // periodo con el que arranca cada ciclo nuevo
+
+    function renumerarCiclos() {
+      [...listaCiclos.children].forEach((fila, i) => {
+        fila.querySelector(".estac-titulo").textContent = "Ciclo " + (i + 1);
+      });
+    }
+
+    function nuevaFilaCiclo(valores = {}) {
+      const fila = plantillaCiclo.content.firstElementChild.cloneNode(true);
+      const v = { ...CICLO_INICIAL, periodo: PERIODOS_CICLO[listaCiclos.children.length % PERIODOS_CICLO.length], ...valores };
+      for (const campo of CAMPOS_CICLO) fila.querySelector(`[name=ciclo_${campo}]`).value = v[campo];
+      listaCiclos.appendChild(fila);
+      renumerarCiclos();
+    }
+
+    anadirCiclo.addEventListener("click", () => {
+      nuevaFilaCiclo();
+      draw();
+    });
+
+    listaCiclos.addEventListener("click", (e) => {
+      const quitar = e.target.closest(".quitar");
+      if (!quitar) return;
+      quitar.closest(".estac").remove();
+      renumerarCiclos();
+      draw();
+    });
+
+    // Otra muestra aleatoria del ciclo (misma configuración): cambian sus vueltas y alturas.
+    document.getElementById("regenerar-ciclo").addEventListener("click", () => {
+      activa.semillaCiclo = nuevaSemilla();
+      draw();
+    });
+
     // ---------- Series: cada una guarda su configuración ----------
     let series = [];          // { id, nombre, slot, estado, datos, incluidas }
     let contadorSeries = 0;
@@ -532,6 +658,7 @@
         puntos: "500", nivel_base: "100",
         tendencia_activa: false, tendencia_valor: "0.5", tendencia_tipo: "lineal", ver_tendencia: false,
         estacionalidad_activa: false, estacionalidades: [{ periodo: PERIODOS_INICIALES[0], modo: "aditiva" }],
+        ciclo_activo: false, ciclos: [{ ...CICLO_INICIAL }],
         ruido_activo: false, ruido_grado: "3", ruido_tipo: "blanco",
         anomalias_activas: false, anomalias: [],
       };
@@ -562,7 +689,7 @@
       contadorSeries++;
       // slot = su hueco de la paleta (también decide su semilla); color = el que se ve, editable:
       // un número de la paleta o un "#rrggbb" elegido a mano.
-      return { id: contadorSeries, nombre: "Serie " + contadorSeries, slot, color: colorInicial(slot), semilla: nuevaSemilla(), semillaAnomalias: nuevaSemilla(), descomponer: false, estado: estadoSoloNivel(), datos: null, incluidas: [] };
+      return { id: contadorSeries, nombre: "Serie " + contadorSeries, slot, color: colorInicial(slot), semilla: nuevaSemilla(), semillaAnomalias: nuevaSemilla(), semillaCiclo: nuevaSemilla(), descomponer: false, estado: estadoSoloNivel(), datos: null, incluidas: [] };
     }
 
     // Si se borra el nombre, se muestra "Serie N" para que la pestaña nunca quede vacía.
@@ -677,6 +804,9 @@
         periodo: fila.querySelector("[name=estacionalidad_periodo]").value,
         modo: fila.querySelector("[name=estacionalidad_modo]").value,
       }));
+      e.ciclos = [...listaCiclos.children].map((fila) =>
+        Object.fromEntries(CAMPOS_CICLO.map((campo) => [campo, fila.querySelector(`[name=ciclo_${campo}]`).value]))
+      );
       e.anomalias = [...listaAnomalias.children].map((fila) => ({
         tipo: fila.querySelector(".a-tipo").value,
         punto: fila.querySelector(".a-punto").value,
@@ -706,6 +836,8 @@
       form.elements.ver_tendencia.checked = e.ver_tendencia;
       lista.replaceChildren();
       e.estacionalidades.forEach((est) => anadirEstacionalidad(est.periodo, est.modo));
+      listaCiclos.replaceChildren();
+      e.ciclos.forEach((ciclo) => nuevaFilaCiclo(ciclo));
       listaAnomalias.replaceChildren();
       e.anomalias.forEach((a) => nuevaFilaAnomalia(a));
       renumerar();
@@ -734,6 +866,14 @@
         for (const est of e.estacionalidades) {
           p.append("estacionalidad_periodo", est.periodo);
           p.append("estacionalidad_modo", est.modo);
+        }
+      }
+      const conCiclos = e.ciclo_activo && e.ciclos.length > 0;
+      p.set("ciclo_activo", conCiclos);
+      if (conCiclos) {
+        p.set("semilla_ciclo", s.semillaCiclo);
+        for (const ciclo of e.ciclos) {
+          for (const campo of CAMPOS_CICLO) p.append(`ciclo_${campo}`, ciclo[campo]);
         }
       }
       p.set("ruido_activo", e.ruido_activo);
@@ -934,6 +1074,8 @@
       if (e.tendencia_activa) partes.push(`tendencia ${TEXTO_OPCION.tendencia_tipo[e.tendencia_tipo]}`);
       const n = e.estacionalidades.length;
       if (e.estacionalidad_activa && n > 0) partes.push(n === 1 ? "1 estacionalidad" : `${n} estacionalidades`);
+      const nc = e.ciclos.length;
+      if (e.ciclo_activo && nc > 0) partes.push(nc === 1 ? "1 ciclo" : `${nc} ciclos`);
       if (e.ruido_activo) partes.push(`ruido ${TEXTO_OPCION.ruido_tipo[e.ruido_tipo]} ${e.ruido_grado} %`);
       if (anomaliasAplicadas > 0) {
         partes.push(anomaliasAplicadas === 1 ? "1 anomalía" : `${anomaliasAplicadas} anomalías`);
@@ -1015,6 +1157,7 @@
     const COMPONENTES = [
       { clave: "tendencia", titulo: "Nivel y tendencia", visible: () => true },
       { clave: "estacionalidad", titulo: "Estacionalidad", visible: (s) => s.estado.estacionalidad_activa && s.estado.estacionalidades.length > 0 },
+      { clave: "ciclo", titulo: "Ciclo", visible: (s) => s.estado.ciclo_activo && s.estado.ciclos.length > 0 },
       { clave: "ruido", titulo: "Ruido", visible: (s) => s.estado.ruido_activo },
       { clave: "anomalias", titulo: "Anomalías", visible: (s) => s.estado.anomalias_activas && s.datos.anomalias.length > 0 },
     ];
@@ -1108,6 +1251,7 @@
       syncDisabled();
       guardarActiva();
       renderPestanas(); // por si se ha cambiado el nombre de la serie
+      if (!validarCampos()) return; // hay un valor imposible: se avisa en el campo y se conserva la gráfica
       const ok = await cargarSerie(activa, numero);
       if (numero !== ultimaPeticion) return;
       if (ok) mostrarResueltos();
