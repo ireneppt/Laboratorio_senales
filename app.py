@@ -1,34 +1,54 @@
-from typing import Literal
+from typing import Annotated, Literal
 
 import numpy as np
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query
+from pydantic import Field
 
 app = FastAPI()
 
 # Valores fijos por ahora
-N = 500  # número de puntos de la serie
 BASE = 100           # nivel base: la serie arranca en este valor
 AMPLITUD_ESTACIONAL = 0.10  # la onda estacional mide un 10 % de BASE
-SEMILLA = 42         # para que el ruido sea siempre el mismo
+MAX_ESTACIONALIDADES = 20  # tope de ondas estacionales por petición
+SEMILLA = 42        # para que el ruido sea siempre el mismo
+MAX_ANOMALIAS = 20  # tope de anomalías por petición
+DECAIMIENTO_TRANSITORIO = 0.7  # el transitorio pierde un 30 % de su efecto en cada punto
+MAGNITUD_ALEATORIA = (10, 30)  # una anomalía aleatoria mide entre 10 y 30 % (con signo al azar)
+TIPOS_ANOMALIA = ("puntual", "cambio_nivel", "transitorio")
 
 
 @app.get("/api/series")
 def get_series(
+    # Serie
+    puntos: int = Query(500, ge=10, le=5000),  # número de puntos (eje x)
     # Tendencia
     tendencia_activa: bool = True,
     tendencia_valor: float = Query(0.5, ge=-1, le=5),  # 0.5 = la serie sube un 50 %
     tendencia_tipo: Literal["lineal", "cuadratica", "amortiguada", "logaritmica", "exponencial"] = "lineal",
     # Estacionalidad
     estacionalidad_activa: bool = True,
-    estacionalidad_periodo: int = Query(12, ge=2, le=100),
-    estacionalidad_modo: Literal["aditiva", "multiplicativa"] = "aditiva",
+    # Estacionalidad múltiple: una lista de ondas, cada una con su periodo y su modo.
+    # Se envían repetidos: ?estacionalidad_periodo=12&estacionalidad_modo=aditiva&estacionalidad_periodo=30&...
+    # Si no se envía ninguna, se usa una sola onda de periodo 50 aditiva.
+    estacionalidad_periodo: list[Annotated[int, Field(ge=2, le=100)]] | None = Query(None, max_length=MAX_ESTACIONALIDADES),
+    estacionalidad_modo: list[Literal["aditiva", "multiplicativa"]] | None = Query(None, max_length=MAX_ESTACIONALIDADES),
     # Ruido
     ruido_activo: bool = True,
-    ruido_nivel: Literal["bajo", "medio", "alto"] = "medio",
-    ruido_tipo: Literal["blanco", "heterocedastico"] = "blanco",
+    ruido_grado: float = Query(3, ge=0, le=20),  # desviación típica, en % del valor de la serie
+    ruido_tipo: Literal[
+        "blanco", "heterocedastico", "autocorrelado_positivo",
+        "autocorrelado_negativo", "garch", "colas_pesadas",
+    ] = "blanco",
+    # Anomalías: una lista, cada una como "tipo,punto,magnitud" (repetido en la URL).
+    #   tipo: puntual | cambio_nivel | transitorio
+    #   punto: número de punto, o "aleatorio"
+    #   magnitud: % del valor de la serie (-100 a 100), o "aleatorio"
+    # Ejemplo: ?anomalia=cambio_nivel,30,20&anomalia=puntual,aleatorio,aleatorio
+    anomalias_activas: bool = True,
+    anomalia: list[str] | None = Query(None, max_length=MAX_ANOMALIAS),
 ):
-    t = np.arange(N)      # 0, 1, 2, ... N-1
-    u = t / (N - 1)       # lo mismo pero de 0 a 1
+    t = np.arange(puntos)      # 0, 1, 2, ... puntos-1
+    u = t / (puntos - 1)       # lo mismo pero de 0 a 1
 
     # ---------- 1. TENDENCIA ----------
     # "forma" va de 0 a 1 según el tipo. Así todas las tendencias terminan
@@ -47,37 +67,131 @@ def get_series(
     if tendencia_activa:
         nivel = BASE * (1 + tendencia_valor * forma)
     else:
-        nivel = np.full(N, BASE)  # sin tendencia: línea plana en BASE
+        nivel = np.full(puntos, BASE)  # sin tendencia: línea plana en BASE
 
     # ---------- 2. ESTACIONALIDAD ----------
     if estacionalidad_activa:
-        onda = np.sin(2 * np.pi * t / estacionalidad_periodo)  # oscila entre -1 y 1
-        if estacionalidad_modo == "aditiva":
-            # la onda se SUMA: siempre oscila ±10 puntos
-            serie = nivel + BASE * AMPLITUD_ESTACIONAL * onda
-        elif estacionalidad_modo == "multiplicativa":
-            # la onda MULTIPLICA: oscila ±10 % del nivel (más amplia si la serie sube)
-            serie = nivel * (1 + AMPLITUD_ESTACIONAL * onda)
+        periodos = estacionalidad_periodo or [50]
+        modos = estacionalidad_modo or ["aditiva"]
+        if len(periodos) != len(modos):
+            raise HTTPException(422, "Cada estacionalidad necesita un periodo y un modo")
+
+        suma_aditivas = np.zeros(puntos)         # ondas que se SUMAN al nivel
+        suma_multiplicativas = np.zeros(puntos)  # ondas que MULTIPLICAN el nivel
+        for periodo, modo in zip(periodos, modos):
+            # cada onda oscila entre -AMPLITUD_ESTACIONAL y +AMPLITUD_ESTACIONAL
+            onda = AMPLITUD_ESTACIONAL * np.sin(2 * np.pi * t / periodo)
+            if modo == "aditiva":
+                suma_aditivas = suma_aditivas + onda
+            elif modo == "multiplicativa":
+                suma_multiplicativas = suma_multiplicativas + onda
+
+        # aditivas: oscilan en puntos fijos (±10 con una sola onda)
+        # multiplicativas: oscilan un % del nivel (más amplias si la serie sube)
+        serie = nivel * (1 + suma_multiplicativas) + BASE * suma_aditivas
     else:
         serie = nivel
 
     # ---------- 3. RUIDO ----------
     if ruido_activo:
-        # desviación típica del ruido, en puntos (BASE = 100)
-        if ruido_nivel == "bajo":
-            sigma = BASE * 0.01   # 1
-        elif ruido_nivel == "medio":
-            sigma = BASE * 0.03   # 3
-        elif ruido_nivel == "alto":
-            sigma = BASE * 0.06   # 6
-
-        if ruido_tipo == "heterocedastico":
-            # la variabilidad crece con el tiempo: x0.25 al inicio, x2 al final
-            sigma = sigma * (0.25 + 1.75 * u)
-        # si es "blanco", sigma se queda igual en toda la serie
+        # Primero se genera un ruido "de tamaño 1" (desviación típica 1) según el tipo,
+        # y al final se escala: el ruido es PROPORCIONAL al valor de la serie en cada punto.
+        # Con grado 3, un punto que vale 100 se mueve ~3 y uno que vale 150 se mueve ~4.5.
 
         # misma muestra aleatoria siempre (semilla fija)
-        azar = np.random.default_rng(SEMILLA).normal(size=N)
-        serie = serie + sigma * azar
+        rng = np.random.default_rng(SEMILLA)
+        azar = rng.normal(size=puntos)   # números normales (media 0, desviación 1)
 
-    return {"x": t.tolist(), "y": serie.round(4).tolist()}
+        if ruido_tipo == "blanco":
+            # cada punto es independiente y con la misma variabilidad
+            ruido = azar
+
+        elif ruido_tipo == "heterocedastico":
+            # la variabilidad crece con el tiempo: x0.25 al inicio, x2 al final
+            ruido = (0.25 + 1.75 * u) * azar
+
+        elif ruido_tipo == "autocorrelado_positivo" or ruido_tipo == "autocorrelado_negativo":
+            # AR(1): cada valor depende del anterior.  ruido[t] = phi * ruido[t-1] + novedad
+            # phi > 0: los valores se parecen al anterior (rachas suaves)
+            # phi < 0: los valores alternan de signo (zigzag)
+            if ruido_tipo == "autocorrelado_positivo":
+                phi = 0.8
+            else:
+                phi = -0.8
+            # la novedad se reescala para que la desviación total siga siendo 1
+            novedad = np.sqrt(1 - phi ** 2) * azar
+            ruido = np.zeros(puntos)
+            ruido[0] = azar[0]
+            for i in range(1, puntos):
+                ruido[i] = phi * ruido[i - 1] + novedad[i]
+
+        elif ruido_tipo == "garch":
+            # GARCH(1,1): la variabilidad de hoy depende de los golpes de ayer,
+            # así salen rachas de calma y rachas de volatilidad.
+            #   varianza[t] = omega + alfa * ruido[t-1]**2 + beta * varianza[t-1]
+            alfa = 0.10
+            beta = 0.85
+            omega = 1 - alfa - beta  # así la desviación media sigue siendo 1
+            varianza = 1.0
+            ruido = np.zeros(puntos)
+            for i in range(puntos):
+                ruido[i] = np.sqrt(varianza) * azar[i]
+                varianza = omega + alfa * ruido[i] ** 2 + beta * varianza
+
+        elif ruido_tipo == "colas_pesadas":
+            # t de Student con 3 grados de libertad: casi todo es pequeño, pero
+            # de vez en cuando salen valores extremos (outliers).
+            # Se divide entre raíz de 3 para que la desviación sea 1.
+            ruido = rng.standard_t(3, size=puntos) / np.sqrt(3)
+
+        # tamaño del ruido en cada punto: grado % del valor de la serie (sin ruido)
+        escala = np.abs(serie) * ruido_grado / 100
+        serie = serie + escala * ruido
+
+    # ---------- 4. ANOMALÍAS ----------
+    resueltas = []  # lo que se aplicó de verdad (útil para ver dónde cayeron las aleatorias)
+    if anomalias_activas and anomalia:
+        # los valores aleatorios salen de una semilla fija: siempre los mismos
+        rng_anomalia = np.random.default_rng(SEMILLA + 1)
+        factor = np.zeros(puntos)  # efecto acumulado de todas las anomalías, como fracción
+
+        for texto in anomalia:
+            partes = texto.split(",")
+            if len(partes) != 3 or partes[0] not in TIPOS_ANOMALIA:
+                raise HTTPException(422, f"Anomalía no válida: {texto}")
+            tipo, punto, magnitud = partes
+
+            try:
+                if punto == "aleatorio":
+                    punto = int(rng_anomalia.integers(0, puntos))
+                else:
+                    punto = int(punto)
+                if magnitud == "aleatorio":
+                    signo = rng_anomalia.choice([-1, 1])
+                    magnitud = signo * rng_anomalia.uniform(*MAGNITUD_ALEATORIA)
+                else:
+                    magnitud = float(magnitud)
+            except ValueError:
+                raise HTTPException(422, f"Anomalía no válida: {texto}")
+            if not -100 <= magnitud <= 100:
+                raise HTTPException(422, "La magnitud debe estar entre -100 y 100")
+            punto = min(max(punto, 0), puntos - 1)  # si se sale del eje x, se pega al borde
+
+            # "forma" = cómo se reparte el efecto en el tiempo (1 = efecto completo)
+            if tipo == "puntual":
+                # solo afecta a un punto
+                forma = (t == punto).astype(float)
+            elif tipo == "cambio_nivel":
+                # desde el punto en adelante, la serie queda desplazada para siempre
+                forma = (t >= punto).astype(float)
+            elif tipo == "transitorio":
+                # golpe en el punto que se va apagando poco a poco
+                forma = np.where(t >= punto, DECAIMIENTO_TRANSITORIO ** np.maximum(t - punto, 0), 0.0)
+
+            factor = factor + magnitud / 100 * forma
+            resueltas.append({"tipo": tipo, "punto": punto, "magnitud": round(float(magnitud), 1)})
+
+        # el efecto es proporcional al valor de la serie en cada punto
+        serie = serie * (1 + factor)
+
+    return {"x": t.tolist(), "y": serie.round(4).tolist(), "anomalias": resueltas}

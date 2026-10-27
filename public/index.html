@@ -8,7 +8,7 @@
   <style>
     body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; }
     h1 { margin: 0 0 16px; font-size: 1.4rem; }
-    .layout { display: grid; grid-template-columns: 1fr 280px; gap: 16px; align-items: start; }
+    .layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; align-items: start; }
     #chart { width: 100%; height: 480px; min-width: 0; }
     aside { border: 1px solid #ccc; border-radius: 8px; padding: 12px 16px; }
     fieldset { border: 0; border-bottom: 1px solid #ddd; margin: 0 0 12px; padding: 0 0 12px; }
@@ -18,19 +18,42 @@
     select, input { display: block; width: 100%; box-sizing: border-box; margin-top: 2px; padding: 4px; font: inherit; }
     label.toggle { display: flex; align-items: center; gap: 6px; font-size: inherit; margin: 0; cursor: pointer; }
     label.toggle input { display: inline-block; width: auto; margin: 0; }
+    .campo { font-size: 0.85rem; margin-bottom: 8px; }
+    .fila { display: flex; gap: 8px; align-items: center; }
+    .fila input[type=number] { flex: 1; min-width: 0; }
+    .fila label.toggle { font-size: 0.8rem; white-space: nowrap; }
+    .resuelto { display: block; color: #666; font-size: 0.75rem; margin-top: 6px; min-height: 1em; }
+    #anadir-anomalia, #anadir-aleatorias { width: 100%; padding: 6px; }
+    .aleatorias { border-top: 1px solid #ddd; margin-top: 12px; padding-top: 10px; }
+    .aleatorias-titulo { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 6px; }
+    .trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .trio label { font-size: 0.75rem; margin-bottom: 8px; }
+    .nota { font-size: 0.75rem; color: #666; margin: -4px 0 8px; }
+    .estac { border: 1px solid #ddd; border-radius: 6px; padding: 8px; margin-bottom: 8px; }
+    .estac-cab { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 0.85rem; font-weight: 600; }
+    .estac label:last-child { margin-bottom: 0; }
+    button { font: inherit; cursor: pointer; }
+    button:disabled { cursor: default; }
+    .quitar { padding: 0 8px; line-height: 1.4; }
+    #anadir { width: 100%; padding: 6px; }
     fieldset:disabled { opacity: 0.45; }
-    @media (max-width: 720px) { .layout { grid-template-columns: 1fr; } }
+    @media (max-width: 720px) { .layout { grid-template-columns: 1fr; } #chart { order: -1; } }
   </style>
 </head>
 <body>
   <h1>Laboratorio de señales</h1>
   <div class="layout">
-    <div id="chart"></div>
     <aside>
       <form id="controls">
         <fieldset>
+          <legend>Serie</legend>
+          <label>Número de puntos (eje x)
+            <input type="number" name="puntos" value="500" min="10" max="5000" step="10">
+          </label>
+        </fieldset>
+        <fieldset>
           <legend><label class="toggle"><input type="checkbox" name="tendencia_activa" checked> Tendencia</label></legend>
-          <label>Valor (cambio total, 0.5 = +50 %)
+          <label>Valor
             <input type="number" name="tendencia_valor" value="0.5" min="-1" max="5" step="0.1">
           </label>
           <label>Tipo
@@ -45,58 +68,254 @@
         </fieldset>
         <fieldset>
           <legend><label class="toggle"><input type="checkbox" name="estacionalidad_activa" checked> Estacionalidad</label></legend>
-          <label>Periodo (puntos)
-            <input type="number" name="estacionalidad_periodo" value="12" min="2" max="100" step="1">
-          </label>
-          <label>Modo
-            <select name="estacionalidad_modo">
-              <option value="aditiva">Aditiva</option>
-              <option value="multiplicativa">Multiplicativa</option>
-            </select>
-          </label>
+          <div id="estacionalidades"></div>
+          <button type="button" id="anadir">+ Añadir estacionalidad</button>
+          <template id="plantilla-estac">
+            <div class="estac">
+              <div class="estac-cab">
+                <span class="estac-titulo"></span>
+                <button type="button" class="quitar" title="Quitar esta estacionalidad">×</button>
+              </div>
+              <label>Periodo (puntos)
+                <input type="number" name="estacionalidad_periodo" value="12" min="2" max="100" step="1">
+              </label>
+              <label>Modo
+                <select name="estacionalidad_modo">
+                  <option value="aditiva">Aditiva</option>
+                  <option value="multiplicativa">Multiplicativa</option>
+                </select>
+              </label>
+            </div>
+          </template>
         </fieldset>
         <fieldset>
           <legend><label class="toggle"><input type="checkbox" name="ruido_activo" checked> Ruido</label></legend>
-          <label>Nivel
-            <select name="ruido_nivel">
-              <option value="bajo">Bajo</option>
-              <option value="medio" selected>Medio</option>
-              <option value="alto">Alto</option>
-            </select>
+          <label>Grado (% del valor de la serie)
+            <input type="number" name="ruido_grado" value="3" min="0" max="20" step="0.5">
           </label>
+          <p class="nota">Proporcional al valor: con 3, un punto de 100 se mueve ~3 y uno de 150 ~4.5. Referencia: bajo 1, medio 3, alto 6.</p>
           <label>Tipo
             <select name="ruido_tipo">
               <option value="blanco">Blanco</option>
               <option value="heterocedastico">Heterocedástico</option>
+              <option value="autocorrelado_positivo">Autocorrelado positivo</option>
+              <option value="autocorrelado_negativo">Autocorrelado negativo</option>
+              <option value="garch">GARCH</option>
+              <option value="colas_pesadas">Colas pesadas</option>
             </select>
           </label>
         </fieldset>
+        <fieldset>
+          <legend><label class="toggle"><input type="checkbox" name="anomalias_activas" checked> Anomalías</label></legend>
+          <div id="anomalias"></div>
+          <button type="button" id="anadir-anomalia">+ Añadir anomalía</button>
+          <div class="aleatorias">
+            <span class="aleatorias-titulo">Añadir varias aleatorias</span>
+            <div class="trio">
+              <label>Puntuales
+                <input type="number" id="n-puntual" value="2" min="0" max="20" step="1">
+              </label>
+              <label>Cambios de nivel
+                <input type="number" id="n-cambio_nivel" value="2" min="0" max="20" step="1">
+              </label>
+              <label>Transitorias
+                <input type="number" id="n-transitorio" value="2" min="0" max="20" step="1">
+              </label>
+            </div>
+            <button type="button" id="anadir-aleatorias">Añadir aleatorias</button>
+          </div>
+          <template id="plantilla-anomalia">
+            <div class="estac">
+              <div class="estac-cab">
+                <span class="estac-titulo"></span>
+                <button type="button" class="quitar" title="Quitar esta anomalía">×</button>
+              </div>
+              <label>Tipo
+                <select class="a-tipo">
+                  <option value="puntual">Puntual</option>
+                  <option value="cambio_nivel">Cambio de nivel</option>
+                  <option value="transitorio">Transitorio</option>
+                </select>
+              </label>
+              <div class="campo">
+                <span>Punto (eje x)</span>
+                <div class="fila">
+                  <input type="number" class="a-punto" value="30" min="0" step="1">
+                  <label class="toggle"><input type="checkbox" class="alea a-punto-alea"> aleatorio</label>
+                </div>
+              </div>
+              <div class="campo">
+                <span>Magnitud (% del valor)</span>
+                <div class="fila">
+                  <input type="number" class="a-magnitud" value="20" min="-100" max="100" step="5">
+                  <label class="toggle"><input type="checkbox" class="alea a-magnitud-alea"> aleatorio</label>
+                </div>
+              </div>
+              <small class="resuelto"></small>
+            </div>
+          </template>
+        </fieldset>
       </form>
     </aside>
+    <div id="chart"></div>
   </div>
   <script>
     const form = document.getElementById("controls");
 
-    const toggles = ["tendencia_activa", "estacionalidad_activa", "ruido_activo"];
+    const toggles = ["tendencia_activa", "estacionalidad_activa", "ruido_activo", "anomalias_activas"];
 
     // Un fieldset desactivado deshabilita sus campos; el checkbox del legend queda activo.
     function syncDisabled() {
       for (const name of toggles) {
         const box = form.elements[name];
-        box.closest("fieldset").querySelectorAll("input[type=number], select").forEach((el) => {
+        box.closest("fieldset").querySelectorAll("input[type=number], input.alea, select, button").forEach((el) => {
           el.disabled = !box.checked;
         });
       }
+      // Una anomalía con "aleatorio" marcado no deja editar ese campo.
+      for (const fila of listaAnomalias.children) {
+        for (const campo of ["punto", "magnitud"]) {
+          if (fila.querySelector(`.a-${campo}-alea`).checked) fila.querySelector(`.a-${campo}`).disabled = true;
+        }
+      }
+      // Los botones de añadir se bloquean al llegar al tope del servidor.
+      if (lista.children.length >= MAX_ESTACIONALIDADES) anadir.disabled = true;
+      if (listaAnomalias.children.length >= MAX_ANOMALIAS) {
+        anadirAnomalia.disabled = true;
+        document.getElementById("anadir-aleatorias").disabled = true;
+      }
     }
 
+    // Anomalías: una fila por anomalía (tipo + punto + magnitud, cada uno fijo o aleatorio).
+    const MAX_ANOMALIAS = 20; // mismo tope que app.py
+    // Cómo arranca cada fila nueva (van rotando)
+    const ANOMALIAS_INICIALES = [
+      { tipo: "cambio_nivel", punto: 30 },
+      { tipo: "puntual", punto: 100 },
+      { tipo: "transitorio", punto: 200 },
+    ];
+    const listaAnomalias = document.getElementById("anomalias");
+    const plantillaAnomalia = document.getElementById("plantilla-anomalia");
+    const anadirAnomalia = document.getElementById("anadir-anomalia");
+
+    function renumerarAnomalias() {
+      [...listaAnomalias.children].forEach((fila, i) => {
+        fila.querySelector(".estac-titulo").textContent = "Anomalía " + (i + 1);
+      });
+    }
+
+    // Añade una fila al final. Si es aleatoria, punto y magnitud los elige el servidor.
+    function nuevaFilaAnomalia({ tipo, punto = 30, aleatoria = false }) {
+      const fila = plantillaAnomalia.content.firstElementChild.cloneNode(true);
+      fila.querySelector(".a-tipo").value = tipo;
+      fila.querySelector(".a-punto").value = punto;
+      fila.querySelector(".a-punto-alea").checked = aleatoria;
+      fila.querySelector(".a-magnitud-alea").checked = aleatoria;
+      listaAnomalias.appendChild(fila);
+    }
+
+    anadirAnomalia.addEventListener("click", () => {
+      nuevaFilaAnomalia(ANOMALIAS_INICIALES[listaAnomalias.children.length % ANOMALIAS_INICIALES.length]);
+      renumerarAnomalias();
+      draw();
+    });
+
+    // Añade N anomalías aleatorias de cada tipo de una vez (hasta el tope).
+    document.getElementById("anadir-aleatorias").addEventListener("click", () => {
+      for (const tipo of ["puntual", "cambio_nivel", "transitorio"]) {
+        const n = parseInt(document.getElementById("n-" + tipo).value) || 0;
+        for (let i = 0; i < n && listaAnomalias.children.length < MAX_ANOMALIAS; i++) {
+          nuevaFilaAnomalia({ tipo, aleatoria: true });
+        }
+      }
+      renumerarAnomalias();
+      draw();
+    });
+
+    listaAnomalias.addEventListener("click", (e) => {
+      const quitar = e.target.closest(".quitar");
+      if (!quitar) return;
+      quitar.closest(".estac").remove();
+      renumerarAnomalias();
+      draw();
+    });
+
+    // Texto "tipo,punto,magnitud" que entiende la API; null si falta algún número.
+    function textoAnomalia(fila) {
+      const valor = (campo) =>
+        fila.querySelector(`.a-${campo}-alea`).checked ? "aleatorio" : fila.querySelector(`.a-${campo}`).value;
+      const punto = valor("punto");
+      const magnitud = valor("magnitud");
+      if (punto === "" || magnitud === "") return null;
+      return `${fila.querySelector(".a-tipo").value},${punto},${magnitud}`;
+    }
+
+    // Estacionalidades: una fila por onda (periodo + modo), tantas como se quieran.
+    const MAX_ESTACIONALIDADES = 20; // mismo tope que app.py
+    const PERIODOS_INICIALES = [50, 30, 12, 5, 7]; // periodo con el que arranca cada fila nueva
+    const lista = document.getElementById("estacionalidades");
+    const plantilla = document.getElementById("plantilla-estac");
+    const anadir = document.getElementById("anadir");
+
+    function renumerar() {
+      [...lista.children].forEach((fila, i) => {
+        fila.querySelector(".estac-titulo").textContent = "Estacionalidad " + (i + 1);
+      });
+    }
+
+    function anadirEstacionalidad() {
+      const fila = plantilla.content.firstElementChild.cloneNode(true);
+      fila.querySelector("[name=estacionalidad_periodo]").value =
+        PERIODOS_INICIALES[lista.children.length % PERIODOS_INICIALES.length];
+      lista.appendChild(fila);
+      renumerar();
+    }
+
+    anadir.addEventListener("click", () => {
+      anadirEstacionalidad();
+      draw();
+    });
+
+    lista.addEventListener("click", (e) => {
+      const quitar = e.target.closest(".quitar");
+      if (!quitar) return;
+      quitar.closest(".estac").remove();
+      renumerar();
+      draw();
+    });
+
+    let ultimaPeticion = 0; // si llegan varias respuestas desordenadas, solo se pinta la última
+
     async function draw() {
+      const numero = ++ultimaPeticion;
       syncDisabled();
       const params = new URLSearchParams(new FormData(form));
       // Un checkbox sin marcar no se envía, así que se manda explícito (el servidor asume true).
       for (const name of toggles) params.set(name, form.elements[name].checked);
+      // Sin ninguna fila de estacionalidad no hay onda que dibujar (el servidor usaría una por defecto).
+      if (lista.children.length === 0) params.set("estacionalidad_activa", false);
+      // Una anomalía por fila; las que tienen un campo vacío se saltan hasta que se rellenen.
+      const incluidas = [];
+      for (const fila of listaAnomalias.children) {
+        const texto = textoAnomalia(fila);
+        if (texto) {
+          params.append("anomalia", texto);
+          incluidas.push(fila);
+        }
+      }
       const res = await fetch("/api/series?" + params);
       if (!res.ok) return; // valores fuera de rango mientras se escribe: se conserva la gráfica anterior
-      const { x, y } = await res.json();
+      const { x, y, anomalias } = await res.json();
+      if (numero !== ultimaPeticion) return; // llegó una petición más nueva mientras esperábamos
+      // Debajo de cada anomalía, lo que se aplicó de verdad (sobre todo útil con las aleatorias).
+      for (const fila of listaAnomalias.children) fila.querySelector(".resuelto").textContent = "";
+      if (form.elements.anomalias_activas.checked) {
+        incluidas.forEach((fila, i) => {
+          const a = anomalias[i];
+          if (a) fila.querySelector(".resuelto").textContent =
+            `Aplicada en el punto ${a.punto}, ${a.magnitud > 0 ? "+" : ""}${a.magnitud} %`;
+        });
+      }
       Plotly.react("chart", [{ x, y, mode: "lines", name: "serie" }], {
         margin: { t: 20 },
         xaxis: { title: "t" },
@@ -106,6 +325,7 @@
 
     form.addEventListener("input", draw);
     form.addEventListener("submit", (e) => e.preventDefault());
+    anadirEstacionalidad(); // arranca con una estacionalidad
     draw();
   </script>
 </body>
