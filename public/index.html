@@ -6,165 +6,287 @@
   <title>Laboratorio de señales</title>
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; }
-    h1 { margin: 0 0 16px; font-size: 1.4rem; }
-    .layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 16px; align-items: start; }
-    #chart { width: 100%; height: 480px; min-width: 0; }
-    aside { border: 1px solid #ccc; border-radius: 8px; padding: 12px 16px; }
-    fieldset { border: 0; border-bottom: 1px solid #ddd; margin: 0 0 12px; padding: 0 0 12px; }
-    fieldset:last-child { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }
-    legend { font-weight: 600; padding: 0; margin-bottom: 8px; }
-    label { display: block; font-size: 0.85rem; margin-bottom: 8px; }
-    select, input { display: block; width: 100%; box-sizing: border-box; margin-top: 2px; padding: 4px; font: inherit; }
-    label.toggle { display: flex; align-items: center; gap: 6px; font-size: inherit; margin: 0; cursor: pointer; }
-    label.toggle input { display: inline-block; width: auto; margin: 0; }
-    .campo { font-size: 0.85rem; margin-bottom: 8px; }
-    .fila { display: flex; gap: 8px; align-items: center; }
-    .fila input[type=number] { flex: 1; min-width: 0; }
-    .fila label.toggle { font-size: 0.8rem; white-space: nowrap; }
-    .resuelto { display: block; color: #666; font-size: 0.75rem; margin-top: 6px; min-height: 1em; }
-    #anadir-anomalia, #anadir-aleatorias { width: 100%; padding: 6px; }
-    .aleatorias { border-top: 1px solid #ddd; margin-top: 12px; padding-top: 10px; }
-    .aleatorias-titulo { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 6px; }
-    .trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-    .trio label { font-size: 0.75rem; margin-bottom: 8px; }
-    .nota { font-size: 0.75rem; color: #666; margin: -4px 0 8px; }
-    .estac { border: 1px solid #ddd; border-radius: 6px; padding: 8px; margin-bottom: 8px; }
-    .estac-cab { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 0.85rem; font-weight: 600; }
+    /* Colores como roles; el modo oscuro cambia solo estos valores. */
+    :root {
+      color-scheme: light;
+      --page: #f9f9f7;
+      --surface: #fcfcfb;
+      --surface-2: #f4f3ef;
+      --ink: #0b0b0b;
+      --ink-2: #52514e;
+      --muted: #898781;
+      --grid: #e1e0d9;
+      --axis: #c3c2b7;
+      --border: rgba(11, 11, 11, 0.10);
+      --series-1: #2a78d6;
+      --series-2: #eb6834;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        color-scheme: dark;
+        --page: #0d0d0d;
+        --surface: #1a1a19;
+        --surface-2: #222221;
+        --ink: #f0efec;
+        --ink-2: #c3c2b7;
+        --muted: #898781;
+        --grid: #2c2c2a;
+        --axis: #383835;
+        --border: rgba(255, 255, 255, 0.10);
+        --series-1: #3987e5;
+        --series-2: #d95926;
+      }
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 24px 16px 40px;
+      background: var(--page);
+      color: var(--ink);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      line-height: 1.4;
+    }
+    .pagina { max-width: 1400px; margin: 0 auto; }
+    header { margin-bottom: 20px; }
+    h1 { margin: 0; font-size: 1.5rem; font-weight: 650; letter-spacing: -0.01em; }
+    header p { margin: 4px 0 0; color: var(--ink-2); font-size: 0.95rem; }
+
+    .layout { display: grid; grid-template-columns: 460px minmax(0, 1fr); gap: 20px; align-items: start; }
+    .panel, .tarjeta-grafica {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+    }
+    .panel { padding: 20px; }
+    .tarjeta-grafica { padding: 20px 20px 12px; position: sticky; top: 16px; }
+    .graf-cab h2 { margin: 0; font-size: 1.05rem; font-weight: 650; }
+    .graf-cab p { margin: 2px 0 12px; color: var(--ink-2); font-size: 0.85rem; min-height: 1.2em; }
+    #chart { width: 100%; height: clamp(260px, 42vh, 400px); }
+
+    /* Secciones del panel */
+    fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+    fieldset + fieldset { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--grid); }
+    /* float evita que el legend "corte" el borde superior del fieldset */
+    legend { float: left; width: 100%; padding: 0; margin-bottom: 16px; font-weight: 650; font-size: 1.05rem; }
+    legend + * { clear: both; }
+
+    label { display: block; margin-bottom: 14px; color: var(--ink-2); font-size: 0.9rem; }
+    input[type=number], select {
+      display: block;
+      width: 100%;
+      height: 40px;
+      margin-top: 6px;
+      padding: 0 12px;
+      border: 1px solid var(--axis);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--ink);
+      font: inherit;
+      font-size: 1rem;
+    }
+    input:focus-visible, select:focus-visible, button:focus-visible, .switch:focus-visible {
+      outline: 2px solid var(--series-1);
+      outline-offset: 1px;
+    }
+    input:disabled, select:disabled { opacity: 0.45; }
+
+    /* Interruptor de cada sección */
+    label.toggle { display: flex; align-items: center; gap: 8px; margin: 0; cursor: pointer; color: inherit; font-size: inherit; }
+    legend label.toggle { gap: 10px; color: var(--ink); }
+    .switch {
+      appearance: none; flex: none; position: relative; margin: 0;
+      width: 38px; height: 22px; border-radius: 999px;
+      background: var(--axis); cursor: pointer; transition: background 0.15s;
+    }
+    .switch::after {
+      content: ""; position: absolute; top: 2px; left: 2px;
+      width: 18px; height: 18px; border-radius: 50%;
+      background: #fff; transition: transform 0.15s;
+    }
+    .switch:checked { background: var(--series-1); }
+    .switch:checked::after { transform: translateX(16px); }
+    .switch:disabled { opacity: 0.45; cursor: default; }
+    .alea { accent-color: var(--series-1); margin: 0; }
+
+    /* Tarjetas de estacionalidad y anomalía */
+    .estac { margin-bottom: 12px; padding: 16px; border-radius: 10px; background: var(--surface-2); }
+    .estac-cab { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .estac-titulo { font-size: 0.9rem; font-weight: 650; }
     .estac label:last-child { margin-bottom: 0; }
-    button { font: inherit; cursor: pointer; }
-    button:disabled { cursor: default; }
-    .quitar { padding: 0 8px; line-height: 1.4; }
-    #anadir { width: 100%; padding: 6px; }
-    fieldset:disabled { opacity: 0.45; }
-    @media (max-width: 720px) { .layout { grid-template-columns: 1fr; } #chart { order: -1; } }
+    .campo { margin-bottom: 14px; color: var(--ink-2); font-size: 0.9rem; }
+    .fila { display: flex; gap: 12px; align-items: center; }
+    .fila input[type=number] { flex: 1; min-width: 0; margin-top: 6px; }
+    .fila label.toggle { margin: 6px 0 0; font-size: 0.85rem; white-space: nowrap; }
+    .resuelto { display: block; min-height: 1em; margin-top: 10px; color: var(--ink-2); font-size: 0.85rem; }
+
+    button {
+      width: 100%; height: 40px;
+      border: 1px solid var(--axis); border-radius: 8px;
+      background: transparent; color: var(--ink);
+      font: inherit; font-size: 0.95rem; cursor: pointer;
+    }
+    button:hover:not(:disabled) { background: var(--surface-2); }
+    button:disabled { opacity: 0.45; cursor: default; }
+    button.quitar {
+      width: 24px; height: 24px; padding: 0; border: 0;
+      color: var(--ink-2); font-size: 1.1rem; line-height: 1;
+    }
+    button.quitar:hover:not(:disabled) { background: var(--grid); color: var(--ink); }
+
+    .aleatorias { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--grid); }
+    .aleatorias-titulo { display: block; margin-bottom: 10px; font-size: 0.9rem; font-weight: 650; }
+    .trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .trio label { font-size: 0.8rem; }
+    .trio input[type=number] { padding: 0 6px; }
+
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .tarjeta-grafica { order: -1; position: static; }
+    }
   </style>
 </head>
 <body>
-  <h1>Laboratorio de señales</h1>
-  <div class="layout">
-    <aside>
-      <form id="controls">
-        <fieldset>
-          <legend>Serie</legend>
-          <label>Número de puntos (eje x)
-            <input type="number" name="puntos" value="500" min="10" max="5000" step="10">
-          </label>
-        </fieldset>
-        <fieldset>
-          <legend><label class="toggle"><input type="checkbox" name="tendencia_activa" checked> Tendencia</label></legend>
-          <label>Valor
-            <input type="number" name="tendencia_valor" value="0.5" min="-1" max="5" step="0.1">
-          </label>
-          <label>Tipo
-            <select name="tendencia_tipo">
-              <option value="lineal">Lineal</option>
-              <option value="cuadratica">Cuadrática</option>
-              <option value="amortiguada">Amortiguada</option>
-              <option value="logaritmica">Logarítmica</option>
-              <option value="exponencial">Exponencial</option>
-            </select>
-          </label>
-        </fieldset>
-        <fieldset>
-          <legend><label class="toggle"><input type="checkbox" name="estacionalidad_activa" checked> Estacionalidad</label></legend>
-          <div id="estacionalidades"></div>
-          <button type="button" id="anadir">+ Añadir estacionalidad</button>
-          <template id="plantilla-estac">
-            <div class="estac">
-              <div class="estac-cab">
-                <span class="estac-titulo"></span>
-                <button type="button" class="quitar" title="Quitar esta estacionalidad">×</button>
-              </div>
-              <label>Periodo (puntos)
-                <input type="number" name="estacionalidad_periodo" value="12" min="2" max="100" step="1">
-              </label>
-              <label>Modo
-                <select name="estacionalidad_modo">
-                  <option value="aditiva">Aditiva</option>
-                  <option value="multiplicativa">Multiplicativa</option>
-                </select>
-              </label>
-            </div>
-          </template>
-        </fieldset>
-        <fieldset>
-          <legend><label class="toggle"><input type="checkbox" name="ruido_activo" checked> Ruido</label></legend>
-          <label>Grado (% del valor de la serie)
-            <input type="number" name="ruido_grado" value="3" min="0" max="20" step="0.5">
-          </label>
-          <p class="nota">Proporcional al valor: con 3, un punto de 100 se mueve ~3 y uno de 150 ~4.5. Referencia: bajo 1, medio 3, alto 6.</p>
-          <label>Tipo
-            <select name="ruido_tipo">
-              <option value="blanco">Blanco</option>
-              <option value="heterocedastico">Heterocedástico</option>
-              <option value="autocorrelado_positivo">Autocorrelado positivo</option>
-              <option value="autocorrelado_negativo">Autocorrelado negativo</option>
-              <option value="garch">GARCH</option>
-              <option value="colas_pesadas">Colas pesadas</option>
-            </select>
-          </label>
-        </fieldset>
-        <fieldset>
-          <legend><label class="toggle"><input type="checkbox" name="anomalias_activas" checked> Anomalías</label></legend>
-          <div id="anomalias"></div>
-          <button type="button" id="anadir-anomalia">+ Añadir anomalía</button>
-          <div class="aleatorias">
-            <span class="aleatorias-titulo">Añadir varias aleatorias</span>
-            <div class="trio">
-              <label>Puntuales
-                <input type="number" id="n-puntual" value="2" min="0" max="20" step="1">
-              </label>
-              <label>Cambios de nivel
-                <input type="number" id="n-cambio_nivel" value="2" min="0" max="20" step="1">
-              </label>
-              <label>Transitorias
-                <input type="number" id="n-transitorio" value="2" min="0" max="20" step="1">
-              </label>
-            </div>
-            <button type="button" id="anadir-aleatorias">Añadir aleatorias</button>
-          </div>
-          <template id="plantilla-anomalia">
-            <div class="estac">
-              <div class="estac-cab">
-                <span class="estac-titulo"></span>
-                <button type="button" class="quitar" title="Quitar esta anomalía">×</button>
-              </div>
-              <label>Tipo
-                <select class="a-tipo">
-                  <option value="puntual">Puntual</option>
-                  <option value="cambio_nivel">Cambio de nivel</option>
-                  <option value="transitorio">Transitorio</option>
-                </select>
-              </label>
-              <div class="campo">
-                <span>Punto (eje x)</span>
-                <div class="fila">
-                  <input type="number" class="a-punto" value="30" min="0" step="1">
-                  <label class="toggle"><input type="checkbox" class="alea a-punto-alea"> aleatorio</label>
+  <div class="pagina">
+    <header>
+      <h1>Laboratorio de señales</h1>
+    </header>
+
+    <div class="layout">
+      <aside class="panel">
+        <form id="controls">
+          <fieldset>
+            <legend>Serie</legend>
+            <label>Número de puntos (eje x)
+              <input type="number" name="puntos" value="500" min="10" max="5000" step="10">
+            </label>
+          </fieldset>
+
+          <fieldset>
+            <legend><label class="toggle"><input type="checkbox" class="switch" name="tendencia_activa" checked> Tendencia</label></legend>
+            <label>Valor
+              <input type="number" name="tendencia_valor" value="0.5" min="-1" max="5" step="0.1">
+            </label>
+            <label>Tipo
+              <select name="tendencia_tipo">
+                <option value="lineal">Lineal</option>
+                <option value="cuadratica">Cuadrática</option>
+                <option value="amortiguada">Amortiguada</option>
+                <option value="logaritmica">Logarítmica</option>
+                <option value="exponencial">Exponencial</option>
+              </select>
+            </label>
+          </fieldset>
+
+          <fieldset>
+            <legend><label class="toggle"><input type="checkbox" class="switch" name="estacionalidad_activa" checked> Estacionalidad</label></legend>
+            <div id="estacionalidades"></div>
+            <button type="button" id="anadir">+ Añadir estacionalidad</button>
+            <template id="plantilla-estac">
+              <div class="estac">
+                <div class="estac-cab">
+                  <span class="estac-titulo"></span>
+                  <button type="button" class="quitar" title="Quitar esta estacionalidad">×</button>
                 </div>
+                <label>Periodo (puntos)
+                  <input type="number" name="estacionalidad_periodo" value="12" min="2" max="100" step="1">
+                </label>
+                <label>Modo
+                  <select name="estacionalidad_modo">
+                    <option value="aditiva">Aditiva</option>
+                    <option value="multiplicativa">Multiplicativa</option>
+                  </select>
+                </label>
               </div>
-              <div class="campo">
-                <span>Magnitud (% del valor)</span>
-                <div class="fila">
-                  <input type="number" class="a-magnitud" value="20" min="-100" max="100" step="5">
-                  <label class="toggle"><input type="checkbox" class="alea a-magnitud-alea"> aleatorio</label>
-                </div>
+            </template>
+          </fieldset>
+
+          <fieldset>
+            <legend><label class="toggle"><input type="checkbox" class="switch" name="ruido_activo" checked> Ruido</label></legend>
+            <label>Grado (% del valor de la serie)
+              <input type="number" name="ruido_grado" value="3" min="0" max="20" step="0.5">
+            </label>
+            <label>Tipo
+              <select name="ruido_tipo">
+                <option value="blanco">Blanco</option>
+                <option value="heterocedastico">Heterocedástico</option>
+                <option value="autocorrelado_positivo">Autocorrelado positivo</option>
+                <option value="autocorrelado_negativo">Autocorrelado negativo</option>
+                <option value="garch">GARCH</option>
+                <option value="colas_pesadas">Colas pesadas</option>
+              </select>
+            </label>
+          </fieldset>
+
+          <fieldset>
+            <legend><label class="toggle"><input type="checkbox" class="switch" name="anomalias_activas" checked> Anomalías</label></legend>
+            <div id="anomalias"></div>
+            <button type="button" id="anadir-anomalia">+ Añadir anomalía</button>
+            <div class="aleatorias">
+              <span class="aleatorias-titulo">Añadir varias aleatorias</span>
+              <div class="trio">
+                <label>Puntuales
+                  <input type="number" id="n-puntual" value="2" min="0" max="20" step="1">
+                </label>
+                <label>Cambios de nivel
+                  <input type="number" id="n-cambio_nivel" value="2" min="0" max="20" step="1">
+                </label>
+                <label>Transitorias
+                  <input type="number" id="n-transitorio" value="2" min="0" max="20" step="1">
+                </label>
               </div>
-              <small class="resuelto"></small>
+              <button type="button" id="anadir-aleatorias">Añadir aleatorias</button>
             </div>
-          </template>
-        </fieldset>
-      </form>
-    </aside>
-    <div id="chart"></div>
+            <template id="plantilla-anomalia">
+              <div class="estac">
+                <div class="estac-cab">
+                  <span class="estac-titulo"></span>
+                  <button type="button" class="quitar" title="Quitar esta anomalía">×</button>
+                </div>
+                <label>Tipo
+                  <select class="a-tipo">
+                    <option value="puntual">Puntual</option>
+                    <option value="cambio_nivel">Cambio de nivel</option>
+                    <option value="transitorio">Transitorio</option>
+                  </select>
+                </label>
+                <div class="campo">
+                  <span>Punto (eje x)</span>
+                  <div class="fila">
+                    <input type="number" class="a-punto" value="30" min="0" step="1">
+                    <label class="toggle"><input type="checkbox" class="alea a-punto-alea"> aleatorio</label>
+                  </div>
+                </div>
+                <div class="campo">
+                  <span>Magnitud (% del valor)</span>
+                  <div class="fila">
+                    <input type="number" class="a-magnitud" value="20" min="-100" max="100" step="5">
+                    <label class="toggle"><input type="checkbox" class="alea a-magnitud-alea"> aleatorio</label>
+                  </div>
+                </div>
+                <small class="resuelto"></small>
+              </div>
+            </template>
+          </fieldset>
+        </form>
+      </aside>
+
+      <section class="tarjeta-grafica">
+        <div class="graf-cab">
+          <h2>Serie generada</h2>
+          <p id="resumen"></p>
+        </div>
+        <div id="chart"></div>
+      </section>
+    </div>
   </div>
+
   <script>
     const form = document.getElementById("controls");
 
     const toggles = ["tendencia_activa", "estacionalidad_activa", "ruido_activo", "anomalias_activas"];
 
-    // Un fieldset desactivado deshabilita sus campos; el checkbox del legend queda activo.
+    // Un fieldset desactivado deshabilita sus campos; el interruptor del legend queda activo.
     function syncDisabled() {
       for (const name of toggles) {
         const box = form.elements[name];
@@ -284,6 +406,82 @@
       draw();
     });
 
+    // ---------- Gráfica ----------
+    const NOMBRES_ANOMALIA = { puntual: "puntual", cambio_nivel: "cambio de nivel", transitorio: "transitorio" };
+    let ultimosDatos = null; // se guarda para repintar si cambia el tema claro/oscuro
+
+    // Los colores salen de las variables CSS, así la gráfica sigue al modo claro/oscuro.
+    function colores() {
+      const css = getComputedStyle(document.documentElement);
+      const c = (nombre) => css.getPropertyValue(nombre).trim();
+      return {
+        ink: c("--ink"), ink2: c("--ink-2"), muted: c("--muted"), grid: c("--grid"), axis: c("--axis"),
+        surface: c("--surface"), serie: c("--series-1"), anomalia: c("--series-2"),
+        fuente: getComputedStyle(document.body).fontFamily,
+      };
+    }
+
+    function pintar() {
+      if (!ultimosDatos) return;
+      const { x, y, anomalias } = ultimosDatos;
+      const c = colores();
+
+      const trazas = [{
+        x, y, type: "scatter", mode: "lines", name: "Serie",
+        line: { color: c.serie, width: 2 },
+        hovertemplate: "<b>%{y:.1f}</b>  ·  punto %{x}<extra></extra>",
+      }];
+      // Cada anomalía aplicada se marca con un punto (anillo del color de la superficie).
+      if (anomalias.length > 0) {
+        trazas.push({
+          x: anomalias.map((a) => a.punto),
+          y: anomalias.map((a) => y[a.punto]),
+          customdata: anomalias.map((a) => NOMBRES_ANOMALIA[a.tipo]),
+          type: "scatter", mode: "markers", name: "Anomalías",
+          marker: { size: 10, color: c.anomalia, line: { color: c.surface, width: 2 } },
+          hovertemplate: "<b>%{y:.1f}</b>  ·  anomalía %{customdata}<extra></extra>",
+        });
+      }
+
+      const eje = (titulo) => ({
+        title: { text: titulo, font: { color: c.muted, size: 12 }, standoff: 8 },
+        gridcolor: c.grid, gridwidth: 1, zeroline: false,
+        linecolor: c.axis, tickfont: { color: c.muted, size: 11 }, ticks: "", automargin: true,
+      });
+      Plotly.react("chart", trazas, {
+        paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
+        font: { family: c.fuente, color: c.ink2 },
+        margin: { t: 8, r: 12, b: 8, l: 8 },
+        xaxis: {
+          ...eje("Punto"), showline: true, showgrid: false,
+          showspikes: true, spikemode: "across", spikesnap: "cursor",
+          spikethickness: 1, spikedash: "solid", spikecolor: c.muted,
+        },
+        yaxis: { ...eje("Valor"), showline: false },
+        hovermode: "x",
+        hoverlabel: { bgcolor: c.surface, bordercolor: c.axis, font: { color: c.ink, family: c.fuente, size: 13 } },
+        showlegend: anomalias.length > 0,
+        legend: { orientation: "h", x: 0, y: 1.08, font: { color: c.ink2, size: 12 } },
+      }, { responsive: true, displaylogo: false, displayModeBar: false });
+    }
+
+    // Línea bajo el título con lo que hay activo ahora mismo.
+    function resumen(anomaliasAplicadas) {
+      const activo = (nombre) => form.elements[nombre].checked;
+      const elegida = (nombre) => form.elements[nombre].selectedOptions[0].textContent.toLowerCase();
+      const partes = [`${form.elements.puntos.value} puntos`];
+      if (activo("tendencia_activa")) partes.push(`tendencia ${elegida("tendencia_tipo")}`);
+      if (activo("estacionalidad_activa") && lista.children.length > 0) {
+        const n = lista.children.length;
+        partes.push(n === 1 ? "1 estacionalidad" : `${n} estacionalidades`);
+      }
+      if (activo("ruido_activo")) partes.push(`ruido ${elegida("ruido_tipo")} ${form.elements.ruido_grado.value} %`);
+      if (anomaliasAplicadas > 0) {
+        partes.push(anomaliasAplicadas === 1 ? "1 anomalía" : `${anomaliasAplicadas} anomalías`);
+      }
+      return partes.join("  ·  ");
+    }
+
     let ultimaPeticion = 0; // si llegan varias respuestas desordenadas, solo se pinta la última
 
     async function draw() {
@@ -305,26 +503,26 @@
       }
       const res = await fetch("/api/series?" + params);
       if (!res.ok) return; // valores fuera de rango mientras se escribe: se conserva la gráfica anterior
-      const { x, y, anomalias } = await res.json();
+      const datos = await res.json();
       if (numero !== ultimaPeticion) return; // llegó una petición más nueva mientras esperábamos
       // Debajo de cada anomalía, lo que se aplicó de verdad (sobre todo útil con las aleatorias).
       for (const fila of listaAnomalias.children) fila.querySelector(".resuelto").textContent = "";
       if (form.elements.anomalias_activas.checked) {
         incluidas.forEach((fila, i) => {
-          const a = anomalias[i];
+          const a = datos.anomalias[i];
           if (a) fila.querySelector(".resuelto").textContent =
             `Aplicada en el punto ${a.punto}, ${a.magnitud > 0 ? "+" : ""}${a.magnitud} %`;
         });
       }
-      Plotly.react("chart", [{ x, y, mode: "lines", name: "serie" }], {
-        margin: { t: 20 },
-        xaxis: { title: "t" },
-        yaxis: { title: "valor" },
-      }, { responsive: true });
+      ultimosDatos = datos;
+      document.getElementById("resumen").textContent = resumen(datos.anomalias.length);
+      pintar();
     }
 
     form.addEventListener("input", draw);
     form.addEventListener("submit", (e) => e.preventDefault());
+    // Si el sistema cambia entre claro y oscuro, se repinta con los colores del nuevo tema.
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", pintar);
     anadirEstacionalidad(); // arranca con una estacionalidad
     draw();
   </script>
