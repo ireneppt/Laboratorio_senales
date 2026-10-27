@@ -75,6 +75,13 @@
     .graf-cab h2 { margin: 0; font-size: 1.05rem; font-weight: 650; }
     .graf-cab p { margin: 2px 0 12px; color: var(--ink-2); font-size: 0.85rem; min-height: 1.2em; }
     #chart { width: 100%; height: clamp(260px, 42vh, 400px); }
+    .acciones { display: flex; gap: 10px; margin-top: 12px; }
+    .acciones button { flex: 1; }
+    /* Con la descomposición abierta la tarjeta es más alta que la pantalla: no se queda fija */
+    .tarjeta-grafica.abierta { position: static; }
+    .comp { margin-top: 16px; }
+    .comp h3 { margin: 0 0 2px; font-size: 0.85rem; font-weight: 650; }
+    .comp .graf-comp { width: 100%; height: 150px; }
 
     /* Pestañas (series del panel y vistas de la gráfica) */
     .pestanas { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -182,6 +189,7 @@
     .switch:checked::after { transform: translateX(16px); }
     .switch:disabled { opacity: 0.45; cursor: default; }
     .alea { accent-color: var(--series-1); margin: 0; }
+    label.opcion { font-size: 0.9rem; color: var(--ink-2); }
 
     /* Tarjetas de estacionalidad y anomalía */
     .estac { margin-bottom: 12px; padding: 16px; border-radius: 10px; background: var(--surface-2); }
@@ -266,6 +274,9 @@
                 <option value="logaritmica">Logarítmica</option>
                 <option value="exponencial">Exponencial</option>
               </select>
+            </label>
+            <label class="toggle opcion">
+              <input type="checkbox" class="alea" name="ver_tendencia"> Mostrar la tendencia en la gráfica (línea discontinua)
             </label>
           </fieldset>
 
@@ -371,6 +382,11 @@
           <p id="resumen"></p>
         </div>
         <div id="chart"></div>
+        <!-- Solo en la vista de una serie: sus componentes por separado -->
+        <div class="acciones">
+          <button type="button" id="boton-descomponer" hidden>Descomponer serie</button>
+        </div>
+        <div id="descomposicion" hidden></div>
       </section>
     </div>
   </div>
@@ -380,7 +396,7 @@
 
     const toggles = ["tendencia_activa", "estacionalidad_activa", "ruido_activo", "anomalias_activas"];
 
-    const MAX_SERIES = 8;            // un color de la paleta por serie
+    const N_COLORES = 8;             // colores de la paleta validada; más series reciben un color generado
     const MAX_ESTACIONALIDADES = 20; // mismo tope que app.py
     const MAX_ANOMALIAS = 20;        // mismo tope que app.py
 
@@ -514,7 +530,7 @@
     function estadoSoloNivel() {
       return {
         puntos: "500", nivel_base: "100",
-        tendencia_activa: false, tendencia_valor: "0.5", tendencia_tipo: "lineal",
+        tendencia_activa: false, tendencia_valor: "0.5", tendencia_tipo: "lineal", ver_tendencia: false,
         estacionalidad_activa: false, estacionalidades: [{ periodo: PERIODOS_INICIALES[0], modo: "aditiva" }],
         ruido_activo: false, ruido_grado: "3", ruido_tipo: "blanco",
         anomalias_activas: false, anomalias: [],
@@ -525,6 +541,18 @@
     // la suya, y "Regenerar ruido" sortea otra. Con la misma semilla el resultado se repite.
     const nuevaSemilla = () => Math.floor(Math.random() * 1_000_000);
 
+    // Color de arranque de una serie: los 8 de la paleta validada y, a partir de la novena, uno generado
+    // (el tono avanza el ángulo áureo para que los vecinos se parezcan lo menos posible).
+    function colorInicial(slot) {
+      if (slot < N_COLORES) return slot;
+      const tono = (slot * 137.508) % 360;
+      const s = 0.6, l = 0.5;
+      const k = (n) => (n + tono / 30) % 12;
+      const a = s * Math.min(l, 1 - l);
+      const canal = (n) => Math.round(255 * (l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1))));
+      return "#" + [canal(0), canal(8), canal(4)].map((v) => v.toString(16).padStart(2, "0")).join("");
+    }
+
     // Toda serie nueva, también la inicial, arranca solo con la línea del nivel.
     function nuevaSerie() {
       // El color es de la serie y no cambia si se cierran otras: se reutiliza el primer hueco libre.
@@ -534,7 +562,7 @@
       contadorSeries++;
       // slot = su hueco de la paleta (también decide su semilla); color = el que se ve, editable:
       // un número de la paleta o un "#rrggbb" elegido a mano.
-      return { id: contadorSeries, nombre: "Serie " + contadorSeries, slot, color: slot, semilla: nuevaSemilla(), semillaAnomalias: nuevaSemilla(), estado: estadoSoloNivel(), datos: null, incluidas: [] };
+      return { id: contadorSeries, nombre: "Serie " + contadorSeries, slot, color: colorInicial(slot), semilla: nuevaSemilla(), semillaAnomalias: nuevaSemilla(), descomponer: false, estado: estadoSoloNivel(), datos: null, incluidas: [] };
     }
 
     // Si se borra el nombre, se muestra "Serie N" para que la pestaña nunca quede vacía.
@@ -549,7 +577,7 @@
     const botonNombre = document.getElementById("boton-nombre");
 
     // Paleta: los 8 colores validados y uno libre (selector del navegador).
-    for (let i = 0; i < MAX_SERIES; i++) {
+    for (let i = 0; i < N_COLORES; i++) {
       const muestra = document.createElement("button");
       muestra.type = "button";
       muestra.className = "muestra";
@@ -644,6 +672,7 @@
         e[name] = form.elements[name].value;
       }
       for (const name of toggles) e[name] = form.elements[name].checked;
+      e.ver_tendencia = form.elements.ver_tendencia.checked; // solo de pantalla: no se envía a la API
       e.estacionalidades = [...lista.children].map((fila) => ({
         periodo: fila.querySelector("[name=estacionalidad_periodo]").value,
         modo: fila.querySelector("[name=estacionalidad_modo]").value,
@@ -674,6 +703,7 @@
         form.elements[name].value = e[name];
       }
       for (const name of toggles) form.elements[name].checked = e[name];
+      form.elements.ver_tendencia.checked = e.ver_tendencia;
       lista.replaceChildren();
       e.estacionalidades.forEach((est) => anadirEstacionalidad(est.periodo, est.modo));
       listaAnomalias.replaceChildren();
@@ -789,7 +819,6 @@
       nueva.type = "button";
       nueva.className = "anadir-serie";
       nueva.dataset.accion = "nueva";
-      nueva.disabled = series.length >= MAX_SERIES;
       nueva.textContent = "+ Añadir serie";
       cont.append(nueva);
     }
@@ -837,7 +866,6 @@
     }
 
     function anadirSerie() {
-      if (series.length >= MAX_SERIES) return;
       guardarActiva();
       const s = nuevaSerie();
       series.push(s);
@@ -895,7 +923,7 @@
       return {
         ink: c("--ink"), ink2: c("--ink-2"), muted: c("--muted"), grid: c("--grid"), axis: c("--axis"),
         surface: c("--surface"),
-        series: Array.from({ length: MAX_SERIES }, (_, i) => c(`--series-${i + 1}`)),
+        series: Array.from({ length: N_COLORES }, (_, i) => c(`--series-${i + 1}`)),
         fuente: getComputedStyle(document.body).fontFamily,
       };
     }
@@ -919,6 +947,7 @@
       const visibles = (todas ? series : series.filter((s) => s.id === vista)).filter((s) => s.datos);
 
       const trazas = [];
+      let hayTendencia = false;
       for (const s of visibles) {
         const color = colorDe(s, c);
         const { x, y } = s.datos;
@@ -929,6 +958,19 @@
           line: { color, width: 2 },
           hovertemplate: `<b>%{y:.1f}</b>  ·  punto %{x}<extra>${etiqueta}</extra>`,
         });
+        // Tendencia como línea discontinua encima, en el color de la tinta para que se vea
+        // aunque coincida con la serie (por ejemplo, sin estacionalidad ni ruido).
+        // Solo en la vista de una serie: en "Todas" no se pinta.
+        if (!todas && s.estado.tendencia_activa && s.estado.ver_tendencia && s.datos.componentes) {
+          hayTendencia = true;
+          trazas.push({
+            x, y: s.datos.componentes.tendencia, type: "scatter", mode: "lines",
+            name: nombreDe(s) + " · tendencia",
+            line: { color: c.ink, width: 2, dash: "dash" },
+            opacity: 0.5, // más suave que la serie, para que no tape lo que hay debajo
+            hovertemplate: `tendencia <b>%{y:.1f}</b><extra></extra>`,
+          });
+        }
       }
 
       // Título y resumen
@@ -951,18 +993,95 @@
       Plotly.react("chart", trazas, {
         paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
         font: { family: c.fuente, color: c.ink2 },
-        margin: { t: 8, r: 12, b: 8, l: 8 },
+        margin: { t: 8, r: 12, b: 8, l: 64 }, // margen izquierdo fijo: las gráficas de la descomposición lo comparten
         xaxis: {
           ...eje("Punto"), showline: true, showgrid: false,
           showspikes: true, spikemode: "across", spikesnap: "cursor",
           spikethickness: 1, spikedash: "solid", spikecolor: c.muted,
         },
-        yaxis: { ...eje("Valor"), showline: false },
+        yaxis: { ...eje("Valor"), showline: false, automargin: false },
         hovermode: todas ? "x unified" : "x",
         hoverlabel: { bgcolor: c.surface, bordercolor: c.axis, font: { color: c.ink, family: c.fuente, size: 13 } },
-        showlegend: todas && visibles.length > 1, // con una sola serie la leyenda sobra
+        // Con una sola serie la leyenda sobra, salvo que haya que distinguir la serie de su tendencia.
+        showlegend: (todas && visibles.length > 1) || (!todas && hayTendencia),
         legend: { orientation: "h", x: 0, y: 1.08, font: { color: c.ink2, size: 12 } },
       }, { responsive: true, displaylogo: false, displayModeBar: false });
+
+      pintarAnalisis();
+    }
+
+    // ---------- Descomposición: los bloques de la serie por separado ----------
+    // Cada componente es lo que aporta ese bloque: tendencia + estacionalidad + ruido + anomalías = serie.
+    const COMPONENTES = [
+      { clave: "tendencia", titulo: "Nivel y tendencia", visible: () => true },
+      { clave: "estacionalidad", titulo: "Estacionalidad", visible: (s) => s.estado.estacionalidad_activa && s.estado.estacionalidades.length > 0 },
+      { clave: "ruido", titulo: "Ruido", visible: (s) => s.estado.ruido_activo },
+      { clave: "anomalias", titulo: "Anomalías", visible: (s) => s.estado.anomalias_activas && s.datos.anomalias.length > 0 },
+    ];
+    const botonDescomponer = document.getElementById("boton-descomponer");
+    const contDescomposicion = document.getElementById("descomposicion");
+
+    function pintarDescomposicion() {
+      // Se deshace lo anterior (gráficas incluidas) y se vuelve a montar.
+      contDescomposicion.querySelectorAll(".graf-comp").forEach((g) => Plotly.purge(g));
+      contDescomposicion.replaceChildren();
+
+      const s = vista === "todas" ? null : series.find((x) => x.id === vista);
+      botonDescomponer.hidden = !s; // en "Todas" no hay descomposición
+      if (!s || !s.datos || !s.descomponer) {
+        contDescomposicion.hidden = true;
+        botonDescomponer.textContent = "Descomponer serie";
+        return;
+      }
+      botonDescomponer.textContent = "Ocultar descomposición";
+      contDescomposicion.hidden = false;
+
+      const c = colores();
+      const color = colorDe(s, c);
+      const paneles = COMPONENTES.filter((comp) => comp.visible(s));
+      paneles.forEach((comp, i) => {
+        const bloque = document.createElement("div");
+        bloque.className = "comp";
+        const titulo = document.createElement("h3");
+        titulo.textContent = comp.titulo;
+        const grafica = document.createElement("div");
+        grafica.className = "graf-comp";
+        bloque.append(titulo, grafica);
+        contDescomposicion.append(bloque);
+
+        const ultimo = i === paneles.length - 1;
+        const eje = (texto) => ({
+          title: texto ? { text: texto, font: { color: c.muted, size: 12 }, standoff: 8 } : undefined,
+          gridcolor: c.grid, gridwidth: 1, zeroline: comp.clave !== "tendencia", zerolinecolor: c.axis,
+          linecolor: c.axis, tickfont: { color: c.muted, size: 11 }, ticks: "", automargin: true,
+        });
+        Plotly.newPlot(grafica, [{
+          x: s.datos.x, y: s.datos.componentes[comp.clave], type: "scatter", mode: "lines",
+          line: { color, width: 2 },
+          hovertemplate: `<b>%{y:.2f}</b>  ·  punto %{x}<extra></extra>`,
+        }], {
+          paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
+          font: { family: c.fuente, color: c.ink2 },
+          margin: { t: 4, r: 12, b: 8, l: 64 },
+          xaxis: { ...eje(ultimo ? "Punto" : ""), showline: true, showgrid: false },
+          yaxis: { ...eje(""), showline: false, automargin: false },
+          hovermode: "x",
+          hoverlabel: { bgcolor: c.surface, bordercolor: c.axis, font: { color: c.ink, family: c.fuente, size: 13 } },
+        }, { responsive: true, displaylogo: false, displayModeBar: false });
+      });
+    }
+
+    botonDescomponer.addEventListener("click", () => {
+      const s = series.find((x) => x.id === vista);
+      if (!s) return;
+      s.descomponer = !s.descomponer;
+      pintarAnalisis();
+    });
+
+    // Pinta lo que va debajo de la gráfica y fija la tarjeta si hay algo abierto.
+    function pintarAnalisis() {
+      pintarDescomposicion();
+      document.querySelector(".tarjeta-grafica").classList.toggle("abierta", !contDescomposicion.hidden);
     }
 
     // Antes de pintar, se piden las series que aún no tienen datos (por ejemplo al abrir "Todas").

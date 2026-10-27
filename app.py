@@ -95,6 +95,8 @@ def get_series(
     else:
         serie = nivel
 
+    con_estacionalidad = serie  # para la descomposición: la serie hasta este punto
+
     # ---------- 3. RUIDO ----------
     if ruido_activo:
         # Primero se genera un ruido "de tamaño 1" (desviación típica 1) según el tipo,
@@ -151,6 +153,8 @@ def get_series(
         escala = np.abs(serie) * ruido_grado / 100
         serie = serie + escala * ruido
 
+    con_ruido = serie  # para la descomposición
+
     # ---------- 4. ANOMALÍAS ----------
     resueltas = []  # lo que se aplicó de verdad (útil para ver dónde cayeron las aleatorias)
     if anomalias_activas and anomalia:
@@ -197,4 +201,18 @@ def get_series(
         # el efecto es proporcional al valor de la serie en cada punto
         serie = serie * (1 + factor)
 
-    return {"x": t.tolist(), "y": serie.round(4).tolist(), "anomalias": resueltas}
+    # Descomposición: cada pieza es lo que aporta ese bloque, de modo que
+    # tendencia + estacionalidad + ruido + anomalías = serie. "tendencia" es el nivel con su
+    # tendencia, y también sirve para dibujarla aparte sobre la serie.
+    componentes = {
+        "tendencia": nivel,
+        "estacionalidad": con_estacionalidad - nivel,
+        "ruido": con_ruido - con_estacionalidad,
+        "anomalias": serie - con_ruido,
+    }
+    return {
+        "x": t.tolist(),
+        "y": serie.round(4).tolist(),
+        "componentes": {nombre: valores.round(4).tolist() for nombre, valores in componentes.items()},
+        "anomalias": resueltas,
+    }
