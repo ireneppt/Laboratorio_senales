@@ -6,23 +6,107 @@
   <title>Laboratorio de señales</title>
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 0 auto; max-width: 960px; padding: 16px; }
-    #chart { width: 100%; height: 420px; }
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; }
+    h1 { margin: 0 0 16px; font-size: 1.4rem; }
+    .layout { display: grid; grid-template-columns: 1fr 280px; gap: 16px; align-items: start; }
+    #chart { width: 100%; height: 480px; min-width: 0; }
+    aside { border: 1px solid #ccc; border-radius: 8px; padding: 12px 16px; }
+    fieldset { border: 0; border-bottom: 1px solid #ddd; margin: 0 0 12px; padding: 0 0 12px; }
+    fieldset:last-child { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }
+    legend { font-weight: 600; padding: 0; margin-bottom: 8px; }
+    label { display: block; font-size: 0.85rem; margin-bottom: 8px; }
+    select, input { display: block; width: 100%; box-sizing: border-box; margin-top: 2px; padding: 4px; font: inherit; }
+    label.toggle { display: flex; align-items: center; gap: 6px; font-size: inherit; margin: 0; cursor: pointer; }
+    label.toggle input { display: inline-block; width: auto; margin: 0; }
+    fieldset:disabled { opacity: 0.45; }
+    @media (max-width: 720px) { .layout { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
   <h1>Laboratorio de señales</h1>
-  <div id="chart"></div>
+  <div class="layout">
+    <div id="chart"></div>
+    <aside>
+      <form id="controls">
+        <fieldset>
+          <legend><label class="toggle"><input type="checkbox" name="trend_on" checked> Tendencia</label></legend>
+          <label>Valor (cambio total, 0.5 = +50 %)
+            <input type="number" name="trend_value" value="0.5" min="-1" max="5" step="0.1">
+          </label>
+          <label>Tipo
+            <select name="trend_type">
+              <option value="lineal">Lineal</option>
+              <option value="cuadratica">Cuadrática</option>
+              <option value="amortiguada">Amortiguada</option>
+              <option value="logaritmica">Logarítmica</option>
+              <option value="exponencial">Exponencial</option>
+            </select>
+          </label>
+        </fieldset>
+        <fieldset>
+          <legend><label class="toggle"><input type="checkbox" name="seasonal_on" checked> Estacionalidad</label></legend>
+          <label>Periodo (puntos)
+            <input type="number" name="seasonal_period" value="12" min="2" max="100" step="1">
+          </label>
+          <label>Modo
+            <select name="seasonal_mode">
+              <option value="aditiva">Aditiva</option>
+              <option value="multiplicativa">Multiplicativa</option>
+            </select>
+          </label>
+        </fieldset>
+        <fieldset>
+          <legend><label class="toggle"><input type="checkbox" name="noise_on" checked> Ruido</label></legend>
+          <label>Nivel
+            <select name="noise_level">
+              <option value="bajo">Bajo</option>
+              <option value="medio" selected>Medio</option>
+              <option value="alto">Alto</option>
+            </select>
+          </label>
+          <label>Tipo
+            <select name="noise_type">
+              <option value="blanco">Blanco</option>
+              <option value="heterocedastico">Heterocedástico</option>
+            </select>
+          </label>
+        </fieldset>
+      </form>
+    </aside>
+  </div>
   <script>
-    fetch("/api/series")
-      .then((r) => r.json())
-      .then(({ x, y }) => {
-        Plotly.newPlot("chart", [{ x, y, mode: "lines", name: "serie" }], {
-          margin: { t: 20 },
-          xaxis: { title: "t" },
-          yaxis: { title: "valor" },
-        }, { responsive: true });
-      });
+    const form = document.getElementById("controls");
+
+    const toggles = ["trend_on", "seasonal_on", "noise_on"];
+
+    // Un fieldset desactivado deshabilita sus campos; el checkbox del legend queda activo.
+    function syncDisabled() {
+      for (const name of toggles) {
+        const box = form.elements[name];
+        box.closest("fieldset").querySelectorAll("input[type=number], select").forEach((el) => {
+          el.disabled = !box.checked;
+        });
+      }
+    }
+
+    async function draw() {
+      syncDisabled();
+      const params = new URLSearchParams(new FormData(form));
+      // Un checkbox sin marcar no se envía, así que se manda explícito (el servidor asume true).
+      for (const name of toggles) params.set(name, form.elements[name].checked);
+      const res = await fetch("/api/series?" + params);
+      if (!res.ok) return; // valores fuera de rango mientras se escribe: se conserva la gráfica anterior
+      const { x, y } = await res.json();
+      Plotly.react("chart", [{ x, y, mode: "lines", name: "serie" }], {
+        margin: { t: 20 },
+        xaxis: { title: "t" },
+        yaxis: { title: "valor" },
+      }, { responsive: true });
+    }
+
+    form.addEventListener("input", draw);
+    form.addEventListener("submit", (e) => e.preventDefault());
+    draw();
   </script>
 </body>
 </html>
