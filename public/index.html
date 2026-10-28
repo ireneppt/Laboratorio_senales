@@ -274,7 +274,7 @@
           <fieldset>
             <legend><label class="toggle"><input type="checkbox" class="switch" name="tendencia_activa" checked> Tendencia</label></legend>
             <label>Valor
-              <input type="number" name="tendencia_valor" value="0.5" min="-1" max="100" step="0.1">
+              <input type="number" name="tendencia_valor" value="0.5" min="-100" max="100" step="0.1">
             </label>
             <label>Tipo
               <select name="tendencia_tipo">
@@ -308,6 +308,9 @@
                     <option value="aditiva">Aditiva</option>
                     <option value="multiplicativa">Multiplicativa</option>
                   </select>
+                </label>
+                <label>Amplitud (%)
+                  <input type="number" name="estacionalidad_amplitud" value="10" min="0" max="100" step="1">
                 </label>
               </div>
             </template>
@@ -354,7 +357,7 @@
           <fieldset>
             <legend><label class="toggle"><input type="checkbox" class="switch" name="ruido_activo" checked> Ruido</label></legend>
             <label>Grado (% del valor de la serie)
-              <input type="number" name="ruido_grado" value="3" min="0" max="20" step="0.5">
+              <input type="number" name="ruido_grado" value="3" min="0" max="100" step="0.5">
             </label>
             <label>Tipo
               <select name="ruido_tipo">
@@ -366,6 +369,9 @@
                 <option value="colas_pesadas">Colas pesadas</option>
               </select>
             </label>
+            <label id="campo-phi">Fuerza de la dependencia (0 a 0,95)
+              <input type="number" name="ruido_phi" value="0.8" min="0" max="0.95" step="0.05">
+            </label>
             <button type="button" id="regenerar-ruido">Regenerar ruido</button>
           </fieldset>
 
@@ -373,6 +379,17 @@
             <legend><label class="toggle"><input type="checkbox" class="switch" name="anomalias_activas" checked> Anomalías</label></legend>
             <div id="anomalias"></div>
             <button type="button" id="anadir-anomalia">+ Añadir anomalía</button>
+            <div class="aleatorias">
+              <span class="aleatorias-titulo">Magnitud de las anomalías aleatorias (%)</span>
+              <div class="rejilla2">
+                <label>Mínimo
+                  <input type="number" name="magnitud_alea_min" value="10" min="0" max="1000" step="5">
+                </label>
+                <label>Máximo
+                  <input type="number" name="magnitud_alea_max" value="30" min="0" max="1000" step="5">
+                </label>
+              </div>
+            </div>
             <div class="aleatorias">
               <span class="aleatorias-titulo">Añadir varias aleatorias</span>
               <div class="trio">
@@ -411,10 +428,13 @@
                 <div class="campo">
                   <span>Magnitud (% del valor)</span>
                   <div class="fila">
-                    <input type="number" class="a-magnitud" value="20" min="-100" max="100" step="5">
+                    <input type="number" class="a-magnitud" value="20" min="-1000" max="1000" step="5">
                     <label class="toggle"><input type="checkbox" class="alea a-magnitud-alea"> aleatorio</label>
                   </div>
                 </div>
+                <label class="a-decaimiento-campo">Decaimiento (fracción que se conserva por punto, 0 a 0,95)
+                  <input type="number" class="a-decaimiento" value="0.7" min="0" max="0.95" step="0.05">
+                </label>
                 <small class="resuelto"></small>
               </div>
             </template>
@@ -487,6 +507,12 @@
         mostrarError(el, mensaje);
         if (mensaje) todoBien = false;
       });
+      // El mínimo de la magnitud aleatoria no puede superar al máximo
+      const { magnitud_alea_min: minimo, magnitud_alea_max: maximo } = form.elements;
+      if (!maximo.disabled && minimo.value !== "" && maximo.value !== "" && Number(minimo.value) > Number(maximo.value)) {
+        mostrarError(maximo, "Debe ser mayor o igual que el mínimo");
+        todoBien = false;
+      }
       return todoBien;
     }
 
@@ -503,7 +529,15 @@
         for (const campo of ["punto", "magnitud"]) {
           if (fila.querySelector(`.a-${campo}-alea`).checked) fila.querySelector(`.a-${campo}`).disabled = true;
         }
+        // El decaimiento solo existe en los transitorios
+        const esTransitorio = fila.querySelector(".a-tipo").value === "transitorio";
+        fila.querySelector(".a-decaimiento-campo").hidden = !esTransitorio;
+        if (!esTransitorio) fila.querySelector(".a-decaimiento").disabled = true;
       }
+      // La fuerza de la dependencia solo existe en el ruido autocorrelado
+      const autocorrelado = form.elements.ruido_tipo.value.startsWith("autocorrelado");
+      document.getElementById("campo-phi").hidden = !autocorrelado;
+      if (!autocorrelado) form.elements.ruido_phi.disabled = true;
       // Los botones de añadir se bloquean al llegar al tope del servidor.
       if (lista.children.length >= MAX_ESTACIONALIDADES) anadir.disabled = true;
       if (listaCiclos.children.length >= MAX_CICLOS) anadirCiclo.disabled = true;
@@ -528,9 +562,10 @@
     }
 
     // Añade una fila al final. Con "aleatorio" marcado, punto o magnitud los elige el servidor.
-    function nuevaFilaAnomalia({ tipo, punto = 30, puntoAlea = false, magnitud = 20, magnitudAlea = false }) {
+    function nuevaFilaAnomalia({ tipo, punto = 30, puntoAlea = false, magnitud = 20, magnitudAlea = false, decaimiento = 0.7 }) {
       const fila = plantillaAnomalia.content.firstElementChild.cloneNode(true);
       fila.querySelector(".a-tipo").value = tipo;
+      fila.querySelector(".a-decaimiento").value = decaimiento;
       fila.querySelector(".a-punto").value = punto;
       fila.querySelector(".a-punto-alea").checked = puntoAlea;
       fila.querySelector(".a-magnitud").value = magnitud;
@@ -564,11 +599,15 @@
       draw();
     });
 
-    // Texto "tipo,punto,magnitud" que entiende la API; null si falta algún número.
+    // Texto "tipo,punto,magnitud" (más ",decaimiento" en los transitorios) que entiende la API; null si falta algún número.
     function textoAnomalia(a) {
       const punto = a.puntoAlea ? "aleatorio" : a.punto;
       const magnitud = a.magnitudAlea ? "aleatorio" : a.magnitud;
       if (punto === "" || magnitud === "") return null;
+      if (a.tipo === "transitorio") {
+        if (a.decaimiento === "") return null;
+        return `${a.tipo},${punto},${magnitud},${a.decaimiento}`;
+      }
       return `${a.tipo},${punto},${magnitud}`;
     }
 
@@ -581,11 +620,12 @@
       });
     }
 
-    function anadirEstacionalidad(periodo, modo = "aditiva") {
+    function anadirEstacionalidad(periodo, modo = "aditiva", amplitud = 10) {
       const fila = plantilla.content.firstElementChild.cloneNode(true);
       fila.querySelector("[name=estacionalidad_periodo]").value =
         periodo ?? PERIODOS_INICIALES[lista.children.length % PERIODOS_INICIALES.length];
       fila.querySelector("[name=estacionalidad_modo]").value = modo;
+      fila.querySelector("[name=estacionalidad_amplitud]").value = amplitud;
       lista.appendChild(fila);
       renumerar();
     }
@@ -657,10 +697,10 @@
       return {
         puntos: "500", nivel_base: "100",
         tendencia_activa: false, tendencia_valor: "0.5", tendencia_tipo: "lineal", ver_tendencia: false,
-        estacionalidad_activa: false, estacionalidades: [{ periodo: PERIODOS_INICIALES[0], modo: "aditiva" }],
+        estacionalidad_activa: false, estacionalidades: [{ periodo: PERIODOS_INICIALES[0], modo: "aditiva", amplitud: "10" }],
         ciclo_activo: false, ciclos: [{ ...CICLO_INICIAL }],
-        ruido_activo: false, ruido_grado: "3", ruido_tipo: "blanco",
-        anomalias_activas: false, anomalias: [],
+        ruido_activo: false, ruido_grado: "3", ruido_tipo: "blanco", ruido_phi: "0.8",
+        anomalias_activas: false, anomalias: [], magnitud_alea_min: "10", magnitud_alea_max: "30",
       };
     }
 
@@ -792,10 +832,16 @@
       }
     });
 
+    // Los campos sueltos del panel (los que no son listas de filas), que se guardan con cada serie
+    const CAMPOS_SIMPLES = [
+      "puntos", "nivel_base", "tendencia_valor", "tendencia_tipo", "ruido_grado", "ruido_tipo", "ruido_phi",
+      "magnitud_alea_min", "magnitud_alea_max",
+    ];
+
     // Lo que hay ahora en el panel, como un objeto.
     function leerEstado() {
       const e = {};
-      for (const name of ["puntos", "nivel_base", "tendencia_valor", "tendencia_tipo", "ruido_grado", "ruido_tipo"]) {
+      for (const name of CAMPOS_SIMPLES) {
         e[name] = form.elements[name].value;
       }
       for (const name of toggles) e[name] = form.elements[name].checked;
@@ -803,6 +849,7 @@
       e.estacionalidades = [...lista.children].map((fila) => ({
         periodo: fila.querySelector("[name=estacionalidad_periodo]").value,
         modo: fila.querySelector("[name=estacionalidad_modo]").value,
+        amplitud: fila.querySelector("[name=estacionalidad_amplitud]").value,
       }));
       e.ciclos = [...listaCiclos.children].map((fila) =>
         Object.fromEntries(CAMPOS_CICLO.map((campo) => [campo, fila.querySelector(`[name=ciclo_${campo}]`).value]))
@@ -813,6 +860,7 @@
         puntoAlea: fila.querySelector(".a-punto-alea").checked,
         magnitud: fila.querySelector(".a-magnitud").value,
         magnitudAlea: fila.querySelector(".a-magnitud-alea").checked,
+        decaimiento: fila.querySelector(".a-decaimiento").value,
       }));
       return e;
     }
@@ -829,13 +877,13 @@
     }
 
     function aplicarEstado(e) {
-      for (const name of ["puntos", "nivel_base", "tendencia_valor", "tendencia_tipo", "ruido_grado", "ruido_tipo"]) {
+      for (const name of CAMPOS_SIMPLES) {
         form.elements[name].value = e[name];
       }
       for (const name of toggles) form.elements[name].checked = e[name];
       form.elements.ver_tendencia.checked = e.ver_tendencia;
       lista.replaceChildren();
-      e.estacionalidades.forEach((est) => anadirEstacionalidad(est.periodo, est.modo));
+      e.estacionalidades.forEach((est) => anadirEstacionalidad(est.periodo, est.modo, est.amplitud));
       listaCiclos.replaceChildren();
       e.ciclos.forEach((ciclo) => nuevaFilaCiclo(ciclo));
       listaAnomalias.replaceChildren();
@@ -866,6 +914,7 @@
         for (const est of e.estacionalidades) {
           p.append("estacionalidad_periodo", est.periodo);
           p.append("estacionalidad_modo", est.modo);
+          p.append("estacionalidad_amplitud", est.amplitud);
         }
       }
       const conCiclos = e.ciclo_activo && e.ciclos.length > 0;
@@ -880,8 +929,13 @@
       if (e.ruido_activo) {
         p.set("ruido_grado", e.ruido_grado);
         p.set("ruido_tipo", e.ruido_tipo);
+        if (e.ruido_tipo.startsWith("autocorrelado")) p.set("ruido_phi", e.ruido_phi);
       }
       p.set("anomalias_activas", e.anomalias_activas);
+      if (e.anomalias_activas) {
+        p.set("magnitud_aleatoria_min", e.magnitud_alea_min);
+        p.set("magnitud_aleatoria_max", e.magnitud_alea_max);
+      }
       // Una anomalía por fila; las que tienen un campo vacío se saltan hasta que se rellenen.
       const incluidas = []; // posición en el panel de cada anomalía enviada
       if (e.anomalias_activas) {

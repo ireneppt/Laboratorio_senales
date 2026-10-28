@@ -7,6 +7,15 @@ from fastapi.staticfiles import StaticFiles
 
 from app import app
 
+
+@app.middleware("http")
+async def sin_cache(request, call_next):
+    # En desarrollo el navegador no debe guardar la página: así siempre ve la última versión.
+    respuesta = await call_next(request)
+    respuesta.headers["Cache-Control"] = "no-store"
+    return respuesta
+
+
 # Se monta al final para que /api/* tenga prioridad sobre los archivos estáticos.
 app.mount("/", StaticFiles(directory="public", html=True), name="public")
 
