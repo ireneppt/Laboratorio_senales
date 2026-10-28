@@ -7,7 +7,9 @@ from pydantic import Field
 app = FastAPI()
 
 # Valores limite 
-AMPLITUD_ESTACIONAL = 10  # amplitud por defecto de una onda estacional, en %
+ESTACIONAL_MINIMO = -10  # mínimo por defecto de una onda estacional
+ESTACIONAL_MAXIMO = 10   # máximo por defecto de una onda estacional
+REFERENCIA = 100         # valor de la serie al que se aplican tal cual el mínimo y el máximo de una onda multiplicativa
 MAX_ESTACIONALIDADES = 20  # tope de ondas estacionales por petición
 MAX_ANOMALIAS = 20  # tope de anomalías por petición
 MAX_CICLOS = 20  # tope de ciclos por petición
@@ -15,6 +17,14 @@ DECAIMIENTO_TRANSITORIO = 0.7  # por defecto, el transitorio pierde un 30 % de s
 MAGNITUD_ALEATORIA = (10, 30)  # por defecto, una anomalía aleatoria mide entre 10 y 30 % (con signo al azar)
 PHI_AUTOCORRELACION = 0.8  # por defecto, fuerza de la dependencia del ruido autocorrelado
 TIPOS_ANOMALIA = ("puntual", "cambio_nivel", "transitorio")
+
+
+def peso_multiplicativo(valor, referencia):
+    """Cuánto se agranda una onda multiplicativa en cada punto: |valor| / referencia.
+    Si la serie vale 0 en todas partes no hay nada que escalar, y la onda se aplica tal cual (peso 1)."""
+    if not np.any(valor):
+        return 1.0
+    return np.abs(valor) / referencia
 
 
 def ruido_lento(rng, n, escala):
@@ -37,7 +47,7 @@ def get_series(
     # valores "aleatorio" de las anomalías, así se puede regenerar una sin tocar la otra.
     semilla: int = Query(42, ge=0, le=1_000_000),
     semilla_anomalias: int = Query(43, ge=0, le=1_000_000),
-    nivel_base: float = Query(100, ge=1, le=1_000_000),  # valor en el que arranca la serie
+    nivel_base: float = Query(100, ge=-1_000_000, le=1_000_000),  # valor en el que arranca la serie (puede ser negativo o 0)
     # Tendencia
     tendencia_activa: bool = True,
     tendencia_valor: float = Query(0.5, ge=-100, le=100),  # 0.5 = la serie sube un 50 %; -1 = baja hasta 0; por debajo de -1 la serie pasa a negativa
@@ -47,23 +57,32 @@ def get_series(
     # Estacionalidad múltiple: una lista de ondas, cada una con su periodo y su modo.
     # Se envían repetidos: ?estacionalidad_periodo=12&estacionalidad_modo=aditiva&estacionalidad_periodo=30&...
     # Si no se envía ninguna, se usa una sola onda de periodo 50 aditiva.
-    #   amplitud: altura de la onda en % (aditiva: % del nivel base; multiplicativa: % del valor de la serie)
+    #   minimo y maximo: valores entre los que oscila la onda.
+    #     aditiva: en unidades de la serie (minimo -5 y maximo 20 suma entre -5 y +20)
+    #     multiplicativa: también en unidades, pero a la altura del valor de referencia: la onda crece o
+    #     encoge en proporción al valor de la serie (valor / referencia). Con referencia 100 y valor 200,
+    #     un máximo de 10 sube 20. Si la serie vale 0, no hay nada que escalar y actúa como la aditiva.
     estacionalidad_periodo: list[Annotated[int, Field(ge=2, le=100)]] | None = Query(None, max_length=MAX_ESTACIONALIDADES),
     estacionalidad_modo: list[Literal["aditiva", "multiplicativa"]] | None = Query(None, max_length=MAX_ESTACIONALIDADES),
-    estacionalidad_amplitud: list[Annotated[float, Field(ge=0, le=100)]] | None = Query(None, max_length=MAX_ESTACIONALIDADES),
+    estacionalidad_referencia: list[Annotated[float, Field(gt=0, le=1_000_000)]] | None = Query(None, max_length=MAX_ESTACIONALIDADES),
+    estacionalidad_minimo: list[Annotated[float, Field(ge=-1_000_000, le=1_000_000)]] | None = Query(None, max_length=MAX_ESTACIONALIDADES),
+    estacionalidad_maximo: list[Annotated[float, Field(ge=-1_000_000, le=1_000_000)]] | None = Query(None, max_length=MAX_ESTACIONALIDADES),
     # Ciclos: como la estacionalidad, pero con duración y altura irregulares. Una lista de ciclos,
     # cada uno con sus seis valores (se envían repetidos y deben ir todas las listas con la misma longitud).
     #   periodo: duración media, en puntos            var_periodo: cuánto varía la duración (%)
-    #   amplitud: altura media (% del valor)          var_amplitud: cuánto varía la altura (%)
+    #   minimo y maximo: valores medios entre los que oscila (aditivo: unidades de la serie;
+    #                    multiplicativo: unidades a la altura de "referencia", ver estacionalidad)          var_amplitud: cuánto varía la altura (%)
     #   fase: dónde empieza (% del ciclo)             modo: aditivo o multiplicativo
     # Por defecto apagado, para que quien llame a la API sin pedirlo no reciba ciclos.
     ciclo_activo: bool = False,
     ciclo_periodo: list[Annotated[int, Field(ge=10, le=2000)]] | None = Query(None, max_length=MAX_CICLOS),
     ciclo_var_periodo: list[Annotated[float, Field(ge=0, le=80)]] | None = Query(None, max_length=MAX_CICLOS),
-    ciclo_amplitud: list[Annotated[float, Field(ge=0, le=100)]] | None = Query(None, max_length=MAX_CICLOS),
+    ciclo_minimo: list[Annotated[float, Field(ge=-1_000_000, le=1_000_000)]] | None = Query(None, max_length=MAX_CICLOS),
+    ciclo_maximo: list[Annotated[float, Field(ge=-1_000_000, le=1_000_000)]] | None = Query(None, max_length=MAX_CICLOS),
     ciclo_var_amplitud: list[Annotated[float, Field(ge=0, le=100)]] | None = Query(None, max_length=MAX_CICLOS),
     ciclo_fase: list[Annotated[float, Field(ge=0, le=100)]] | None = Query(None, max_length=MAX_CICLOS),
     ciclo_modo: list[Literal["aditiva", "multiplicativa"]] | None = Query(None, max_length=MAX_CICLOS),
+    ciclo_referencia: list[Annotated[float, Field(gt=0, le=1_000_000)]] | None = Query(None, max_length=MAX_CICLOS),
     semilla_ciclo: int = Query(44, ge=0, le=1_000_000),
     # Ruido
     ruido_activo: bool = True,
@@ -113,23 +132,29 @@ def get_series(
     if estacionalidad_activa:
         periodos = estacionalidad_periodo or [50]
         modos = estacionalidad_modo or ["aditiva"]
-        amplitudes = estacionalidad_amplitud or [AMPLITUD_ESTACIONAL] * len(periodos)
-        if not len(periodos) == len(modos) == len(amplitudes):
-            raise HTTPException(422, "Cada estacionalidad necesita un periodo, un modo y una amplitud")
+        minimos = estacionalidad_minimo or [ESTACIONAL_MINIMO] * len(periodos)
+        maximos = estacionalidad_maximo or [ESTACIONAL_MAXIMO] * len(periodos)
+        referencias = estacionalidad_referencia or [REFERENCIA] * len(periodos)
+        if not len(periodos) == len(modos) == len(minimos) == len(maximos) == len(referencias):
+            raise HTTPException(422, "Cada estacionalidad necesita un periodo, un modo, un mínimo, un máximo y una referencia")
+        if any(mn > mx for mn, mx in zip(minimos, maximos)):
+            raise HTTPException(422, "El mínimo de la estacionalidad no puede superar al máximo")
 
-        suma_aditivas = np.zeros(puntos)         # ondas que se SUMAN al nivel
-        suma_multiplicativas = np.zeros(puntos)  # ondas que MULTIPLICAN el nivel
-        for periodo, modo, amplitud in zip(periodos, modos, amplitudes):
-            # cada onda oscila entre -amplitud y +amplitud (en fracción: 10 % = 0.10)
-            onda = amplitud / 100 * np.sin(2 * np.pi * t / periodo)
+        suma_aditivas = np.zeros(puntos)         # ondas que se SUMAN al nivel (unidades de la serie)
+        suma_multiplicativas = np.zeros(puntos)  # ondas escaladas por el nivel (unidades)
+        for periodo, modo, minimo, maximo, referencia in zip(periodos, modos, minimos, maximos, referencias):
+            # la onda oscila entre minimo y maximo: centro +- media altura
+            centro = (maximo + minimo) / 2
+            mitad = (maximo - minimo) / 2
+            onda = centro + mitad * np.sin(2 * np.pi * t / periodo)
             if modo == "aditiva":
                 suma_aditivas = suma_aditivas + onda
             elif modo == "multiplicativa":
-                suma_multiplicativas = suma_multiplicativas + onda
+                suma_multiplicativas = suma_multiplicativas + onda * peso_multiplicativo(nivel, referencia)
 
-        # aditivas: oscilan en puntos fijos (±10 con nivel base 100 y amplitud 10 %)
-        # multiplicativas: oscilan un % del nivel (más amplias si la serie sube)
-        serie = nivel * (1 + suma_multiplicativas) + nivel_base * suma_aditivas
+        # aditivas: se suman tal cual; multiplicativas: crecen con el tamaño del nivel (valor absoluto,
+        # así una onda positiva sube la serie aunque el nivel sea negativo)
+        serie = nivel + suma_multiplicativas + suma_aditivas
     else:
         serie = nivel
 
@@ -141,12 +166,16 @@ def get_series(
     if ciclo_activo:
         periodos = ciclo_periodo or [100]
         var_periodos = ciclo_var_periodo or [20.0]
-        amplitudes = ciclo_amplitud or [10.0]
+        minimos = ciclo_minimo or [ESTACIONAL_MINIMO] * len(periodos)
+        maximos = ciclo_maximo or [ESTACIONAL_MAXIMO] * len(periodos)
+        referencias = ciclo_referencia or [REFERENCIA] * len(periodos)
         var_amplitudes = ciclo_var_amplitud or [25.0]
         fases = ciclo_fase or [0.0]
         modos = ciclo_modo or ["aditiva"]
-        if len({len(periodos), len(var_periodos), len(amplitudes), len(var_amplitudes), len(fases), len(modos)}) != 1:
-            raise HTTPException(422, "Cada ciclo necesita sus seis valores")
+        if len({len(periodos), len(var_periodos), len(minimos), len(maximos), len(referencias), len(var_amplitudes), len(fases), len(modos)}) != 1:
+            raise HTTPException(422, "Cada ciclo necesita todos sus valores")
+        if any(mn > mx for mn, mx in zip(minimos, maximos)):
+            raise HTTPException(422, "El mínimo del ciclo no puede superar al máximo")
 
         suma_aditivos = np.zeros(puntos)         # ciclos que se SUMAN
         suma_multiplicativos = np.zeros(puntos)  # ciclos que MULTIPLICAN
@@ -161,17 +190,22 @@ def get_series(
             # posición dentro del ciclo: 0 a 1 es una vuelta. Empieza en la fase pedida y avanza 1/duración por punto.
             posicion = fases[i] / 100 + np.concatenate([[0], np.cumsum(1 / duracion[:-1])])
 
-            # altura de cada vuelta: también varía despacio alrededor de la amplitud media (nunca negativa)
-            altura = amplitudes[i] / 100 * np.maximum(0, 1 + var_amplitudes[i] / 100 * ruido_lento(rng_ciclo, puntos, escala))
+            # altura de cada vuelta: también varía despacio alrededor de la media (nunca negativa)
+            altura = np.maximum(0, 1 + var_amplitudes[i] / 100 * ruido_lento(rng_ciclo, puntos, escala))
 
-            onda = altura * np.sin(2 * np.pi * posicion)
+            # oscila entre minimo y maximo: centro +- media altura (la altura es la que varía)
+            centro = (maximos[i] + minimos[i]) / 2
+            mitad = (maximos[i] - minimos[i]) / 2
+            onda = centro + altura * mitad * np.sin(2 * np.pi * posicion)
+            if modos[i] == "multiplicativa":
+                onda = onda * peso_multiplicativo(serie, referencias[i])
             if modos[i] == "aditiva":
                 suma_aditivos = suma_aditivos + onda
             elif modos[i] == "multiplicativa":
                 suma_multiplicativos = suma_multiplicativos + onda
 
-        # aditivos: oscilan en puntos (un % del nivel base); multiplicativos: un % del valor de la serie
-        serie = serie * (1 + suma_multiplicativos) + nivel_base * suma_aditivos
+        # aditivos: se suman tal cual (unidades); multiplicativos: crecen con el tamaño del valor de la serie
+        serie = serie + suma_multiplicativos + suma_aditivos
 
     con_ciclo = serie  # para la descomposición
 

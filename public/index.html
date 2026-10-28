@@ -267,7 +267,7 @@
               <input type="number" name="puntos" value="500" min="10" max="5000" step="10">
             </label>
             <label>Nivel base (valor inicial)
-              <input type="number" name="nivel_base" value="100" min="1" max="1000000" step="10">
+              <input type="number" name="nivel_base" value="100" min="-1000000" max="1000000" step="10">
             </label>
           </fieldset>
 
@@ -309,8 +309,14 @@
                     <option value="multiplicativa">Multiplicativa</option>
                   </select>
                 </label>
-                <label>Amplitud (%)
-                  <input type="number" name="estacionalidad_amplitud" value="10" min="0" max="100" step="1">
+                <label class="campo-ref" hidden>Referencia (valor de la serie al que se aplican el mínimo y el máximo; sin efecto si la serie vale 0)
+                  <input type="number" name="estacionalidad_referencia" value="100" min="0.001" max="1000000" step="10">
+                </label>
+                <label>Mínimo (unidades)
+                  <input type="number" name="estacionalidad_minimo" value="-10" min="-1000000" max="1000000" step="1">
+                </label>
+                <label>Máximo (unidades)
+                  <input type="number" name="estacionalidad_maximo" value="10" min="-1000000" max="1000000" step="1">
                 </label>
               </div>
             </template>
@@ -334,8 +340,14 @@
                   <label>Variación del periodo (%)
                     <input type="number" name="ciclo_var_periodo" value="20" min="0" max="80" step="5">
                   </label>
-                  <label>Amplitud (%)
-                    <input type="number" name="ciclo_amplitud" value="10" min="0" max="100" step="1">
+                  <label class="campo-ref" hidden>Referencia (valor de la serie al que se aplican el mínimo y el máximo; sin efecto si la serie vale 0)
+                    <input type="number" name="ciclo_referencia" value="100" min="0.001" max="1000000" step="10">
+                  </label>
+                  <label>Mínimo (unidades)
+                    <input type="number" name="ciclo_minimo" value="-10" min="-1000000" max="1000000" step="1">
+                  </label>
+                  <label>Máximo (unidades)
+                    <input type="number" name="ciclo_maximo" value="10" min="-1000000" max="1000000" step="1">
                   </label>
                   <label>Variación de la amplitud (%)
                     <input type="number" name="ciclo_var_amplitud" value="25" min="0" max="100" step="5">
@@ -620,12 +632,26 @@
       });
     }
 
-    function anadirEstacionalidad(periodo, modo = "aditiva", amplitud = 10) {
+    // Multiplicativa: el mínimo y el máximo siguen en unidades, pero la onda crece con el valor de la serie;
+    // la referencia dice a qué valor de la serie corresponden exactamente. Solo se muestra en ese modo.
+    function actualizarUnidad(fila, campoModo = "estacionalidad_modo") {
+      const mult = fila.querySelector(`[name=${campoModo}]`).value === "multiplicativa";
+      fila.querySelector(".campo-ref").hidden = !mult;
+      fila.querySelector(".campo-ref input").disabled = !mult;
+    }
+    lista.addEventListener("change", (e) => {
+      if (e.target.name === "estacionalidad_modo") actualizarUnidad(e.target.closest(".estac"));
+    });
+
+    function anadirEstacionalidad(periodo, modo = "aditiva", minimo = -10, maximo = 10, referencia = 100) {
       const fila = plantilla.content.firstElementChild.cloneNode(true);
       fila.querySelector("[name=estacionalidad_periodo]").value =
         periodo ?? PERIODOS_INICIALES[lista.children.length % PERIODOS_INICIALES.length];
       fila.querySelector("[name=estacionalidad_modo]").value = modo;
-      fila.querySelector("[name=estacionalidad_amplitud]").value = amplitud;
+      fila.querySelector("[name=estacionalidad_minimo]").value = minimo;
+      fila.querySelector("[name=estacionalidad_maximo]").value = maximo;
+      fila.querySelector("[name=estacionalidad_referencia]").value = referencia;
+      actualizarUnidad(fila);
       lista.appendChild(fila);
       renumerar();
     }
@@ -648,8 +674,8 @@
     const plantillaCiclo = document.getElementById("plantilla-ciclo");
     const anadirCiclo = document.getElementById("anadir-ciclo");
     // Los seis valores de un ciclo, con el nombre del campo del formulario y de la API
-    const CAMPOS_CICLO = ["periodo", "var_periodo", "amplitud", "var_amplitud", "fase", "modo"];
-    const CICLO_INICIAL = { periodo: "100", var_periodo: "20", amplitud: "10", var_amplitud: "25", fase: "0", modo: "aditiva" };
+    const CAMPOS_CICLO = ["periodo", "var_periodo", "minimo", "maximo", "referencia", "var_amplitud", "fase", "modo"];
+    const CICLO_INICIAL = { periodo: "100", var_periodo: "20", minimo: "-10", maximo: "10", referencia: "100", var_amplitud: "25", fase: "0", modo: "aditiva" };
     const PERIODOS_CICLO = [100, 250, 60, 400]; // periodo con el que arranca cada ciclo nuevo
 
     function renumerarCiclos() {
@@ -658,10 +684,15 @@
       });
     }
 
+    listaCiclos.addEventListener("change", (e) => {
+      if (e.target.name === "ciclo_modo") actualizarUnidad(e.target.closest(".estac"), "ciclo_modo");
+    });
+
     function nuevaFilaCiclo(valores = {}) {
       const fila = plantillaCiclo.content.firstElementChild.cloneNode(true);
       const v = { ...CICLO_INICIAL, periodo: PERIODOS_CICLO[listaCiclos.children.length % PERIODOS_CICLO.length], ...valores };
       for (const campo of CAMPOS_CICLO) fila.querySelector(`[name=ciclo_${campo}]`).value = v[campo];
+      actualizarUnidad(fila, "ciclo_modo");
       listaCiclos.appendChild(fila);
       renumerarCiclos();
     }
@@ -697,7 +728,7 @@
       return {
         puntos: "500", nivel_base: "100",
         tendencia_activa: false, tendencia_valor: "0.5", tendencia_tipo: "lineal", ver_tendencia: false,
-        estacionalidad_activa: false, estacionalidades: [{ periodo: PERIODOS_INICIALES[0], modo: "aditiva", amplitud: "10" }],
+        estacionalidad_activa: false, estacionalidades: [{ periodo: PERIODOS_INICIALES[0], modo: "aditiva", minimo: "-10", maximo: "10", referencia: "100" }],
         ciclo_activo: false, ciclos: [{ ...CICLO_INICIAL }],
         ruido_activo: false, ruido_grado: "3", ruido_tipo: "blanco", ruido_phi: "0.8",
         anomalias_activas: false, anomalias: [], magnitud_alea_min: "10", magnitud_alea_max: "30",
@@ -849,7 +880,9 @@
       e.estacionalidades = [...lista.children].map((fila) => ({
         periodo: fila.querySelector("[name=estacionalidad_periodo]").value,
         modo: fila.querySelector("[name=estacionalidad_modo]").value,
-        amplitud: fila.querySelector("[name=estacionalidad_amplitud]").value,
+        minimo: fila.querySelector("[name=estacionalidad_minimo]").value,
+        maximo: fila.querySelector("[name=estacionalidad_maximo]").value,
+        referencia: fila.querySelector("[name=estacionalidad_referencia]").value,
       }));
       e.ciclos = [...listaCiclos.children].map((fila) =>
         Object.fromEntries(CAMPOS_CICLO.map((campo) => [campo, fila.querySelector(`[name=ciclo_${campo}]`).value]))
@@ -883,7 +916,7 @@
       for (const name of toggles) form.elements[name].checked = e[name];
       form.elements.ver_tendencia.checked = e.ver_tendencia;
       lista.replaceChildren();
-      e.estacionalidades.forEach((est) => anadirEstacionalidad(est.periodo, est.modo, est.amplitud));
+      e.estacionalidades.forEach((est) => anadirEstacionalidad(est.periodo, est.modo, est.minimo, est.maximo, est.referencia));
       listaCiclos.replaceChildren();
       e.ciclos.forEach((ciclo) => nuevaFilaCiclo(ciclo));
       listaAnomalias.replaceChildren();
@@ -914,7 +947,9 @@
         for (const est of e.estacionalidades) {
           p.append("estacionalidad_periodo", est.periodo);
           p.append("estacionalidad_modo", est.modo);
-          p.append("estacionalidad_amplitud", est.amplitud);
+          p.append("estacionalidad_minimo", est.minimo);
+          p.append("estacionalidad_maximo", est.maximo);
+          p.append("estacionalidad_referencia", est.referencia);
         }
       }
       const conCiclos = e.ciclo_activo && e.ciclos.length > 0;
