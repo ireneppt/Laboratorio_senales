@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Laboratorio de señales</title>
+  <link rel="icon" href="data:,">
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
   <style>
     /* Colores como roles; el modo oscuro cambia solo estos valores. */
@@ -66,7 +67,7 @@
     header { margin-bottom: 20px; }
     h1 { margin: 0; font-size: 1.5rem; font-weight: 650; letter-spacing: -0.01em; }
 
-    .layout { display: grid; grid-template-columns: 460px minmax(0, 1fr); gap: 20px; align-items: start; }
+    .layout { display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 20px; align-items: start; }
     .panel, .tarjeta-grafica {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -76,7 +77,7 @@
     .tarjeta-grafica { padding: 16px 20px 12px; position: sticky; top: 16px; }
     .graf-cab h2 { margin: 0; font-size: 1.05rem; font-weight: 650; }
     .graf-cab p { margin: 2px 0 12px; color: var(--ink-2); font-size: 0.85rem; min-height: 1.2em; }
-    #chart { width: 100%; height: clamp(260px, 42vh, 400px); }
+    #chart { width: 100%; height: clamp(320px, 56vh, 600px); }
     .acciones { display: flex; gap: 10px; margin-top: 12px; }
     .acciones button { flex: 1; }
     /* Con la descomposición abierta la tarjeta es más alta que la pantalla: no se queda fija */
@@ -114,11 +115,46 @@
     .pestanas .anadir-serie { border-color: var(--axis); color: var(--ink); }
 
     /* Secciones del panel */
-    fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
-    fieldset + fieldset { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--grid); }
+    /* Cada sección es una tarjeta con su tono suave de fondo y un borde fino del mismo color */
+    fieldset {
+      --tono: var(--axis);
+      margin: 0; min-width: 0; padding: 16px 16px 2px;
+      border: 1px solid color-mix(in srgb, var(--tono) 18%, transparent);
+      border-radius: 12px;
+      background: color-mix(in srgb, var(--tono) 4%, var(--surface));
+    }
+    fieldset + fieldset { margin-top: 14px; }
+    fieldset:nth-of-type(1) { --tono: var(--series-7); }
+    fieldset:nth-of-type(2) { --tono: var(--series-1); }
+    fieldset:nth-of-type(3) { --tono: var(--series-3); }
+    fieldset:nth-of-type(4) { --tono: var(--series-4); }
+    fieldset:nth-of-type(5) { --tono: var(--series-2); }
+    fieldset:nth-of-type(6) { --tono: var(--series-8); }
+    fieldset:nth-of-type(7) { --tono: var(--series-5); }
     /* float evita que el legend "corte" el borde superior del fieldset */
-    legend { float: left; width: 100%; padding: 0; margin-bottom: 16px; font-weight: 650; font-size: 1.05rem; }
+    legend {
+      float: left; width: 100%; padding: 0; margin-bottom: 16px; font-weight: 700; font-size: 1.15rem;
+      display: flex; align-items: center; gap: 10px; cursor: pointer;
+    }
     legend + * { clear: both; }
+    /* Resumen de la sección (se ve sobre todo con la sección plegada) y flecha para plegar */
+    .resumen-seccion {
+      flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      color: var(--ink-2); font-size: 0.85rem; font-weight: 400; text-align: right;
+    }
+    button.plegar {
+      flex: none; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; color: var(--ink-2);
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    button.plegar::before {
+      content: ""; width: 8px; height: 8px; margin-top: -4px;
+      border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg);
+      transition: transform 0.15s;
+    }
+    fieldset.cerrado { padding-bottom: 16px; }
+    fieldset.cerrado > legend { margin-bottom: 0; }
+    fieldset.cerrado > :not(legend) { display: none; }
+    fieldset.cerrado button.plegar::before { margin-top: 0; margin-left: -4px; transform: rotate(-45deg); }
 
     label { display: block; margin-bottom: 14px; color: var(--ink-2); font-size: 0.9rem; }
     input[type=number], input[type=text], select {
@@ -138,7 +174,11 @@
       outline: 2px solid var(--series-1);
       outline-offset: 1px;
     }
-    input:disabled, select:disabled { opacity: 0.45; }
+    /* Un campo apagado se ve distinto de uno activo: fondo gris, borde discontinuo y texto atenuado */
+    input:disabled, select:disabled {
+      border-style: dashed; background: color-mix(in srgb, var(--ink) 7%, var(--surface));
+      color: var(--muted); -webkit-text-fill-color: var(--muted); cursor: not-allowed;
+    }
     /* Campo con un valor no válido: borde rojo y un texto que dice qué se espera */
     input.invalido { border-color: var(--error); }
     small.error { display: block; margin-top: 4px; color: var(--error); font-size: 0.8rem; }
@@ -199,7 +239,7 @@
     /* Tarjetas de estacionalidad y anomalía */
     .estac { margin-bottom: 12px; padding: 16px; border-radius: 10px; background: var(--surface-2); }
     .estac-cab { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-    .estac-titulo { font-size: 0.9rem; font-weight: 650; }
+    .estac-titulo { font-size: 0.78rem; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-2); }
     .estac label:last-child { margin-bottom: 0; }
     /* Los valores de un ciclo, de dos en dos */
     .rejilla2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
@@ -227,10 +267,41 @@
     button.quitar:hover:not(:disabled) { background: var(--grid); color: var(--ink); }
 
     .aleatorias { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--grid); }
-    .aleatorias-titulo { display: block; margin-bottom: 10px; font-size: 0.9rem; font-weight: 650; }
+    .aleatorias-titulo { display: block; margin-bottom: 10px; font-size: 0.78rem; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-2); }
     .trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
     .trio label { font-size: 0.8rem; }
     .trio input[type=number] { padding: 0 6px; }
+
+    /* Menú "+ Nueva serie" */
+    .nueva-serie { position: relative; }
+    .menu-nueva {
+      position: absolute; top: calc(100% + 8px); left: 0; z-index: 20; width: 270px; padding: 8px;
+      background: var(--surface); border: 1px solid var(--axis); border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+    }
+    .menu-nueva button { display: block; width: 100%; height: auto; margin: 0; padding: 10px 12px; border: 0; text-align: left; line-height: 1.35; }
+    .menu-nueva small { display: block; color: var(--muted); font-size: 0.8rem; }
+    /* Series creadas a mano: el panel de la serie se cambia por el de su tipo */
+    .es-manual > fieldset:not(:first-of-type) { display: none; }
+    .es-manual .solo-generada { display: none; }
+    #panel-manual { margin-top: 14px; }
+    #panel-manual legend { cursor: default; }
+    textarea {
+      display: block; width: 100%; margin-top: 6px; padding: 10px 12px; resize: vertical;
+      border: 1px solid var(--axis); border-radius: 8px; background: var(--surface); color: var(--ink);
+      font: 0.9rem/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+    .botones-manual { display: flex; gap: 10px; margin-bottom: 12px; }
+    .botones-manual > * { flex: 1; margin: 0; }
+    label.boton-archivo {
+      display: flex; align-items: center; justify-content: center; padding: 0 12px; min-height: 40px;
+      border: 1px solid var(--axis); border-radius: 8px; background: var(--surface); color: var(--ink);
+      font-size: 1rem; text-align: center; cursor: pointer;
+    }
+    label.boton-archivo:hover { background: var(--grid); }
+    button[aria-pressed=true] { background: var(--series-1); border-color: var(--series-1); color: #fff; }
+    small.ayuda { display: block; margin: 0 0 14px; color: var(--muted); font-size: 0.8rem; line-height: 1.4; }
+    #chart.dibujando { cursor: crosshair; touch-action: none; user-select: none; }
 
     @media (max-width: 900px) {
       .layout { grid-template-columns: 1fr; }
@@ -263,12 +334,16 @@
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
               </button>
             </div>
-            <label>Número de puntos (eje x)
+            <label class="solo-generada">Número de puntos (eje x)
               <input type="number" name="puntos" value="500" min="10" max="5000" step="10">
             </label>
-            <label>Nivel base (valor inicial)
+            <label class="solo-generada">Valor inicial (nivel base)
               <input type="number" name="nivel_base" value="100" min="-1000000" max="1000000" step="10">
             </label>
+            <label class="solo-generada">Valor final (opcional)
+              <input type="number" name="valor_final" value="" data-opcional placeholder="Sin valor final" min="-1000000" max="1000000" step="any">
+            </label>
+            <small class="ayuda solo-generada" id="ayuda-final" hidden>La serie va del valor inicial al final, con la forma del tipo de tendencia elegido. Mientras haya valor final, la tendencia queda activa y su valor no se usa.</small>
           </fieldset>
 
           <fieldset>
@@ -309,17 +384,29 @@
                     <option value="multiplicativa">Multiplicativa</option>
                   </select>
                 </label>
-                <label>Mínimo <span class="unidad-estac">(unidades)</span>
+                <label>Definir la amplitud por
+                  <select name="estacionalidad_definicion">
+                    <option value="minmax">Mínimo y máximo</option>
+                    <option value="amp">Amplitud total (centrada en el nivel)</option>
+                  </select>
+                </label>
+                <label class="campo-mm">Mínimo <span class="unidad-estac">(unidades)</span>
                   <input type="number" name="estacionalidad_minimo" value="-10" min="-1000000" max="1000000" step="1">
                 </label>
-                <label>Máximo <span class="unidad-estac">(unidades)</span>
+                <label class="campo-mm">Máximo <span class="unidad-estac">(unidades)</span>
                   <input type="number" name="estacionalidad_maximo" value="10" min="-1000000" max="1000000" step="1">
                 </label>
-                <label class="campo-fin" hidden>Mínimo al final (unidades)
+                <label class="campo-mm campo-fin" hidden>Mínimo al final (unidades)
                   <input type="number" name="estacionalidad_minimo_fin" value="-20" min="-1000000" max="1000000" step="1">
                 </label>
-                <label class="campo-fin" hidden>Máximo al final (unidades)
+                <label class="campo-mm campo-fin" hidden>Máximo al final (unidades)
                   <input type="number" name="estacionalidad_maximo_fin" value="20" min="-1000000" max="1000000" step="1">
+                </label>
+                <label class="campo-am" hidden>Amplitud total, de mínimo a máximo <span class="unidad-estac">(unidades)</span>
+                  <input type="number" name="estacionalidad_amplitud" value="10" min="0" max="1000000" step="1">
+                </label>
+                <label class="campo-am campo-fin" hidden>Amplitud total al final (unidades)
+                  <input type="number" name="estacionalidad_amplitud_fin" value="20" min="0" max="1000000" step="1">
                 </label>
               </div>
             </template>
@@ -335,6 +422,12 @@
                   <span class="estac-titulo"></span>
                   <button type="button" class="quitar" title="Quitar este ciclo">×</button>
                 </div>
+                <label>Definir la amplitud por
+                  <select name="ciclo_definicion">
+                    <option value="minmax">Mínimo y máximo</option>
+                    <option value="amp">Amplitud total (centrada en el nivel)</option>
+                  </select>
+                </label>
                 <div class="rejilla2">
                   <label>Periodo medio (puntos)
                     <input type="number" name="ciclo_periodo" value="100" min="10" max="2000" step="10">
@@ -342,17 +435,23 @@
                   <label>Variación del periodo (%)
                     <input type="number" name="ciclo_var_periodo" value="20" min="0" max="80" step="5">
                   </label>
-                  <label>Mínimo <span class="unidad-estac">(unidades)</span>
+                  <label class="campo-mm">Mínimo <span class="unidad-estac">(unidades)</span>
                     <input type="number" name="ciclo_minimo" value="-10" min="-1000000" max="1000000" step="1">
                   </label>
-                  <label>Máximo <span class="unidad-estac">(unidades)</span>
+                  <label class="campo-mm">Máximo <span class="unidad-estac">(unidades)</span>
                     <input type="number" name="ciclo_maximo" value="10" min="-1000000" max="1000000" step="1">
                   </label>
-                  <label class="campo-fin" hidden>Mínimo al final (unidades)
+                  <label class="campo-mm campo-fin" hidden>Mínimo al final (unidades)
                     <input type="number" name="ciclo_minimo_fin" value="-20" min="-1000000" max="1000000" step="1">
                   </label>
-                  <label class="campo-fin" hidden>Máximo al final (unidades)
+                  <label class="campo-mm campo-fin" hidden>Máximo al final (unidades)
                     <input type="number" name="ciclo_maximo_fin" value="20" min="-1000000" max="1000000" step="1">
+                  </label>
+                  <label class="campo-am" hidden>Amplitud total, de mínimo a máximo <span class="unidad-estac">(unidades)</span>
+                    <input type="number" name="ciclo_amplitud" value="10" min="0" max="1000000" step="1">
+                  </label>
+                  <label class="campo-am campo-fin" hidden>Amplitud total al final (unidades)
+                    <input type="number" name="ciclo_amplitud_fin" value="20" min="0" max="1000000" step="1">
                   </label>
                   <label>Variación de la amplitud (%)
                     <input type="number" name="ciclo_var_amplitud" value="25" min="0" max="100" step="5">
@@ -408,18 +507,15 @@
               <button type="button" id="regenerar-anomalias">Regenerar aleatorias</button>
             </div>
             <div class="aleatorias">
-              <span class="aleatorias-titulo">Magnitud de las anomalías aleatorias (%)</span>
+              <span class="aleatorias-titulo">Anomalías aleatorias</span>
               <div class="rejilla2">
-                <label>Mínimo
+                <label>Magnitud mínima (%)
                   <input type="number" name="magnitud_alea_min" value="10" min="0" max="1000" step="5">
                 </label>
-                <label>Máximo
+                <label>Magnitud máxima (%)
                   <input type="number" name="magnitud_alea_max" value="30" min="0" max="1000" step="5">
                 </label>
               </div>
-            </div>
-            <div class="aleatorias">
-              <span class="aleatorias-titulo">Añadir varias aleatorias</span>
               <div class="trio">
                 <label>Puntuales
                   <input type="number" id="n-puntual" value="2" min="0" max="20" step="1">
@@ -497,6 +593,53 @@
             </template>
           </fieldset>
         </form>
+
+        <!-- Series que no se generan: cada tipo tiene su propio panel y no se mezclan -->
+        <section id="panel-manual" hidden>
+          <fieldset id="grupo-importar" hidden>
+            <legend>Importar un archivo</legend>
+            <small class="ayuda">Un CSV, un TXT o un Excel (.xlsx). Se usa la primera hoja, y la primera fila puede ser de títulos.</small>
+            <label class="boton-archivo">Elegir archivo<input type="file" id="manual-archivo" accept=".csv,.tsv,.txt,.xlsx,.xls" hidden></label>
+            <label id="importar-col-campo" hidden>Columna con los valores
+              <select id="importar-columna"></select>
+            </label>
+            <small class="ayuda" id="importar-estado"></small>
+          </fieldset>
+
+          <fieldset id="grupo-escribir" hidden>
+            <legend>Escribir o pegar datos</legend>
+            <label>Un valor por línea, o columnas copiadas de Excel
+              <textarea id="manual-texto" rows="10" spellcheck="false" placeholder="100&#10;102,5&#10;&#10;98&#10;&#10;Una línea vacía es un dato faltante."></textarea>
+            </label>
+            <label id="escribir-col-campo" hidden>Columna con los valores
+              <select id="escribir-columna"></select>
+            </label>
+            <small class="ayuda" id="escribir-estado"></small>
+          </fieldset>
+
+          <fieldset id="grupo-dibujar" hidden>
+            <legend>Dibujar con el cursor</legend>
+            <small class="ayuda">Con el dibujo activado, mantén pulsado y arrastra sobre la gráfica: cada punto toma la altura del cursor. Vuelve a pasar por un tramo para corregirlo.</small>
+            <label>Número de puntos
+              <input type="number" id="manual-n" value="100" min="2" max="10000" step="1">
+            </label>
+            <div class="rejilla2">
+              <label>Eje Y: mínimo
+                <input type="number" id="manual-ymin" value="0" step="any">
+              </label>
+              <label>Eje Y: máximo
+                <input type="number" id="manual-ymax" value="100" step="any">
+              </label>
+            </div>
+            <label>Valores (un punto por línea; una línea vacía es un dato faltante)
+              <textarea id="manual-texto-dibujar" rows="6" spellcheck="false" placeholder="Lo que dibujes aparece aquí, y lo que escribas aquí se dibuja."></textarea>
+            </label>
+            <div class="botones-manual">
+              <button type="button" id="manual-dibujar" aria-pressed="false">Dibujo activado</button>
+              <button type="button" id="manual-borrar">Vaciar</button>
+            </div>
+          </fieldset>
+        </section>
       </aside>
 
       <section class="tarjeta-grafica">
@@ -550,6 +693,7 @@
       aviso.textContent = mensaje;
       aviso.hidden = !mensaje;
       el.classList.toggle("invalido", Boolean(mensaje));
+      if (mensaje) plegar(el.closest("fieldset"), false); // un error no puede quedar escondido en una sección plegada
     }
 
     // Revisa los campos numéricos activos: vacíos o fuera de su mínimo/máximo. Devuelve false si hay alguno mal.
@@ -559,7 +703,7 @@
       form.querySelectorAll("input[type=number]").forEach((el) => {
         if (el.disabled || el.closest(".trio")) return mostrarError(el, ""); // apagados y contadores: no se envían
         let mensaje = "";
-        if (el.value === "" || el.validity.badInput) {
+        if ((el.value === "" && !el.hasAttribute("data-opcional")) || el.validity.badInput) {
           mensaje = "Escribe un número";
         } else if (el.validity.rangeUnderflow || el.validity.rangeOverflow) {
           if (el.min !== "" && el.max !== "") mensaje = `Entre ${el.min} y ${el.max}`;
@@ -589,12 +733,18 @@
 
     // Un fieldset desactivado deshabilita sus campos; el interruptor del legend queda activo.
     function syncDisabled() {
+      // Con valor final, la tendencia queda activa (se elige su tipo) y su valor no se usa
+      const conFinal = form.elements.valor_final.value.trim() !== "";
+      if (conFinal) form.elements.tendencia_activa.checked = true;
+      form.elements.tendencia_activa.disabled = conFinal;
+      document.getElementById("ayuda-final").hidden = !conFinal;
       for (const name of toggles) {
         const box = form.elements[name];
-        box.closest("fieldset").querySelectorAll("input[type=number], input.alea, select, button").forEach((el) => {
+        box.closest("fieldset").querySelectorAll("input[type=number], input.alea, select, button:not(.plegar)").forEach((el) => {
           el.disabled = !box.checked;
         });
       }
+      if (conFinal) form.elements.tendencia_valor.disabled = true; // lo marca el valor final
       // Una anomalía con "aleatorio" marcado no deja editar ese campo.
       for (const fila of listaAnomalias.children) {
         for (const campo of ["punto", "magnitud"]) {
@@ -612,12 +762,13 @@
         fila.querySelector(".h-desde-texto").textContent = esRango ? "Desde el punto" : "Punto (eje x)";
         if (!esRango) fila.querySelector(".h-hasta").disabled = true;
       }
-      // El mínimo y el máximo "al final" solo existen en la multiplicativa
+      // Los campos "al final" solo existen en la multiplicativa y solo se ve una forma de definir la amplitud
       for (const [filas, campoModo] of [[lista, "estacionalidad_modo"], [listaCiclos, "ciclo_modo"]]) {
         for (const fila of filas.children) {
-          if (fila.querySelector(`[name=${campoModo}]`).value !== "multiplicativa") {
-            fila.querySelectorAll(".campo-fin input").forEach((el) => { el.disabled = true; });
-          }
+          // lo que no se ve (la otra forma de definir la amplitud, o los "al final" en aditiva) no se valida
+          fila.querySelectorAll(".campo-mm, .campo-am").forEach((etiqueta) => {
+            if (etiqueta.hidden) etiqueta.querySelector("input").disabled = true;
+          });
         }
       }
       // La fuerza de la dependencia solo existe en el ruido autocorrelado
@@ -632,7 +783,72 @@
         anadirAnomalia.disabled = true;
         document.getElementById("anadir-aleatorias").disabled = true;
       }
+      actualizarResumenes();
     }
+
+    // ---------- Secciones plegables ----------
+    const secciones = [...form.querySelectorAll("fieldset")];
+
+    function textoOpcion(select) { return select.selectedOptions[0] ? select.selectedOptions[0].text : ""; }
+    function cuantos(n, uno, varios) { return n === 1 ? `1 ${uno}` : `${n} ${varios}`; }
+    function periodos(contenedor, campo) {
+      return [...contenedor.children].map((fila) => fila.querySelector(`[name=${campo}]`).value).join(", ");
+    }
+
+    // Una línea por sección, para ver qué hay configurado sin abrirla
+    function resumenSeccion(i) {
+      const f = form.elements;
+      if (i > 0 && !f[toggles[i - 1]].checked) return "Desactivada";
+      switch (i) {
+        case 0: if (esManual(activa)) return resumenManual(activa).replace(/  ·  /g, " · ");
+          return `${f.puntos.value} puntos · base ${f.nivel_base.value}` + (f.valor_final.value.trim() !== "" ? ` → ${f.valor_final.value}` : "");
+        case 1: return textoOpcion(f.tendencia_tipo) + (f.valor_final.value.trim() !== "" ? ` · hacia ${f.valor_final.value}` : ` · ${f.tendencia_valor.value}`);
+        case 2: return lista.children.length ? `${cuantos(lista.children.length, "onda", "ondas")} · periodo ${periodos(lista, "estacionalidad_periodo")}` : "Sin ondas";
+        case 3: return listaCiclos.children.length ? `${cuantos(listaCiclos.children.length, "ciclo", "ciclos")} · periodo ${periodos(listaCiclos, "ciclo_periodo")}` : "Sin ciclos";
+        case 4: return `${textoOpcion(f.ruido_tipo)} · ${f.ruido_grado.value} %`;
+        case 5: return listaAnomalias.children.length ? cuantos(listaAnomalias.children.length, "anomalía", "anomalías") : "Sin anomalías";
+        case 6: return listaHuecos.children.length ? cuantos(listaHuecos.children.length, "hueco", "huecos") : "Sin huecos";
+      }
+      return "";
+    }
+
+    function plegar(seccion, cerrada) {
+      seccion.classList.toggle("cerrado", cerrada);
+      const boton = seccion.querySelector("button.plegar");
+      if (boton) boton.setAttribute("aria-expanded", String(!cerrada));
+    }
+
+    function actualizarResumenes() {
+      secciones.forEach((seccion, i) => {
+        const cab = seccion.querySelector("legend");
+        let resumen = cab.querySelector(".resumen-seccion");
+        if (!resumen) {
+          resumen = document.createElement("span");
+          resumen.className = "resumen-seccion";
+          const boton = document.createElement("button");
+          boton.type = "button";
+          boton.className = "plegar";
+          boton.title = "Plegar o desplegar la sección";
+          boton.setAttribute("aria-expanded", String(!seccion.classList.contains("cerrado")));
+          cab.append(resumen, boton);
+        }
+        resumen.textContent = resumenSeccion(i);
+      });
+    }
+
+    // Pulsar la cabecera pliega o despliega; el interruptor sigue encendiendo y apagando la sección
+    form.addEventListener("click", (e) => {
+      const cab = e.target.closest("legend");
+      if (!cab || e.target.closest("label.toggle")) return;
+      const seccion = cab.parentElement;
+      plegar(seccion, !seccion.classList.contains("cerrado"));
+    });
+    // Al apagar una sección se pliega y al encenderla se despliega (después se puede plegar a mano)
+    form.addEventListener("change", (e) => {
+      if (e.target.classList.contains("switch")) plegar(e.target.closest("fieldset"), !e.target.checked);
+    });
+    // Estado inicial: todas las secciones empiezan plegadas, salvo la de la serie
+    secciones.forEach((seccion, i) => plegar(seccion, i > 0));
 
     // ---------- Anomalías (filas del panel) ----------
     // Cómo arranca cada fila nueva (van rotando)
@@ -750,18 +966,62 @@
       });
     }
 
-    // Aditiva: amplitud constante. Multiplicativa: el mínimo y el máximo son los del primer punto y se
-    // piden los del último (la amplitud cambia de unos a otros).
-    function actualizarUnidad(fila, campoModo = "estacionalidad_modo") {
-      const mult = fila.querySelector(`[name=${campoModo}]`).value === "multiplicativa";
-      fila.querySelectorAll(".unidad-estac").forEach((el) => { el.textContent = mult ? "al inicio (unidades)" : "(unidades)"; });
-      fila.querySelectorAll(".campo-fin").forEach((el) => { el.hidden = !mult; });
-    }
-    lista.addEventListener("change", (e) => {
-      if (e.target.name === "estacionalidad_modo") actualizarUnidad(e.target.closest(".estac"));
-    });
+    // Cada onda se define por mínimo y máximo o por su amplitud total (máximo − mínimo), centrada en el
+    // nivel: mínimo = −amplitud/2 y máximo = +amplitud/2. A la API siempre van el mínimo y el máximo; el campo
+    // de amplitud los mantiene al día. Para una onda que no esté centrada, se usa mínimo y máximo.
+    const SUFIJOS = ["", "_fin"]; // primer punto y último punto (el último solo en multiplicativa)
+    const redondear = (v) => Math.round(v * 1e6) / 1e6;
+    const campoDe = (fila, nombre) => fila.querySelector(`[name=${nombre}]`);
 
-    function anadirEstacionalidad(periodo, modo = "aditiva", minimo = -10, maximo = 10, minimoFin = "-20", maximoFin = "20") {
+    function aAmplitud(fila, p) {
+      for (const f of SUFIJOS) {
+        const minimo = parseFloat(campoDe(fila, `${p}_minimo${f}`).value);
+        const maximo = parseFloat(campoDe(fila, `${p}_maximo${f}`).value);
+        if (!Number.isFinite(minimo) || !Number.isFinite(maximo)) continue;
+        campoDe(fila, `${p}_amplitud${f}`).value = redondear(maximo - minimo);
+      }
+    }
+
+    function aMinimoMaximo(fila, p) {
+      for (const f of SUFIJOS) {
+        const amplitud = parseFloat(campoDe(fila, `${p}_amplitud${f}`).value);
+        if (!Number.isFinite(amplitud)) continue;
+        campoDe(fila, `${p}_minimo${f}`).value = redondear(-amplitud / 2);
+        campoDe(fila, `${p}_maximo${f}`).value = redondear(amplitud / 2);
+      }
+    }
+
+    // Qué campos se ven: una sola forma de definir la amplitud, y los "al final" solo en multiplicativa
+    // (la amplitud pasa de los valores del primer punto a los del último).
+    function actualizarCampos(fila, p) {
+      const mult = campoDe(fila, `${p}_modo`).value === "multiplicativa";
+      const porAmplitud = campoDe(fila, `${p}_definicion`).value === "amp";
+      fila.querySelectorAll(".unidad-estac").forEach((el) => { el.textContent = mult ? "al inicio (unidades)" : "(unidades)"; });
+      fila.querySelectorAll(".campo-mm, .campo-am").forEach((etiqueta) => {
+        const esDeAmplitud = etiqueta.classList.contains("campo-am");
+        etiqueta.hidden = esDeAmplitud !== porAmplitud || (etiqueta.classList.contains("campo-fin") && !mult);
+      });
+    }
+
+    function enlazarDefinicion(contenedor, p) {
+      const derivados = ["amplitud", "amplitud_fin"].map((n) => `${p}_${n}`);
+      contenedor.addEventListener("input", (e) => {
+        if (derivados.includes(e.target.name)) aMinimoMaximo(e.target.closest(".estac"), p);
+      });
+      contenedor.addEventListener("change", (e) => {
+        const fila = e.target.closest(".estac");
+        if (!fila || ![`${p}_modo`, `${p}_definicion`].includes(e.target.name)) return;
+        if (e.target.name === `${p}_definicion` && e.target.value === "amp") {
+          aAmplitud(fila, p);
+          aMinimoMaximo(fila, p); // la onda queda centrada en el nivel
+        }
+        actualizarCampos(fila, p);
+        syncDisabled(); // los campos que acaban de aparecer no deben quedar desactivados
+      });
+    }
+    enlazarDefinicion(lista, "estacionalidad");
+
+    function anadirEstacionalidad(periodo, modo = "aditiva", minimo = -10, maximo = 10, minimoFin = "-20", maximoFin = "20", definicion = "minmax") {
       const fila = plantilla.content.firstElementChild.cloneNode(true);
       fila.querySelector("[name=estacionalidad_periodo]").value =
         periodo ?? PERIODOS_INICIALES[lista.children.length % PERIODOS_INICIALES.length];
@@ -770,7 +1030,9 @@
       fila.querySelector("[name=estacionalidad_maximo]").value = maximo;
       fila.querySelector("[name=estacionalidad_minimo_fin]").value = minimoFin;
       fila.querySelector("[name=estacionalidad_maximo_fin]").value = maximoFin;
-      actualizarUnidad(fila);
+      fila.querySelector("[name=estacionalidad_definicion]").value = definicion;
+      aAmplitud(fila, "estacionalidad");
+      actualizarCampos(fila, "estacionalidad");
       lista.appendChild(fila);
       renumerar();
     }
@@ -803,15 +1065,15 @@
       });
     }
 
-    listaCiclos.addEventListener("change", (e) => {
-      if (e.target.name === "ciclo_modo") actualizarUnidad(e.target.closest(".estac"), "ciclo_modo");
-    });
+    enlazarDefinicion(listaCiclos, "ciclo");
 
     function nuevaFilaCiclo(valores = {}) {
       const fila = plantillaCiclo.content.firstElementChild.cloneNode(true);
       const v = { ...CICLO_INICIAL, periodo: PERIODOS_CICLO[listaCiclos.children.length % PERIODOS_CICLO.length], semilla: String(nuevaSemilla()), ...valores };
       for (const campo of CAMPOS_CICLO) fila.querySelector(`[name=ciclo_${campo}]`).value = v[campo];
-      actualizarUnidad(fila, "ciclo_modo");
+      fila.querySelector("[name=ciclo_definicion]").value = v.definicion ?? "minmax";
+      aAmplitud(fila, "ciclo");
+      actualizarCampos(fila, "ciclo");
       listaCiclos.appendChild(fila);
       renumerarCiclos();
     }
@@ -855,7 +1117,7 @@
     // listos para cuando se enciendan.
     function estadoSoloNivel() {
       return {
-        puntos: "500", nivel_base: "100",
+        puntos: "500", nivel_base: "100", valor_final: "",
         tendencia_activa: false, tendencia_valor: "0.5", tendencia_tipo: "lineal", ver_tendencia: false,
         estacionalidad_activa: false, estacionalidades: [{ periodo: PERIODOS_INICIALES[0], modo: "aditiva", minimo: "-10", maximo: "10", minimo_fin: "-20", maximo_fin: "20" }],
         ciclo_activo: false, ciclos: [{ ...CICLO_INICIAL, semilla: String(nuevaSemilla()) }],
@@ -997,7 +1259,7 @@
 
     // Los campos sueltos del panel (los que no son listas de filas), que se guardan con cada serie
     const CAMPOS_SIMPLES = [
-      "puntos", "nivel_base", "tendencia_valor", "tendencia_tipo", "ruido_grado", "ruido_tipo", "ruido_phi",
+      "puntos", "nivel_base", "valor_final", "tendencia_valor", "tendencia_tipo", "ruido_grado", "ruido_tipo", "ruido_phi",
       "magnitud_alea_min", "magnitud_alea_max", "semilla_ruido", "semilla_anomalias",
     ];
 
@@ -1017,10 +1279,12 @@
         maximo: fila.querySelector("[name=estacionalidad_maximo]").value,
         minimo_fin: fila.querySelector("[name=estacionalidad_minimo_fin]").value,
         maximo_fin: fila.querySelector("[name=estacionalidad_maximo_fin]").value,
+        definicion: fila.querySelector("[name=estacionalidad_definicion]").value,
       }));
-      e.ciclos = [...listaCiclos.children].map((fila) =>
-        Object.fromEntries(CAMPOS_CICLO.map((campo) => [campo, fila.querySelector(`[name=ciclo_${campo}]`).value]))
-      );
+      e.ciclos = [...listaCiclos.children].map((fila) => ({
+        ...Object.fromEntries(CAMPOS_CICLO.map((campo) => [campo, fila.querySelector(`[name=ciclo_${campo}]`).value])),
+        definicion: fila.querySelector("[name=ciclo_definicion]").value,
+      }));
       e.anomalias = [...listaAnomalias.children].map((fila) => ({
         tipo: fila.querySelector(".a-tipo").value,
         punto: fila.querySelector(".a-punto").value,
@@ -1046,6 +1310,7 @@
       refrescarColor();
       refrescarNombre();
       aplicarEstado(s.estado);
+      mostrarModo(s);
     }
 
     function aplicarEstado(e) {
@@ -1056,7 +1321,7 @@
       form.elements.ver_tendencia.checked = e.ver_tendencia;
       form.elements.ver_ocultos.checked = e.ver_ocultos;
       lista.replaceChildren();
-      e.estacionalidades.forEach((est) => anadirEstacionalidad(est.periodo, est.modo, est.minimo, est.maximo, est.minimo_fin, est.maximo_fin));
+      e.estacionalidades.forEach((est) => anadirEstacionalidad(est.periodo, est.modo, est.minimo, est.maximo, est.minimo_fin, est.maximo_fin, est.definicion));
       listaCiclos.replaceChildren();
       e.ciclos.forEach((ciclo) => nuevaFilaCiclo(ciclo));
       listaAnomalias.replaceChildren();
@@ -1083,6 +1348,7 @@
         p.set("tendencia_valor", e.tendencia_valor);
         p.set("tendencia_tipo", e.tendencia_tipo);
       }
+      if (e.valor_final.trim() !== "") p.set("valor_final", e.valor_final);
       // Sin ninguna fila de estacionalidad no hay onda que dibujar (el servidor usaría una por defecto).
       const conOndas = e.estacionalidad_activa && e.estacionalidades.length > 0;
       p.set("estacionalidad_activa", conOndas);
@@ -1145,6 +1411,7 @@
 
     // Pide los datos de una serie. Devuelve false si la API los rechaza (se conservan los anteriores).
     async function cargarSerie(s, numero) {
+      if (esManual(s)) return true; // sus datos son locales: no pasan por la API
       const { params, incluidas } = paramsDeSerie(s);
       try {
         const res = await fetch("/api/series?" + params);
@@ -1197,12 +1464,35 @@
         }
         cont.append(tab);
       }
+      // "+ Nueva serie" abre un menú con las formas de crear una serie
+      const envoltorio = document.createElement("div");
+      envoltorio.className = "nueva-serie";
       const nueva = document.createElement("button");
       nueva.type = "button";
       nueva.className = "anadir-serie";
-      nueva.dataset.accion = "nueva";
-      nueva.textContent = "+ Añadir serie";
-      cont.append(nueva);
+      nueva.dataset.accion = "menu-nueva";
+      nueva.setAttribute("aria-haspopup", "true");
+      nueva.textContent = "+ Nueva serie";
+      const menu = document.createElement("div");
+      menu.className = "menu-nueva";
+      menu.hidden = true;
+      for (const [accion, titulo, ayuda] of [
+        ["nueva", "Generar", "Tendencia, estacionalidad, ruido..."],
+        ["nueva-importar", "Importar CSV o Excel", "Desde un archivo"],
+        ["nueva-escribir", "Escribir o pegar datos", "Valores a mano o copiados de Excel"],
+        ["nueva-dibujar", "Dibujar", "Con el cursor sobre la gráfica"],
+      ]) {
+        const opcion = document.createElement("button");
+        opcion.type = "button";
+        opcion.dataset.accion = accion;
+        opcion.append(titulo);
+        const pequena = document.createElement("small");
+        pequena.textContent = ayuda;
+        opcion.append(pequena);
+        menu.append(opcion);
+      }
+      envoltorio.append(nueva, menu);
+      cont.append(envoltorio);
     }
 
     function renderPestanasGrafica() {
@@ -1274,13 +1564,20 @@
       repintar();
     }
 
+    // El menú de "+ Nueva serie" se cierra al pulsar fuera
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".nueva-serie")) document.querySelectorAll(".menu-nueva").forEach((m) => { m.hidden = true; });
+    });
+
     document.getElementById("pestanas-series").addEventListener("click", (e) => {
       const boton = e.target.closest("button");
       if (!boton) return;
       const s = series.find((x) => x.id === Number(boton.dataset.id));
       if (boton.dataset.accion === "elegir") elegirSerie(s);
       else if (boton.dataset.accion === "cerrar") cerrarSerie(s);
+      else if (boton.dataset.accion === "menu-nueva") boton.nextElementSibling.hidden = !boton.nextElementSibling.hidden;
       else if (boton.dataset.accion === "nueva") anadirSerie();
+      else if (boton.dataset.accion.startsWith("nueva-")) anadirSerieManual(boton.dataset.accion.slice(6));
     });
 
     document.getElementById("pestanas-grafica").addEventListener("click", (e) => {
@@ -1312,7 +1609,7 @@
 
     // Línea bajo el título con lo que hay activo en una serie.
     function resumen(e, anomaliasAplicadas, faltantes) {
-      const partes = [`${e.puntos} puntos`, `nivel ${e.nivel_base}`];
+      const partes = [`${e.puntos} puntos`, e.valor_final.trim() !== "" ? `de ${e.nivel_base} a ${e.valor_final}` : `nivel ${e.nivel_base}`];
       if (e.tendencia_activa) partes.push(`tendencia ${TEXTO_OPCION.tendencia_tipo[e.tendencia_tipo]}`);
       const n = e.estacionalidades.length;
       if (e.estacionalidad_activa && n > 0) partes.push(n === 1 ? "1 estacionalidad" : `${n} estacionalidades`);
@@ -1391,7 +1688,8 @@
       } else {
         const s = series.find((x) => x.id === vista);
         titulo.textContent = nombreDe(s);
-        resumenEl.textContent = s.datos ? resumen(s.estado, s.datos.anomalias.length, s.datos.n_faltantes) : "";
+        resumenEl.textContent = esManual(s) ? resumenManual(s)
+          : s.datos ? resumen(s.estado, s.datos.anomalias.length, s.datos.n_faltantes) : "";
       }
 
       const eje = (texto) => ({
@@ -1399,17 +1697,27 @@
         gridcolor: c.grid, gridwidth: 1, zeroline: false,
         linecolor: c.axis, tickfont: { color: c.muted, size: 11 }, ticks: "", automargin: true,
       });
+      // Serie manual: con el dibujo activo (o sin datos) los ejes se fijan, para que el cursor siempre
+      // corresponda al mismo valor y la gráfica no se mueva mientras se dibuja.
+      const unica = todas ? null : visibles[0];
+      const manual = esManual(unica);
+      const enDibujo = manual && dibujando;
+      const fijar = enDibujo || (manual && unica.manual.y.every((v) => v === null));
+      const ejeX = fijar ? { range: [-0.5, unica.manual.y.length - 0.5], autorange: false } : manual ? { autorange: true } : {};
+      const ejeY = fijar ? { range: [unica.manual.yMin, unica.manual.yMax], autorange: false } : manual ? { autorange: true } : {};
+      document.getElementById("chart").classList.toggle("dibujando", enDibujo);
       Plotly.react("chart", trazas, {
+        dragmode: enDibujo ? false : "zoom",
         paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
         font: { family: c.fuente, color: c.ink2 },
         margin: { t: 8, r: 12, b: 8, l: 64 }, // margen izquierdo fijo: las gráficas de la descomposición lo comparten
         xaxis: {
-          ...eje("Punto"), showline: true, showgrid: false,
+          ...eje("Punto"), showline: true, showgrid: false, ...ejeX,
           showspikes: true, spikemode: "across", spikesnap: "cursor",
           spikethickness: 1, spikedash: "solid", spikecolor: c.muted,
         },
-        yaxis: { ...eje("Valor"), showline: false, automargin: false },
-        hovermode: todas ? "x unified" : "x",
+        yaxis: { ...eje("Valor"), showline: false, automargin: false, ...ejeY },
+        hovermode: enDibujo ? false : todas ? "x unified" : "x",
         hoverlabel: { bgcolor: c.surface, bordercolor: c.axis, font: { color: c.ink, family: c.fuente, size: 13 } },
         // Con una sola serie la leyenda sobra, salvo que haya que distinguir la serie de su tendencia.
         showlegend: (todas && visibles.length > 1) || (!todas && (hayTendencia || hayOcultos)),
@@ -1438,7 +1746,7 @@
       contDescomposicion.replaceChildren();
 
       const s = vista === "todas" ? null : series.find((x) => x.id === vista);
-      botonDescomponer.hidden = !s; // en "Todas" no hay descomposición
+      botonDescomponer.hidden = !s || esManual(s); // en "Todas" y en las manuales no hay descomposición
       if (!s || !s.datos || !s.descomponer) {
         contDescomposicion.hidden = true;
         botonDescomponer.textContent = "Descomponer serie";
@@ -1519,6 +1827,7 @@
       syncDisabled();
       guardarActiva();
       renderPestanas(); // por si se ha cambiado el nombre de la serie
+      if (esManual(activa)) { await repintar(); return; } // el panel de generación no se usa
       if (!validarCampos()) return; // hay un valor imposible: se avisa en el campo y se conserva la gráfica
       const ok = await cargarSerie(activa, numero);
       if (numero !== ultimaPeticion) return;
@@ -1530,6 +1839,358 @@
     form.addEventListener("submit", (e) => e.preventDefault());
     // Si el sistema cambia entre claro y oscuro, se repinta con los colores del nuevo tema.
     window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", pintar);
+
+
+    // ---------- Series que no se generan: importadas, escritas o dibujadas ----------
+    // Una serie de este tipo es una serie normal con tipo "manual", un origen ("importar", "escribir" o "dibujar")
+    // y su propia lista de valores (null = dato faltante). Cada origen enseña solo su panel.
+    const MAX_PUNTOS_MANUAL = 10000;
+    const NOMBRE_ORIGEN = { importar: "importada", escribir: "escrita", dibujar: "dibujada" };
+    const panelManual = document.getElementById("panel-manual");
+    const grupos = {
+      importar: document.getElementById("grupo-importar"),
+      escribir: document.getElementById("grupo-escribir"),
+      dibujar: document.getElementById("grupo-dibujar"),
+    };
+    // Importar y escribir leen una tabla y dejan elegir la columna: cada uno con su selector y su texto de estado
+    const tablaUI = {
+      importar: { campo: document.getElementById("importar-col-campo"), selector: document.getElementById("importar-columna"), estado: document.getElementById("importar-estado") },
+      escribir: { campo: document.getElementById("escribir-col-campo"), selector: document.getElementById("escribir-columna"), estado: document.getElementById("escribir-estado") },
+    };
+    const textoManual = document.getElementById("manual-texto");           // en "Escribir o pegar"
+    const textoDibujo = document.getElementById("manual-texto-dibujar");   // en "Dibujar": los mismos valores, por escrito
+    const nManual = document.getElementById("manual-n");
+    const yMinManual = document.getElementById("manual-ymin");
+    const yMaxManual = document.getElementById("manual-ymax");
+    const botonDibujar = document.getElementById("manual-dibujar");
+    const graficaEl = document.getElementById("chart");
+    let dibujando = false;
+
+    function esManual(s) { return Boolean(s) && s.tipo === "manual"; }
+
+    // Lo que la gráfica espera de una serie (como lo que devuelve la API, sin componentes).
+    function recalcularManual(s) {
+      const y = s.manual.y;
+      s.datos = {
+        x: y.map((_, i) => i), y, componentes: null, anomalias: [], huecos: [], y_completa: null,
+        n_faltantes: y.filter((v) => v === null).length,
+      };
+    }
+
+    function resumenManual(s) {
+      const faltan = s.datos.n_faltantes;
+      return `${s.manual.y.length} puntos  ·  serie ${NOMBRE_ORIGEN[s.origen]}` + (faltan ? `  ·  ${faltan} ${faltan === 1 ? "dato faltante" : "datos faltantes"}` : "");
+    }
+
+    // ----- Leer texto: una columna de valores, o una tabla (copiada de Excel o de un CSV) -----
+    // Devuelve { nombres, datos } con datos[fila][columna] = número o null.
+    function interpretarTexto(texto) {
+      const lineas = texto.replace(/\r/g, "").split("\n");
+      if (lineas.length && lineas[lineas.length - 1].trim() === "") lineas.pop(); // el salto de línea del final
+      if (!lineas.some((l) => l.trim() !== "")) return { nombres: [], datos: [] };
+      // Separador: tabulador (Excel), punto y coma o coma. Con coma como separador, los decimales llevan punto;
+      // con cualquiera de los otros, la coma es el decimal (1,5).
+      const hayTab = lineas.some((l) => l.includes("\t"));
+      const hayPuntoComa = lineas.some((l) => l.includes(";"));
+      const hayComa = lineas.some((l) => l.includes(","));
+      const comaSepara = !hayTab && !hayPuntoComa && hayComa;
+      const partir = hayTab ? (l) => l.split("\t") : hayPuntoComa ? (l) => l.split(";")
+        : comaSepara ? (l) => l.split(",") : (l) => l.trim().split(/\s+/);
+      const numero = (t) => {
+        t = t.trim();
+        if (t === "") return null;
+        const v = Number(comaSepara ? t : t.replace(",", "."));
+        return Number.isFinite(v) ? v : NaN; // NaN = texto
+      };
+      const filas = lineas.map((l) => partir(l).map((t) => t.trim()));
+      // Primera fila de títulos: todas sus celdas con algo son texto
+      const primera = filas.find((f) => f.some((t) => t !== ""));
+      const conTitulos = primera.every((t) => t === "" || Number.isNaN(numero(t)));
+      const nColumnas = Math.max(...filas.map((f) => f.length));
+      const nombres = Array.from({ length: nColumnas }, (_, k) => (conTitulos && primera[k]) || `Columna ${k + 1}`);
+      const cuerpo = conTitulos ? filas.slice(filas.indexOf(primera) + 1) : filas;
+      const datos = cuerpo.map((f) => Array.from({ length: nColumnas }, (_, k) => {
+        const v = numero(f[k] ?? "");
+        return Number.isNaN(v) ? null : v;
+      }));
+      return { nombres, datos };
+    }
+
+    // Qué columna usar por defecto: la primera que sea en su mayoría numérica, saltándose un índice 0, 1, 2...
+    function columnaPorDefecto(tabla) {
+      const n = tabla.nombres.length;
+      const candidatas = [];
+      for (let k = 0; k < n; k++) {
+        const col = tabla.datos.map((f) => f[k]);
+        const numericos = col.filter((v) => v !== null).length;
+        if (numericos >= 0.5 * Math.max(col.length, 1) && numericos > 0) candidatas.push(k);
+      }
+      if (candidatas.length === 0) return 0;
+      const esIndice = (k) => {
+        const v = tabla.datos.map((f) => f[k]);
+        return v.every((x, i) => x !== null && Number.isInteger(x) && (i === 0 || x === v[i - 1] + 1));
+      };
+      return candidatas.length > 1 && esIndice(candidatas[0]) ? candidatas[1] : candidatas[0];
+    }
+
+    // Ajusta el eje Y a los datos (un 10 % de margen), o a 0-100 si no hay ninguno.
+    function ajustarEjeY(s) {
+      const valores = s.manual.y.filter((v) => v !== null);
+      if (valores.length === 0) { s.manual.yMin = 0; s.manual.yMax = 100; return; }
+      const minimo = Math.min(...valores), maximo = Math.max(...valores);
+      const margen = (maximo - minimo) * 0.1 || Math.abs(maximo) * 0.1 || 1;
+      s.manual.yMin = Math.round((minimo - margen) * 100) / 100;
+      s.manual.yMax = Math.round((maximo + margen) * 100) / 100;
+    }
+
+    // ----- Mantener al día panel, datos y gráfica -----
+    const textoDe = (s) => s.manual.y.map((v) => (v === null ? "" : v)).join("\n") + "\n";
+
+    // Rellena el panel de la serie con sus datos. "escribirTexto" es false mientras se teclea en el cuadro.
+    function pintarPanelManual(s, escribirTexto = true) {
+      const total = s.manual.y.length;
+      const resumen = `${total - s.datos.n_faltantes} de ${total} puntos con dato.`;
+      if (s.origen === "importar" || s.origen === "escribir") {
+        const ui = tablaUI[s.origen], tabla = s.manual.tabla;
+        ui.campo.hidden = !(tabla && tabla.nombres.length > 1);
+        if (tabla) {
+          ui.selector.replaceChildren(...tabla.nombres.map((nombre, k) => new Option(nombre, k)));
+          ui.selector.value = s.manual.col;
+        }
+        const archivo = s.origen === "importar" && s.manual.archivo ? `${s.manual.archivo}: ` : "";
+        ui.estado.textContent = (s.origen === "importar" && !s.manual.archivo) ? "" : archivo + resumen
+          + (s.manual.avisoCorte ? ` Se usaron solo los primeros ${MAX_PUNTOS_MANUAL}.` : "");
+      }
+      if (s.origen === "escribir" && escribirTexto) textoManual.value = s.manual.y.every((v) => v === null) ? "" : textoDe(s);
+      if (s.origen === "dibujar" && escribirTexto) textoDibujo.value = s.manual.y.every((v) => v === null) ? "" : textoDe(s);
+      if (s.origen === "dibujar") {
+        nManual.value = total;
+        yMinManual.value = s.manual.yMin;
+        yMaxManual.value = s.manual.yMax;
+      }
+      actualizarResumenes(); // la línea de la sección "Serie" cuenta puntos y datos faltantes
+    }
+
+    function cambioManual(s, escribirTexto = true) {
+      recalcularManual(s);
+      pintarPanelManual(s, escribirTexto);
+      pintar();
+    }
+
+    // Toma los valores de un texto (escrito, pegado o leído de un archivo).
+    function leerTexto(s, texto, ajustarEje) {
+      const tabla = interpretarTexto(texto);
+      let y;
+      if (tabla.nombres.length === 0) {
+        y = Array(s.manual.y.length || 100).fill(null); // texto vacío: se conserva el número de puntos
+        s.manual.tabla = null;
+      } else {
+        s.manual.tabla = tabla;
+        if (!(s.manual.col < tabla.nombres.length) || ajustarEje) s.manual.col = columnaPorDefecto(tabla);
+        y = tabla.datos.map((f) => f[s.manual.col]);
+      }
+      s.manual.avisoCorte = y.length > MAX_PUNTOS_MANUAL;
+      s.manual.y = y.slice(0, MAX_PUNTOS_MANUAL);
+      if (ajustarEje) ajustarEjeY(s);
+      cambioManual(s, false);
+    }
+
+    // ----- Escribir o pegar -----
+    // Al pegar, además de leer los datos se ajusta el eje Y a ellos; al teclear, el eje no se toca.
+    let temporizadorTexto = 0;
+    let pegado = false;
+    for (const caja of [textoManual, textoDibujo]) {
+      caja.addEventListener("paste", () => { pegado = true; });
+      caja.addEventListener("input", () => {
+        const ajustarEje = pegado;
+        pegado = false;
+        clearTimeout(temporizadorTexto);
+        temporizadorTexto = setTimeout(() => leerTexto(activa, caja.value, ajustarEje), 250);
+      });
+    }
+
+    // ----- Elegir columna (importar y escribir) -----
+    for (const origen of ["importar", "escribir"]) {
+      tablaUI[origen].selector.addEventListener("change", () => {
+        const s = activa;
+        s.manual.col = Number(tablaUI[origen].selector.value);
+        s.manual.y = s.manual.tabla.datos.map((f) => f[s.manual.col]).slice(0, MAX_PUNTOS_MANUAL);
+        ajustarEjeY(s);
+        cambioManual(s, origen === "escribir");
+      });
+    }
+
+    // ----- Importar un archivo: CSV / texto, o Excel (con la librería SheetJS, que se descarga al usarla) -----
+    function cargarXLSX() {
+      return new Promise((listo, fallo) => {
+        if (window.XLSX) return listo();
+        const el = document.createElement("script");
+        el.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+        el.onload = listo;
+        el.onerror = () => fallo(new Error("No se pudo cargar el lector de Excel (¿sin conexión?). Guarda la hoja como CSV e impórtala."));
+        document.head.append(el);
+      });
+    }
+
+    document.getElementById("manual-archivo").addEventListener("change", async (e) => {
+      const archivo = e.target.files[0];
+      e.target.value = ""; // permite elegir el mismo archivo otra vez
+      if (!archivo) return;
+      const s = activa;
+      try {
+        let texto;
+        if (/\.xlsx?$/i.test(archivo.name)) {
+          await cargarXLSX();
+          const libro = XLSX.read(await archivo.arrayBuffer(), { type: "array" });
+          const filas = XLSX.utils.sheet_to_json(libro.Sheets[libro.SheetNames[0]], { header: 1, raw: true, defval: "" });
+          texto = filas.map((f) => f.map((c) => String(c)).join("\t")).join("\n");
+        } else {
+          texto = await archivo.text();
+        }
+        s.manual.archivo = archivo.name;
+        leerTexto(s, texto, true);
+      } catch (err) {
+        tablaUI.importar.estado.textContent = err.message || "No se pudo leer el archivo.";
+      }
+    });
+
+    // ----- Dibujar con el cursor -----
+    nManual.addEventListener("change", () => {
+      const n = Math.min(Math.max(parseInt(nManual.value) || 0, 2), MAX_PUNTOS_MANUAL);
+      const y = activa.manual.y;
+      activa.manual.y = n <= y.length ? y.slice(0, n) : y.concat(Array(n - y.length).fill(null));
+      cambioManual(activa);
+    });
+
+    document.getElementById("manual-borrar").addEventListener("click", () => {
+      activa.manual.y = activa.manual.y.map(() => null);
+      activa.manual.tabla = null;
+      cambioManual(activa);
+    });
+
+    for (const [campo, clave] of [[yMinManual, "yMin"], [yMaxManual, "yMax"]]) {
+      campo.addEventListener("input", () => {
+        const v = parseFloat(campo.value);
+        if (!Number.isFinite(v)) return;
+        activa.manual[clave] = v;
+        if (activa.manual.yMin < activa.manual.yMax) pintar();
+      });
+    }
+
+    function actualizarBotonDibujo() {
+      botonDibujar.setAttribute("aria-pressed", dibujando);
+      botonDibujar.textContent = dibujando ? "Dibujo activado" : "Dibujo desactivado";
+    }
+
+    botonDibujar.addEventListener("click", () => {
+      dibujando = !dibujando;
+      if (dibujando && vista !== activa.id) { vista = activa.id; renderPestanasGrafica(); } // se dibuja sobre una sola serie
+      actualizarBotonDibujo();
+      pintar();
+    });
+
+    // Pixel del ratón -> punto de la serie y valor, con los ejes de Plotly. null si está fuera del dibujo.
+    function posicionEnGrafica(e) {
+      const lay = graficaEl._fullLayout;
+      if (!lay || !lay.xaxis || !lay.yaxis) return null;
+      const xa = lay.xaxis, ya = lay.yaxis, caja = graficaEl.getBoundingClientRect();
+      const px = e.clientX - caja.left - xa._offset, py = e.clientY - caja.top - ya._offset;
+      if (px < 0 || px > xa._length || py < 0 || py > ya._length) return null;
+      return { i: Math.round(xa.p2l(px)), v: Math.round(ya.p2l(py) * 100) / 100 };
+    }
+
+    let trazo = null;          // último punto dibujado en el trazo en curso { i, v }
+    let repintadoPendiente = false;
+
+    function marcar(e) {
+      const s = activa;
+      const pos = posicionEnGrafica(e);
+      if (!pos || pos.i < 0 || pos.i >= s.manual.y.length) { trazo = null; return; }
+      const y = s.manual.y;
+      if (trazo && Math.abs(pos.i - trazo.i) > 1) {
+        // si el cursor va rápido salta puntos: se rellenan en línea recta entre el anterior y este
+        const paso = Math.sign(pos.i - trazo.i);
+        for (let k = trazo.i + paso; k !== pos.i; k += paso) {
+          y[k] = Math.round((trazo.v + (pos.v - trazo.v) * (k - trazo.i) / (pos.i - trazo.i)) * 100) / 100;
+        }
+      }
+      y[pos.i] = pos.v;
+      trazo = pos;
+      recalcularManual(s);
+      if (!repintadoPendiente) {
+        repintadoPendiente = true;
+        requestAnimationFrame(() => { repintadoPendiente = false; pintar(); });
+      }
+    }
+
+    const dibujandoAhora = () => dibujando && esManual(activa) && vista === activa.id;
+    graficaEl.addEventListener("pointerdown", (e) => {
+      if (!dibujandoAhora() || e.button !== 0) return;
+      graficaEl.setPointerCapture(e.pointerId);
+      trazo = null;
+      marcar(e);
+    });
+    graficaEl.addEventListener("pointermove", (e) => {
+      if (!dibujandoAhora() || !graficaEl.hasPointerCapture(e.pointerId)) return;
+      marcar(e);
+    });
+    const soltar = (e) => {
+      if (!graficaEl.hasPointerCapture(e.pointerId)) return;
+      graficaEl.releasePointerCapture(e.pointerId);
+      trazo = null;
+      pintarPanelManual(activa); // el cuadro de valores refleja lo dibujado
+    };
+    graficaEl.addEventListener("pointerup", soltar);
+    graficaEl.addEventListener("pointercancel", soltar);
+
+    // Doble clic para volver del zoom. Plotly solo lo reconoce si los dos clics son muy rápidos.
+    // Aquí vale cualquier par de clics seguidos (hasta medio segundo) sin arrastrar. Plotly tapa la gráfica
+    // con una capa mientras se pulsa el ratón, así que el "soltar" se escucha en todo el documento.
+    let pulsado = null;   // dónde y cuándo se pulsó dentro de la gráfica
+    let ultimoClic = null;
+    graficaEl.addEventListener("pointerdown", (e) => { pulsado = { x: e.clientX, y: e.clientY }; });
+    document.addEventListener("pointerup", (e) => {
+      const inicio = pulsado;
+      pulsado = null;
+      if (!inicio || dibujandoAhora()) { ultimoClic = null; return; } // con el dibujo activo los ejes están fijos
+      if (Math.hypot(e.clientX - inicio.x, e.clientY - inicio.y) > 5) { ultimoClic = null; return; } // fue un arrastre (zoom)
+      const ahora = performance.now();
+      if (ultimoClic && ahora - ultimoClic < 500) {
+        ultimoClic = null;
+        Plotly.relayout(graficaEl, { "xaxis.autorange": true, "yaxis.autorange": true });
+      } else {
+        ultimoClic = ahora;
+      }
+    });
+
+    // ----- Crear series -----
+    // Enseña solo el panel del tipo de la serie activa; las dibujadas arrancan con el dibujo activado.
+    function mostrarModo(s) {
+      form.classList.toggle("es-manual", esManual(s));
+      panelManual.hidden = !esManual(s);
+      for (const [origen, grupo] of Object.entries(grupos)) grupo.hidden = !(esManual(s) && s.origen === origen);
+      dibujando = esManual(s) && s.origen === "dibujar";
+      actualizarBotonDibujo();
+      if (esManual(s)) pintarPanelManual(s);
+    }
+
+    function anadirSerieManual(origen) {
+      guardarActiva();
+      const s = nuevaSerie();
+      s.tipo = "manual";
+      s.origen = origen;
+      s.nombre = `Serie ${NOMBRE_ORIGEN[origen]} ${s.id}`.slice(0, 30);
+      s.manual = { y: Array(100).fill(null), yMin: 0, yMax: 100, col: 0, tabla: null, archivo: "", avisoCorte: false };
+      recalcularManual(s);
+      series.push(s);
+      activa = s;
+      aplicarSerie(s);
+      if (vista !== "todas" || origen === "dibujar") vista = s.id; // dibujar necesita ver solo esta serie
+      renderPestanas();
+      repintar();
+      if (origen === "importar") document.getElementById("manual-archivo").click(); // abre el selector de archivos
+      if (origen === "escribir") textoManual.focus();
+    }
 
     // Arranca con una serie
     series = [nuevaSerie()];

@@ -44,6 +44,9 @@ def get_series(
     tendencia_activa: bool = True,
     tendencia_valor: float = Query(0.5, ge=-100, le=100),  # 0.5 = la serie sube un 50 %; -1 = baja hasta 0; por debajo de -1 la serie pasa a negativa
     tendencia_tipo: Literal["lineal", "cuadratica", "amortiguada", "logaritmica", "exponencial"] = "lineal",
+    # Valor en el que acaba la serie (en unidades): la tendencia va del nivel_base a este valor siguiendo
+    # el tipo elegido. Si se envía, manda sobre tendencia_activa y tendencia_valor.
+    valor_final: float | None = Query(None, ge=-1_000_000, le=1_000_000),
     # Estacionalidad
     estacionalidad_activa: bool = True,
     # Estacionalidad múltiple: una lista de ondas, cada una con su periodo y su modo.
@@ -123,7 +126,9 @@ def get_series(
     elif tendencia_tipo == "exponencial":
         forma = (np.exp(3 * u) - 1) / (np.exp(3) - 1)
 
-    if tendencia_activa:
+    if valor_final is not None:
+        nivel = nivel_base + (valor_final - nivel_base) * forma  # de valor inicial a valor final
+    elif tendencia_activa:
         nivel = nivel_base * (1 + tendencia_valor * forma)
     else:
         nivel = np.full(puntos, nivel_base)  # sin tendencia: línea plana en el nivel base
