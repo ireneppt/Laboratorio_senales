@@ -201,7 +201,7 @@
     .estac-cab { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
     .estac-titulo { font-size: 0.9rem; font-weight: 650; }
     .estac label:last-child { margin-bottom: 0; }
-    /* Los seis valores de un ciclo, de dos en dos */
+    /* Los valores de un ciclo, de dos en dos */
     .rejilla2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
     .rejilla2 label { margin-bottom: 12px; font-size: 0.85rem; }
     .rejilla2 input[type=number], .rejilla2 select { padding: 0 10px; font-size: 0.95rem; }
@@ -329,7 +329,6 @@
             <legend><label class="toggle"><input type="checkbox" class="switch" name="ciclo_activo" checked> Ciclo</label></legend>
             <div id="ciclos"></div>
             <button type="button" id="anadir-ciclo">+ Añadir ciclo</button>
-            <button type="button" id="regenerar-ciclo" class="separado">Regenerar ciclo</button>
             <template id="plantilla-ciclo">
               <div class="estac">
                 <div class="estac-cab">
@@ -358,9 +357,6 @@
                   <label>Variación de la amplitud (%)
                     <input type="number" name="ciclo_var_amplitud" value="25" min="0" max="100" step="5">
                   </label>
-                  <label>Fase inicial (% del ciclo)
-                    <input type="number" name="ciclo_fase" value="0" min="0" max="100" step="5">
-                  </label>
                   <label>Modo
                     <select name="ciclo_modo">
                       <option value="aditiva">Aditivo</option>
@@ -368,6 +364,10 @@
                     </select>
                   </label>
                 </div>
+                <label>Semilla de este ciclo
+                  <input type="number" name="ciclo_semilla" value="0" min="0" max="1000000" step="1">
+                </label>
+                <button type="button" class="regenerar-ciclo">Regenerar este ciclo</button>
               </div>
             </template>
           </fieldset>
@@ -390,6 +390,9 @@
             <label id="campo-phi">Fuerza de la dependencia (0 a 0,95)
               <input type="number" name="ruido_phi" value="0.8" min="0" max="0.95" step="0.05">
             </label>
+            <label>Semilla del ruido
+              <input type="number" name="semilla_ruido" value="0" min="0" max="1000000" step="1">
+            </label>
             <button type="button" id="regenerar-ruido">Regenerar ruido</button>
           </fieldset>
 
@@ -397,6 +400,13 @@
             <legend><label class="toggle"><input type="checkbox" class="switch" name="anomalias_activas" checked> Anomalías</label></legend>
             <div id="anomalias"></div>
             <button type="button" id="anadir-anomalia">+ Añadir anomalía</button>
+            <div class="aleatorias">
+              <span class="aleatorias-titulo">Semilla de los valores aleatorios</span>
+              <label>Semilla (punto y magnitud aleatorios)
+                <input type="number" name="semilla_anomalias" value="0" min="0" max="1000000" step="1">
+              </label>
+              <button type="button" id="regenerar-anomalias">Regenerar aleatorias</button>
+            </div>
             <div class="aleatorias">
               <span class="aleatorias-titulo">Magnitud de las anomalías aleatorias (%)</span>
               <div class="rejilla2">
@@ -782,9 +792,9 @@
     const listaCiclos = document.getElementById("ciclos");
     const plantillaCiclo = document.getElementById("plantilla-ciclo");
     const anadirCiclo = document.getElementById("anadir-ciclo");
-    // Los seis valores de un ciclo, con el nombre del campo del formulario y de la API
-    const CAMPOS_CICLO = ["periodo", "var_periodo", "minimo", "maximo", "minimo_fin", "maximo_fin", "var_amplitud", "fase", "modo"];
-    const CICLO_INICIAL = { periodo: "100", var_periodo: "20", minimo: "-10", maximo: "10", minimo_fin: "-20", maximo_fin: "20", var_amplitud: "25", fase: "0", modo: "aditiva" };
+    // Los valores de un ciclo, con el nombre del campo del formulario y de la API
+    const CAMPOS_CICLO = ["periodo", "var_periodo", "minimo", "maximo", "minimo_fin", "maximo_fin", "var_amplitud", "modo", "semilla"];
+    const CICLO_INICIAL = { periodo: "100", var_periodo: "20", minimo: "-10", maximo: "10", minimo_fin: "-20", maximo_fin: "20", var_amplitud: "25", modo: "aditiva" };
     const PERIODOS_CICLO = [100, 250, 60, 400]; // periodo con el que arranca cada ciclo nuevo
 
     function renumerarCiclos() {
@@ -799,7 +809,7 @@
 
     function nuevaFilaCiclo(valores = {}) {
       const fila = plantillaCiclo.content.firstElementChild.cloneNode(true);
-      const v = { ...CICLO_INICIAL, periodo: PERIODOS_CICLO[listaCiclos.children.length % PERIODOS_CICLO.length], ...valores };
+      const v = { ...CICLO_INICIAL, periodo: PERIODOS_CICLO[listaCiclos.children.length % PERIODOS_CICLO.length], semilla: String(nuevaSemilla()), ...valores };
       for (const campo of CAMPOS_CICLO) fila.querySelector(`[name=ciclo_${campo}]`).value = v[campo];
       actualizarUnidad(fila, "ciclo_modo");
       listaCiclos.appendChild(fila);
@@ -819,11 +829,21 @@
       draw();
     });
 
-    // Otra muestra aleatoria del ciclo (misma configuración): cambian sus vueltas y alturas.
-    document.getElementById("regenerar-ciclo").addEventListener("click", () => {
-      activa.semillaCiclo = nuevaSemilla();
+    // Escribe una semilla nueva en su campo y repinta: misma configuración, otra muestra aleatoria.
+    function regenerar(campo) {
+      form.elements[campo].value = nuevaSemilla();
+      draw();
+    }
+
+    // Otra muestra aleatoria de ESE ciclo (los demás no cambian): cambian sus vueltas y alturas.
+    listaCiclos.addEventListener("click", (e) => {
+      const boton = e.target.closest(".regenerar-ciclo");
+      if (!boton) return;
+      boton.closest(".estac").querySelector("[name=ciclo_semilla]").value = nuevaSemilla();
       draw();
     });
+    // Otros puntos y magnitudes para las anomalías que están en "aleatorio".
+    document.getElementById("regenerar-anomalias").addEventListener("click", () => regenerar("semilla_anomalias"));
 
     // ---------- Series: cada una guarda su configuración ----------
     let series = [];          // { id, nombre, slot, estado, datos, incluidas }
@@ -838,15 +858,17 @@
         puntos: "500", nivel_base: "100",
         tendencia_activa: false, tendencia_valor: "0.5", tendencia_tipo: "lineal", ver_tendencia: false,
         estacionalidad_activa: false, estacionalidades: [{ periodo: PERIODOS_INICIALES[0], modo: "aditiva", minimo: "-10", maximo: "10", minimo_fin: "-20", maximo_fin: "20" }],
-        ciclo_activo: false, ciclos: [{ ...CICLO_INICIAL }],
+        ciclo_activo: false, ciclos: [{ ...CICLO_INICIAL, semilla: String(nuevaSemilla()) }],
         ruido_activo: false, ruido_grado: "3", ruido_tipo: "blanco", ruido_phi: "0.8",
         anomalias_activas: false, anomalias: [], magnitud_alea_min: "10", magnitud_alea_max: "30",
         huecos_activos: false, huecos: [], ver_ocultos: false,
+        semilla_ruido: String(nuevaSemilla()), semilla_anomalias: String(nuevaSemilla()),
       };
     }
 
-    // Semilla al azar para el ruido (y otra para las anomalías aleatorias): cada serie arranca con
-    // la suya, y "Regenerar ruido" sortea otra. Con la misma semilla el resultado se repite.
+    // Semillas al azar (ruido, anomalías aleatorias y ciclo): cada serie arranca con las suyas, se ven y se
+    // pueden escribir en el panel, y los botones de regenerar sortean otra. Con la misma semilla el
+    // resultado se repite.
     const nuevaSemilla = () => Math.floor(Math.random() * 1_000_000);
 
     // Color de arranque de una serie: los 8 de la paleta validada y, a partir de la novena, uno generado
@@ -868,9 +890,9 @@
       let slot = 0;
       while (usados.has(slot)) slot++;
       contadorSeries++;
-      // slot = su hueco de la paleta (también decide su semilla); color = el que se ve, editable:
+      // slot = su hueco de la paleta; color = el que se ve, editable:
       // un número de la paleta o un "#rrggbb" elegido a mano.
-      return { id: contadorSeries, nombre: "Serie " + contadorSeries, slot, color: colorInicial(slot), semilla: nuevaSemilla(), semillaAnomalias: nuevaSemilla(), semillaCiclo: nuevaSemilla(), descomponer: false, estado: estadoSoloNivel(), datos: null, incluidas: [] };
+      return { id: contadorSeries, nombre: "Serie " + contadorSeries, slot, color: colorInicial(slot), descomponer: false, estado: estadoSoloNivel(), datos: null, incluidas: [] };
     }
 
     // Si se borra el nombre, se muestra "Serie N" para que la pestaña nunca quede vacía.
@@ -976,7 +998,7 @@
     // Los campos sueltos del panel (los que no son listas de filas), que se guardan con cada serie
     const CAMPOS_SIMPLES = [
       "puntos", "nivel_base", "tendencia_valor", "tendencia_tipo", "ruido_grado", "ruido_tipo", "ruido_phi",
-      "magnitud_alea_min", "magnitud_alea_max",
+      "magnitud_alea_min", "magnitud_alea_max", "semilla_ruido", "semilla_anomalias",
     ];
 
     // Lo que hay ahora en el panel, como un objeto.
@@ -1054,8 +1076,8 @@
       const p = new URLSearchParams();
       p.set("puntos", e.puntos);
       p.set("nivel_base", e.nivel_base);
-      p.set("semilla", s.semilla);
-      p.set("semilla_anomalias", s.semillaAnomalias);
+      p.set("semilla", e.semilla_ruido);
+      p.set("semilla_anomalias", e.semilla_anomalias);
       p.set("tendencia_activa", e.tendencia_activa);
       if (e.tendencia_activa) {
         p.set("tendencia_valor", e.tendencia_valor);
@@ -1078,7 +1100,6 @@
       const conCiclos = e.ciclo_activo && e.ciclos.length > 0;
       p.set("ciclo_activo", conCiclos);
       if (conCiclos) {
-        p.set("semilla_ciclo", s.semillaCiclo);
         for (const ciclo of e.ciclos) {
           for (const campo of CAMPOS_CICLO) {
             // "al final" vacío = igual que al inicio
@@ -1139,10 +1160,7 @@
     }
 
     // Nuevo ruido para la serie activa (mismo tipo y grado, otra muestra aleatoria).
-    document.getElementById("regenerar-ruido").addEventListener("click", () => {
-      activa.semilla = nuevaSemilla();
-      draw();
-    });
+    document.getElementById("regenerar-ruido").addEventListener("click", () => regenerar("semilla_ruido"));
 
     // ---------- Pestañas ----------
     function crearPunto(color) {

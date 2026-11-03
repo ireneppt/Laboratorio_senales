@@ -61,11 +61,11 @@ def get_series(
     estacionalidad_minimo_fin: list[Annotated[float, Field(ge=-1_000_000, le=1_000_000)]] | None = Query(None, max_length=MAX_ESTACIONALIDADES),
     estacionalidad_maximo_fin: list[Annotated[float, Field(ge=-1_000_000, le=1_000_000)]] | None = Query(None, max_length=MAX_ESTACIONALIDADES),
     # Ciclos: como la estacionalidad, pero con duración y altura irregulares. Una lista de ciclos,
-    # cada uno con sus seis valores (se envían repetidos y deben ir todas las listas con la misma longitud).
+    # cada uno con todos sus valores (se envían repetidos y deben ir todas las listas con la misma longitud).
     #   periodo: duración media, en puntos            var_periodo: cuánto varía la duración (%)
     #   minimo y maximo: valores medios entre los que oscila (aditivo: unidades de la serie;
     #                    multiplicativo: la amplitud cambia hasta minimo_fin y maximo_fin)          var_amplitud: cuánto varía la altura (%)
-    #   fase: dónde empieza (% del ciclo)             modo: aditivo o multiplicativo
+    #   modo: aditivo o multiplicativo
     # Por defecto apagado, para que quien llame a la API sin pedirlo no reciba ciclos.
     ciclo_activo: bool = False,
     ciclo_periodo: list[Annotated[int, Field(ge=10, le=2000)]] | None = Query(None, max_length=MAX_CICLOS),
@@ -75,9 +75,10 @@ def get_series(
     ciclo_minimo_fin: list[Annotated[float, Field(ge=-1_000_000, le=1_000_000)]] | None = Query(None, max_length=MAX_CICLOS),
     ciclo_maximo_fin: list[Annotated[float, Field(ge=-1_000_000, le=1_000_000)]] | None = Query(None, max_length=MAX_CICLOS),
     ciclo_var_amplitud: list[Annotated[float, Field(ge=0, le=100)]] | None = Query(None, max_length=MAX_CICLOS),
-    ciclo_fase: list[Annotated[float, Field(ge=0, le=100)]] | None = Query(None, max_length=MAX_CICLOS),
     ciclo_modo: list[Literal["aditiva", "multiplicativa"]] | None = Query(None, max_length=MAX_CICLOS),
-    semilla_ciclo: int = Query(44, ge=0, le=1_000_000),
+    # Semilla de cada ciclo (una por ciclo, en el mismo orden): así se puede repetir o regenerar un ciclo
+    # sin tocar los demás. Si no se envían, el ciclo i usa 44 + i.
+    ciclo_semilla: list[Annotated[int, Field(ge=0, le=1_000_000)]] | None = Query(None, max_length=MAX_CICLOS),
     # Ruido
     ruido_activo: bool = True,
     ruido_grado: float = Query(3, ge=0, le=100),  # desviación típica, en % del valor de la serie
@@ -169,9 +170,9 @@ def get_series(
         minimos_fin = ciclo_minimo_fin or minimos
         maximos_fin = ciclo_maximo_fin or maximos
         var_amplitudes = ciclo_var_amplitud or [25.0]
-        fases = ciclo_fase or [0.0]
         modos = ciclo_modo or ["aditiva"]
-        if len({len(periodos), len(var_periodos), len(minimos), len(maximos), len(minimos_fin), len(maximos_fin), len(var_amplitudes), len(fases), len(modos)}) != 1:
+        semillas = ciclo_semilla or [44 + i for i in range(len(periodos))]
+        if len({len(periodos), len(var_periodos), len(minimos), len(maximos), len(minimos_fin), len(maximos_fin), len(var_amplitudes), len(modos), len(semillas)}) != 1:
             raise HTTPException(422, "Cada ciclo necesita todos sus valores")
         for modo, mn, mx, mn_fin, mx_fin in zip(modos, minimos, maximos, minimos_fin, maximos_fin):
             if mn > mx or (modo == "multiplicativa" and mn_fin > mx_fin):
@@ -179,15 +180,15 @@ def get_series(
 
         suma_aditivos = np.zeros(puntos)         # ciclos que se SUMAN
         for i in range(len(periodos)):
-            # cada ciclo tiene su propia muestra aleatoria (misma semilla + número de ciclo)
-            rng_ciclo = np.random.default_rng([semilla_ciclo, i])
+            # cada ciclo tiene su propia muestra aleatoria, que sale de su semilla
+            rng_ciclo = np.random.default_rng(semillas[i])
             escala = periodos[i] / 3  # los cambios se notan de un ciclo al siguiente, no de un punto al otro
 
             # duración de cada vuelta: varía alrededor del periodo medio (nunca menos de un 20 % de él)
             duracion = periodos[i] * (1 + var_periodos[i] / 100 * ruido_lento(rng_ciclo, puntos, escala))
             duracion = np.maximum(duracion, 0.2 * periodos[i])
-            # posición dentro del ciclo: 0 a 1 es una vuelta. Empieza en la fase pedida y avanza 1/duración por punto.
-            posicion = fases[i] / 100 + np.concatenate([[0], np.cumsum(1 / duracion[:-1])])
+            # posición dentro del ciclo: 0 a 1 es una vuelta. Empieza en 0 y avanza 1/duración por punto.
+            posicion = np.concatenate([[0], np.cumsum(1 / duracion[:-1])])
 
             # altura de cada vuelta: también varía despacio alrededor de la media (nunca negativa)
             altura = np.maximum(0, 1 + var_amplitudes[i] / 100 * ruido_lento(rng_ciclo, puntos, escala))
