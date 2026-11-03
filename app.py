@@ -9,22 +9,14 @@ app = FastAPI()
 # Valores limite 
 ESTACIONAL_MINIMO = -10  # mínimo por defecto de una onda estacional
 ESTACIONAL_MAXIMO = 10   # máximo por defecto de una onda estacional
-REFERENCIA = 100         # valor de la serie al que se aplican tal cual el mínimo y el máximo de una onda multiplicativa
 MAX_ESTACIONALIDADES = 20  # tope de ondas estacionales por petición
 MAX_ANOMALIAS = 20  # tope de anomalías por petición
 MAX_CICLOS = 20  # tope de ciclos por petición
+MAX_HUECOS = 20  # tope de huecos (datos faltantes) por petición
 DECAIMIENTO_TRANSITORIO = 0.7  # por defecto, el transitorio pierde un 30 % de su efecto en cada punto
 MAGNITUD_ALEATORIA = (10, 30)  # por defecto, una anomalía aleatoria mide entre 10 y 30 % (con signo al azar)
 PHI_AUTOCORRELACION = 0.8  # por defecto, fuerza de la dependencia del ruido autocorrelado
 TIPOS_ANOMALIA = ("puntual", "cambio_nivel", "transitorio")
-
-
-def peso_multiplicativo(valor, referencia):
-    """Cuánto se agranda una onda multiplicativa en cada punto: |valor| / referencia.
-    Si la serie vale 0 en todas partes no hay nada que escalar, y la onda se aplica tal cual (peso 1)."""
-    if not np.any(valor):
-        return 1.0
-    return np.abs(valor) / referencia
 
 
 def ruido_lento(rng, n, escala):
@@ -59,19 +51,20 @@ def get_series(
     # Si no se envía ninguna, se usa una sola onda de periodo 50 aditiva.
     #   minimo y maximo: valores entre los que oscila la onda.
     #     aditiva: en unidades de la serie (minimo -5 y maximo 20 suma entre -5 y +20)
-    #     multiplicativa: también en unidades, pero a la altura del valor de referencia: la onda crece o
-    #     encoge en proporción al valor de la serie (valor / referencia). Con referencia 100 y valor 200,
-    #     un máximo de 10 sube 20. Si la serie vale 0, no hay nada que escalar y actúa como la aditiva.
+    #     multiplicativa: minimo y maximo son los del primer punto, y minimo_fin y maximo_fin los del último;
+    #     la amplitud de la onda pasa de unos a otros en línea recta (abanico). En aditiva es constante y
+    #     minimo_fin y maximo_fin se ignoran. Si no se envían, no hay cambio.
     estacionalidad_periodo: list[Annotated[int, Field(ge=2, le=100)]] | None = Query(None, max_length=MAX_ESTACIONALIDADES),
     estacionalidad_modo: list[Literal["aditiva", "multiplicativa"]] | None = Query(None, max_length=MAX_ESTACIONALIDADES),
-    estacionalidad_referencia: list[Annotated[float, Field(gt=0, le=1_000_000)]] | None = Query(None, max_length=MAX_ESTACIONALIDADES),
     estacionalidad_minimo: list[Annotated[float, Field(ge=-1_000_000, le=1_000_000)]] | None = Query(None, max_length=MAX_ESTACIONALIDADES),
     estacionalidad_maximo: list[Annotated[float, Field(ge=-1_000_000, le=1_000_000)]] | None = Query(None, max_length=MAX_ESTACIONALIDADES),
+    estacionalidad_minimo_fin: list[Annotated[float, Field(ge=-1_000_000, le=1_000_000)]] | None = Query(None, max_length=MAX_ESTACIONALIDADES),
+    estacionalidad_maximo_fin: list[Annotated[float, Field(ge=-1_000_000, le=1_000_000)]] | None = Query(None, max_length=MAX_ESTACIONALIDADES),
     # Ciclos: como la estacionalidad, pero con duración y altura irregulares. Una lista de ciclos,
     # cada uno con sus seis valores (se envían repetidos y deben ir todas las listas con la misma longitud).
     #   periodo: duración media, en puntos            var_periodo: cuánto varía la duración (%)
     #   minimo y maximo: valores medios entre los que oscila (aditivo: unidades de la serie;
-    #                    multiplicativo: unidades a la altura de "referencia", ver estacionalidad)          var_amplitud: cuánto varía la altura (%)
+    #                    multiplicativo: la amplitud cambia hasta minimo_fin y maximo_fin)          var_amplitud: cuánto varía la altura (%)
     #   fase: dónde empieza (% del ciclo)             modo: aditivo o multiplicativo
     # Por defecto apagado, para que quien llame a la API sin pedirlo no reciba ciclos.
     ciclo_activo: bool = False,
@@ -79,10 +72,11 @@ def get_series(
     ciclo_var_periodo: list[Annotated[float, Field(ge=0, le=80)]] | None = Query(None, max_length=MAX_CICLOS),
     ciclo_minimo: list[Annotated[float, Field(ge=-1_000_000, le=1_000_000)]] | None = Query(None, max_length=MAX_CICLOS),
     ciclo_maximo: list[Annotated[float, Field(ge=-1_000_000, le=1_000_000)]] | None = Query(None, max_length=MAX_CICLOS),
+    ciclo_minimo_fin: list[Annotated[float, Field(ge=-1_000_000, le=1_000_000)]] | None = Query(None, max_length=MAX_CICLOS),
+    ciclo_maximo_fin: list[Annotated[float, Field(ge=-1_000_000, le=1_000_000)]] | None = Query(None, max_length=MAX_CICLOS),
     ciclo_var_amplitud: list[Annotated[float, Field(ge=0, le=100)]] | None = Query(None, max_length=MAX_CICLOS),
     ciclo_fase: list[Annotated[float, Field(ge=0, le=100)]] | None = Query(None, max_length=MAX_CICLOS),
     ciclo_modo: list[Literal["aditiva", "multiplicativa"]] | None = Query(None, max_length=MAX_CICLOS),
-    ciclo_referencia: list[Annotated[float, Field(gt=0, le=1_000_000)]] | None = Query(None, max_length=MAX_CICLOS),
     semilla_ciclo: int = Query(44, ge=0, le=1_000_000),
     # Ruido
     ruido_activo: bool = True,
@@ -105,6 +99,11 @@ def get_series(
     # Rango (en %) del que sale la magnitud cuando una anomalía la tiene en "aleatorio"
     magnitud_aleatoria_min: float = Query(MAGNITUD_ALEATORIA[0], ge=0, le=1000),
     magnitud_aleatoria_max: float = Query(MAGNITUD_ALEATORIA[1], ge=0, le=1000),
+    # Datos faltantes: una lista, cada uno como "desde,hasta" (repetido en la URL). Los puntos desde..hasta,
+    # ambos incluidos, quedan sin dato (null). Un punto suelto es desde == hasta.
+    # Ejemplo: ?hueco=30,30&hueco=100,140
+    huecos_activos: bool = True,
+    hueco: list[str] | None = Query(None, max_length=MAX_HUECOS),
 ):
     t = np.arange(puntos)      # 0, 1, 2, ... puntos-1
     u = t / (puntos - 1)       # lo mismo pero de 0 a 1
@@ -134,27 +133,26 @@ def get_series(
         modos = estacionalidad_modo or ["aditiva"]
         minimos = estacionalidad_minimo or [ESTACIONAL_MINIMO] * len(periodos)
         maximos = estacionalidad_maximo or [ESTACIONAL_MAXIMO] * len(periodos)
-        referencias = estacionalidad_referencia or [REFERENCIA] * len(periodos)
-        if not len(periodos) == len(modos) == len(minimos) == len(maximos) == len(referencias):
-            raise HTTPException(422, "Cada estacionalidad necesita un periodo, un modo, un mínimo, un máximo y una referencia")
-        if any(mn > mx for mn, mx in zip(minimos, maximos)):
-            raise HTTPException(422, "El mínimo de la estacionalidad no puede superar al máximo")
+        minimos_fin = estacionalidad_minimo_fin or minimos
+        maximos_fin = estacionalidad_maximo_fin or maximos
+        if not len(periodos) == len(modos) == len(minimos) == len(maximos) == len(minimos_fin) == len(maximos_fin):
+            raise HTTPException(422, "Cada estacionalidad necesita un periodo, un modo, un mínimo y un máximo")
+        for modo, mn, mx, mn_fin, mx_fin in zip(modos, minimos, maximos, minimos_fin, maximos_fin):
+            if mn > mx or (modo == "multiplicativa" and mn_fin > mx_fin):
+                raise HTTPException(422, "El mínimo de la estacionalidad no puede superar al máximo")
 
         suma_aditivas = np.zeros(puntos)         # ondas que se SUMAN al nivel (unidades de la serie)
-        suma_multiplicativas = np.zeros(puntos)  # ondas escaladas por el nivel (unidades)
-        for periodo, modo, minimo, maximo, referencia in zip(periodos, modos, minimos, maximos, referencias):
-            # la onda oscila entre minimo y maximo: centro +- media altura
-            centro = (maximo + minimo) / 2
-            mitad = (maximo - minimo) / 2
-            onda = centro + mitad * np.sin(2 * np.pi * t / periodo)
+        for periodo, modo, minimo, maximo, minimo_fin, maximo_fin in zip(periodos, modos, minimos, maximos, minimos_fin, maximos_fin):
             if modo == "aditiva":
-                suma_aditivas = suma_aditivas + onda
-            elif modo == "multiplicativa":
-                suma_multiplicativas = suma_multiplicativas + onda * peso_multiplicativo(nivel, referencia)
+                minimo_fin, maximo_fin = minimo, maximo  # amplitud constante
+            # la onda oscila entre minimo y maximo (centro +- media altura); esos límites pasan en línea
+            # recta de los del primer punto a los del último
+            centro = ((maximo + minimo) + ((maximo_fin + minimo_fin) - (maximo + minimo)) * u) / 2
+            mitad = ((maximo - minimo) + ((maximo_fin - minimo_fin) - (maximo - minimo)) * u) / 2
+            onda = centro + mitad * np.sin(2 * np.pi * t / periodo)
+            suma_aditivas = suma_aditivas + onda
 
-        # aditivas: se suman tal cual; multiplicativas: crecen con el tamaño del nivel (valor absoluto,
-        # así una onda positiva sube la serie aunque el nivel sea negativo)
-        serie = nivel + suma_multiplicativas + suma_aditivas
+        serie = nivel + suma_aditivas
     else:
         serie = nivel
 
@@ -168,17 +166,18 @@ def get_series(
         var_periodos = ciclo_var_periodo or [20.0]
         minimos = ciclo_minimo or [ESTACIONAL_MINIMO] * len(periodos)
         maximos = ciclo_maximo or [ESTACIONAL_MAXIMO] * len(periodos)
-        referencias = ciclo_referencia or [REFERENCIA] * len(periodos)
+        minimos_fin = ciclo_minimo_fin or minimos
+        maximos_fin = ciclo_maximo_fin or maximos
         var_amplitudes = ciclo_var_amplitud or [25.0]
         fases = ciclo_fase or [0.0]
         modos = ciclo_modo or ["aditiva"]
-        if len({len(periodos), len(var_periodos), len(minimos), len(maximos), len(referencias), len(var_amplitudes), len(fases), len(modos)}) != 1:
+        if len({len(periodos), len(var_periodos), len(minimos), len(maximos), len(minimos_fin), len(maximos_fin), len(var_amplitudes), len(fases), len(modos)}) != 1:
             raise HTTPException(422, "Cada ciclo necesita todos sus valores")
-        if any(mn > mx for mn, mx in zip(minimos, maximos)):
-            raise HTTPException(422, "El mínimo del ciclo no puede superar al máximo")
+        for modo, mn, mx, mn_fin, mx_fin in zip(modos, minimos, maximos, minimos_fin, maximos_fin):
+            if mn > mx or (modo == "multiplicativa" and mn_fin > mx_fin):
+                raise HTTPException(422, "El mínimo del ciclo no puede superar al máximo")
 
         suma_aditivos = np.zeros(puntos)         # ciclos que se SUMAN
-        suma_multiplicativos = np.zeros(puntos)  # ciclos que MULTIPLICAN
         for i in range(len(periodos)):
             # cada ciclo tiene su propia muestra aleatoria (misma semilla + número de ciclo)
             rng_ciclo = np.random.default_rng([semilla_ciclo, i])
@@ -194,18 +193,15 @@ def get_series(
             altura = np.maximum(0, 1 + var_amplitudes[i] / 100 * ruido_lento(rng_ciclo, puntos, escala))
 
             # oscila entre minimo y maximo: centro +- media altura (la altura es la que varía)
-            centro = (maximos[i] + minimos[i]) / 2
-            mitad = (maximos[i] - minimos[i]) / 2
+            # (en aditivo la amplitud es constante: los "fin" se ignoran)
+            minimo_fin = minimos_fin[i] if modos[i] == "multiplicativa" else minimos[i]
+            maximo_fin = maximos_fin[i] if modos[i] == "multiplicativa" else maximos[i]
+            centro = ((maximos[i] + minimos[i]) + ((maximo_fin + minimo_fin) - (maximos[i] + minimos[i])) * u) / 2
+            mitad = ((maximos[i] - minimos[i]) + ((maximo_fin - minimo_fin) - (maximos[i] - minimos[i])) * u) / 2
             onda = centro + altura * mitad * np.sin(2 * np.pi * posicion)
-            if modos[i] == "multiplicativa":
-                onda = onda * peso_multiplicativo(serie, referencias[i])
-            if modos[i] == "aditiva":
-                suma_aditivos = suma_aditivos + onda
-            elif modos[i] == "multiplicativa":
-                suma_multiplicativos = suma_multiplicativos + onda
+            suma_aditivos = suma_aditivos + onda
 
-        # aditivos: se suman tal cual (unidades); multiplicativos: crecen con el tamaño del valor de la serie
-        serie = serie + suma_multiplicativos + suma_aditivos
+        serie = serie + suma_aditivos
 
     con_ciclo = serie  # para la descomposición
 
@@ -324,6 +320,29 @@ def get_series(
         # el efecto es proporcional al valor de la serie en cada punto
         serie = serie * (1 + factor)
 
+    # ---------- 6. DATOS FALTANTES ----------
+    # Se quitan al final, sobre la serie ya terminada: los componentes no cambian y "y_completa" guarda
+    # lo que valían los puntos quitados (sirve para comparar después con una imputación).
+    faltan = np.zeros(puntos, dtype=bool)
+    huecos_resueltos = []
+    if huecos_activos and hueco:
+        for texto in hueco:
+            partes = texto.split(",")
+            try:
+                if len(partes) != 2:
+                    raise ValueError
+                desde, hasta = int(partes[0]), int(partes[1])
+            except ValueError:
+                raise HTTPException(422, f"Hueco no válido: {texto}")
+            if hasta < desde:
+                raise HTTPException(422, "El final del hueco no puede ser anterior al inicio")
+            desde = min(max(desde, 0), puntos - 1)  # si se sale del eje x, se pega al borde
+            hasta = min(max(hasta, 0), puntos - 1)
+            faltan[desde:hasta + 1] = True
+            huecos_resueltos.append({"desde": desde, "hasta": hasta})
+    y_completa = serie.round(4).tolist()
+    y = [None if f else v for v, f in zip(y_completa, faltan)]
+
     # Descomposición: cada pieza es lo que aporta ese bloque, de modo que
     # tendencia + estacionalidad + ciclo + ruido + anomalías = serie. "tendencia" es el nivel con su
     # tendencia, y también sirve para dibujarla aparte sobre la serie.
@@ -336,7 +355,10 @@ def get_series(
     }
     return {
         "x": t.tolist(),
-        "y": serie.round(4).tolist(),
+        "y": y,
+        "y_completa": y_completa if huecos_resueltos else None,
+        "huecos": huecos_resueltos,
+        "n_faltantes": int(faltan.sum()),
         "componentes": {nombre: valores.round(4).tolist() for nombre, valores in componentes.items()},
         "anomalias": resueltas,
     }

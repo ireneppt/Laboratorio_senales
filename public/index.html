@@ -309,14 +309,17 @@
                     <option value="multiplicativa">Multiplicativa</option>
                   </select>
                 </label>
-                <label class="campo-ref" hidden>Referencia (valor de la serie al que se aplican el mínimo y el máximo; sin efecto si la serie vale 0)
-                  <input type="number" name="estacionalidad_referencia" value="100" min="0.001" max="1000000" step="10">
-                </label>
-                <label>Mínimo (unidades)
+                <label>Mínimo <span class="unidad-estac">(unidades)</span>
                   <input type="number" name="estacionalidad_minimo" value="-10" min="-1000000" max="1000000" step="1">
                 </label>
-                <label>Máximo (unidades)
+                <label>Máximo <span class="unidad-estac">(unidades)</span>
                   <input type="number" name="estacionalidad_maximo" value="10" min="-1000000" max="1000000" step="1">
+                </label>
+                <label class="campo-fin" hidden>Mínimo al final (unidades)
+                  <input type="number" name="estacionalidad_minimo_fin" value="-20" min="-1000000" max="1000000" step="1">
+                </label>
+                <label class="campo-fin" hidden>Máximo al final (unidades)
+                  <input type="number" name="estacionalidad_maximo_fin" value="20" min="-1000000" max="1000000" step="1">
                 </label>
               </div>
             </template>
@@ -340,14 +343,17 @@
                   <label>Variación del periodo (%)
                     <input type="number" name="ciclo_var_periodo" value="20" min="0" max="80" step="5">
                   </label>
-                  <label class="campo-ref" hidden>Referencia (valor de la serie al que se aplican el mínimo y el máximo; sin efecto si la serie vale 0)
-                    <input type="number" name="ciclo_referencia" value="100" min="0.001" max="1000000" step="10">
-                  </label>
-                  <label>Mínimo (unidades)
+                  <label>Mínimo <span class="unidad-estac">(unidades)</span>
                     <input type="number" name="ciclo_minimo" value="-10" min="-1000000" max="1000000" step="1">
                   </label>
-                  <label>Máximo (unidades)
+                  <label>Máximo <span class="unidad-estac">(unidades)</span>
                     <input type="number" name="ciclo_maximo" value="10" min="-1000000" max="1000000" step="1">
+                  </label>
+                  <label class="campo-fin" hidden>Mínimo al final (unidades)
+                    <input type="number" name="ciclo_minimo_fin" value="-20" min="-1000000" max="1000000" step="1">
+                  </label>
+                  <label class="campo-fin" hidden>Máximo al final (unidades)
+                    <input type="number" name="ciclo_maximo_fin" value="20" min="-1000000" max="1000000" step="1">
                   </label>
                   <label>Variación de la amplitud (%)
                     <input type="number" name="ciclo_var_amplitud" value="25" min="0" max="100" step="5">
@@ -451,6 +457,35 @@
               </div>
             </template>
           </fieldset>
+
+          <fieldset>
+            <legend><label class="toggle"><input type="checkbox" class="switch" name="huecos_activos"> Datos faltantes</label></legend>
+            <div id="huecos"></div>
+            <button type="button" id="anadir-hueco">+ Añadir hueco</button>
+            <label class="toggle opcion">
+              <input type="checkbox" class="alea" name="ver_ocultos"> Mostrar en la gráfica los valores ocultos (línea de puntos)
+            </label>
+            <template id="plantilla-hueco">
+              <div class="estac">
+                <div class="estac-cab">
+                  <span class="estac-titulo"></span>
+                  <button type="button" class="quitar" title="Quitar este hueco">×</button>
+                </div>
+                <label>Tipo
+                  <select class="h-tipo">
+                    <option value="punto">Punto suelto</option>
+                    <option value="rango">Rango de puntos</option>
+                  </select>
+                </label>
+                <label><span class="h-desde-texto">Punto (eje x)</span>
+                  <input type="number" class="h-desde" value="30" min="0" max="4999" step="1">
+                </label>
+                <label class="h-hasta-campo">Hasta el punto (incluido)
+                  <input type="number" class="h-hasta" value="60" min="0" max="4999" step="1">
+                </label>
+              </div>
+            </template>
+          </fieldset>
         </form>
       </aside>
 
@@ -474,12 +509,13 @@
   <script>
     const form = document.getElementById("controls");
 
-    const toggles = ["tendencia_activa", "estacionalidad_activa", "ciclo_activo", "ruido_activo", "anomalias_activas"];
+    const toggles = ["tendencia_activa", "estacionalidad_activa", "ciclo_activo", "ruido_activo", "anomalias_activas", "huecos_activos"];
 
     const N_COLORES = 8;             // colores de la paleta validada; más series reciben un color generado
     const MAX_ESTACIONALIDADES = 20; // mismo tope que app.py
     const MAX_ANOMALIAS = 20;        // mismo tope que app.py
     const MAX_CICLOS = 20;           // mismo tope que app.py
+    const MAX_HUECOS = 20;           // mismo tope que app.py
 
     const lista = document.getElementById("estacionalidades");
     const plantilla = document.getElementById("plantilla-estac");
@@ -487,6 +523,9 @@
     const listaAnomalias = document.getElementById("anomalias");
     const plantillaAnomalia = document.getElementById("plantilla-anomalia");
     const anadirAnomalia = document.getElementById("anadir-anomalia");
+    const listaHuecos = document.getElementById("huecos");
+    const plantillaHueco = document.getElementById("plantilla-hueco");
+    const anadirHueco = document.getElementById("anadir-hueco");
 
     // Escribe (o borra) el aviso que va debajo de un campo numérico y lo marca en rojo.
     function mostrarError(el, mensaje) {
@@ -525,6 +564,16 @@
         mostrarError(maximo, "Debe ser mayor o igual que el mínimo");
         todoBien = false;
       }
+      // El final de un hueco no puede ir antes de su inicio
+      for (const fila of listaHuecos.children) {
+        const desde = fila.querySelector(".h-desde");
+        const hasta = fila.querySelector(".h-hasta");
+        if (hasta.disabled || fila.querySelector(".h-tipo").value !== "rango") continue;
+        if (desde.value !== "" && hasta.value !== "" && Number(hasta.value) < Number(desde.value)) {
+          mostrarError(hasta, "Debe ser mayor o igual que el inicio");
+          todoBien = false;
+        }
+      }
       return todoBien;
     }
 
@@ -546,6 +595,21 @@
         fila.querySelector(".a-decaimiento-campo").hidden = !esTransitorio;
         if (!esTransitorio) fila.querySelector(".a-decaimiento").disabled = true;
       }
+      // Un hueco de un solo punto no necesita "hasta"
+      for (const fila of listaHuecos.children) {
+        const esRango = fila.querySelector(".h-tipo").value === "rango";
+        fila.querySelector(".h-hasta-campo").hidden = !esRango;
+        fila.querySelector(".h-desde-texto").textContent = esRango ? "Desde el punto" : "Punto (eje x)";
+        if (!esRango) fila.querySelector(".h-hasta").disabled = true;
+      }
+      // El mínimo y el máximo "al final" solo existen en la multiplicativa
+      for (const [filas, campoModo] of [[lista, "estacionalidad_modo"], [listaCiclos, "ciclo_modo"]]) {
+        for (const fila of filas.children) {
+          if (fila.querySelector(`[name=${campoModo}]`).value !== "multiplicativa") {
+            fila.querySelectorAll(".campo-fin input").forEach((el) => { el.disabled = true; });
+          }
+        }
+      }
       // La fuerza de la dependencia solo existe en el ruido autocorrelado
       const autocorrelado = form.elements.ruido_tipo.value.startsWith("autocorrelado");
       document.getElementById("campo-phi").hidden = !autocorrelado;
@@ -553,6 +617,7 @@
       // Los botones de añadir se bloquean al llegar al tope del servidor.
       if (lista.children.length >= MAX_ESTACIONALIDADES) anadir.disabled = true;
       if (listaCiclos.children.length >= MAX_CICLOS) anadirCiclo.disabled = true;
+      if (listaHuecos.children.length >= MAX_HUECOS) anadirHueco.disabled = true;
       if (listaAnomalias.children.length >= MAX_ANOMALIAS) {
         anadirAnomalia.disabled = true;
         document.getElementById("anadir-aleatorias").disabled = true;
@@ -611,6 +676,49 @@
       draw();
     });
 
+    // ---------- Datos faltantes (filas del panel) ----------
+    // Cómo arranca cada fila nueva (van rotando)
+    const HUECOS_INICIALES = [
+      { tipo: "punto", desde: 30, hasta: 30 },
+      { tipo: "rango", desde: 100, hasta: 140 },
+      { tipo: "punto", desde: 250, hasta: 250 },
+    ];
+
+    function renumerarHuecos() {
+      [...listaHuecos.children].forEach((fila, i) => {
+        fila.querySelector(".estac-titulo").textContent = "Hueco " + (i + 1);
+      });
+    }
+
+    function nuevaFilaHueco({ tipo, desde, hasta }) {
+      const fila = plantillaHueco.content.firstElementChild.cloneNode(true);
+      fila.querySelector(".h-tipo").value = tipo;
+      fila.querySelector(".h-desde").value = desde;
+      fila.querySelector(".h-hasta").value = hasta;
+      listaHuecos.appendChild(fila);
+    }
+
+    anadirHueco.addEventListener("click", () => {
+      nuevaFilaHueco(HUECOS_INICIALES[listaHuecos.children.length % HUECOS_INICIALES.length]);
+      renumerarHuecos();
+      draw();
+    });
+
+    listaHuecos.addEventListener("click", (e) => {
+      const quitar = e.target.closest(".quitar");
+      if (!quitar) return;
+      quitar.closest(".estac").remove();
+      renumerarHuecos();
+      draw();
+    });
+
+    // Texto "desde,hasta" que entiende la API (un punto suelto es desde == hasta); null si falta algún número.
+    function textoHueco(h) {
+      const hasta = h.tipo === "punto" ? h.desde : h.hasta;
+      if (h.desde === "" || hasta === "") return null;
+      return `${h.desde},${hasta}`;
+    }
+
     // Texto "tipo,punto,magnitud" (más ",decaimiento" en los transitorios) que entiende la API; null si falta algún número.
     function textoAnomalia(a) {
       const punto = a.puntoAlea ? "aleatorio" : a.punto;
@@ -632,25 +740,26 @@
       });
     }
 
-    // Multiplicativa: el mínimo y el máximo siguen en unidades, pero la onda crece con el valor de la serie;
-    // la referencia dice a qué valor de la serie corresponden exactamente. Solo se muestra en ese modo.
+    // Aditiva: amplitud constante. Multiplicativa: el mínimo y el máximo son los del primer punto y se
+    // piden los del último (la amplitud cambia de unos a otros).
     function actualizarUnidad(fila, campoModo = "estacionalidad_modo") {
       const mult = fila.querySelector(`[name=${campoModo}]`).value === "multiplicativa";
-      fila.querySelector(".campo-ref").hidden = !mult;
-      fila.querySelector(".campo-ref input").disabled = !mult;
+      fila.querySelectorAll(".unidad-estac").forEach((el) => { el.textContent = mult ? "al inicio (unidades)" : "(unidades)"; });
+      fila.querySelectorAll(".campo-fin").forEach((el) => { el.hidden = !mult; });
     }
     lista.addEventListener("change", (e) => {
       if (e.target.name === "estacionalidad_modo") actualizarUnidad(e.target.closest(".estac"));
     });
 
-    function anadirEstacionalidad(periodo, modo = "aditiva", minimo = -10, maximo = 10, referencia = 100) {
+    function anadirEstacionalidad(periodo, modo = "aditiva", minimo = -10, maximo = 10, minimoFin = "-20", maximoFin = "20") {
       const fila = plantilla.content.firstElementChild.cloneNode(true);
       fila.querySelector("[name=estacionalidad_periodo]").value =
         periodo ?? PERIODOS_INICIALES[lista.children.length % PERIODOS_INICIALES.length];
       fila.querySelector("[name=estacionalidad_modo]").value = modo;
       fila.querySelector("[name=estacionalidad_minimo]").value = minimo;
       fila.querySelector("[name=estacionalidad_maximo]").value = maximo;
-      fila.querySelector("[name=estacionalidad_referencia]").value = referencia;
+      fila.querySelector("[name=estacionalidad_minimo_fin]").value = minimoFin;
+      fila.querySelector("[name=estacionalidad_maximo_fin]").value = maximoFin;
       actualizarUnidad(fila);
       lista.appendChild(fila);
       renumerar();
@@ -674,8 +783,8 @@
     const plantillaCiclo = document.getElementById("plantilla-ciclo");
     const anadirCiclo = document.getElementById("anadir-ciclo");
     // Los seis valores de un ciclo, con el nombre del campo del formulario y de la API
-    const CAMPOS_CICLO = ["periodo", "var_periodo", "minimo", "maximo", "referencia", "var_amplitud", "fase", "modo"];
-    const CICLO_INICIAL = { periodo: "100", var_periodo: "20", minimo: "-10", maximo: "10", referencia: "100", var_amplitud: "25", fase: "0", modo: "aditiva" };
+    const CAMPOS_CICLO = ["periodo", "var_periodo", "minimo", "maximo", "minimo_fin", "maximo_fin", "var_amplitud", "fase", "modo"];
+    const CICLO_INICIAL = { periodo: "100", var_periodo: "20", minimo: "-10", maximo: "10", minimo_fin: "-20", maximo_fin: "20", var_amplitud: "25", fase: "0", modo: "aditiva" };
     const PERIODOS_CICLO = [100, 250, 60, 400]; // periodo con el que arranca cada ciclo nuevo
 
     function renumerarCiclos() {
@@ -728,10 +837,11 @@
       return {
         puntos: "500", nivel_base: "100",
         tendencia_activa: false, tendencia_valor: "0.5", tendencia_tipo: "lineal", ver_tendencia: false,
-        estacionalidad_activa: false, estacionalidades: [{ periodo: PERIODOS_INICIALES[0], modo: "aditiva", minimo: "-10", maximo: "10", referencia: "100" }],
+        estacionalidad_activa: false, estacionalidades: [{ periodo: PERIODOS_INICIALES[0], modo: "aditiva", minimo: "-10", maximo: "10", minimo_fin: "-20", maximo_fin: "20" }],
         ciclo_activo: false, ciclos: [{ ...CICLO_INICIAL }],
         ruido_activo: false, ruido_grado: "3", ruido_tipo: "blanco", ruido_phi: "0.8",
         anomalias_activas: false, anomalias: [], magnitud_alea_min: "10", magnitud_alea_max: "30",
+        huecos_activos: false, huecos: [], ver_ocultos: false,
       };
     }
 
@@ -877,12 +987,14 @@
       }
       for (const name of toggles) e[name] = form.elements[name].checked;
       e.ver_tendencia = form.elements.ver_tendencia.checked; // solo de pantalla: no se envía a la API
+      e.ver_ocultos = form.elements.ver_ocultos.checked;     // ídem
       e.estacionalidades = [...lista.children].map((fila) => ({
         periodo: fila.querySelector("[name=estacionalidad_periodo]").value,
         modo: fila.querySelector("[name=estacionalidad_modo]").value,
         minimo: fila.querySelector("[name=estacionalidad_minimo]").value,
         maximo: fila.querySelector("[name=estacionalidad_maximo]").value,
-        referencia: fila.querySelector("[name=estacionalidad_referencia]").value,
+        minimo_fin: fila.querySelector("[name=estacionalidad_minimo_fin]").value,
+        maximo_fin: fila.querySelector("[name=estacionalidad_maximo_fin]").value,
       }));
       e.ciclos = [...listaCiclos.children].map((fila) =>
         Object.fromEntries(CAMPOS_CICLO.map((campo) => [campo, fila.querySelector(`[name=ciclo_${campo}]`).value]))
@@ -894,6 +1006,11 @@
         magnitud: fila.querySelector(".a-magnitud").value,
         magnitudAlea: fila.querySelector(".a-magnitud-alea").checked,
         decaimiento: fila.querySelector(".a-decaimiento").value,
+      }));
+      e.huecos = [...listaHuecos.children].map((fila) => ({
+        tipo: fila.querySelector(".h-tipo").value,
+        desde: fila.querySelector(".h-desde").value,
+        hasta: fila.querySelector(".h-hasta").value,
       }));
       return e;
     }
@@ -915,13 +1032,17 @@
       }
       for (const name of toggles) form.elements[name].checked = e[name];
       form.elements.ver_tendencia.checked = e.ver_tendencia;
+      form.elements.ver_ocultos.checked = e.ver_ocultos;
       lista.replaceChildren();
-      e.estacionalidades.forEach((est) => anadirEstacionalidad(est.periodo, est.modo, est.minimo, est.maximo, est.referencia));
+      e.estacionalidades.forEach((est) => anadirEstacionalidad(est.periodo, est.modo, est.minimo, est.maximo, est.minimo_fin, est.maximo_fin));
       listaCiclos.replaceChildren();
       e.ciclos.forEach((ciclo) => nuevaFilaCiclo(ciclo));
       listaAnomalias.replaceChildren();
       e.anomalias.forEach((a) => nuevaFilaAnomalia(a));
+      listaHuecos.replaceChildren();
+      e.huecos.forEach((h) => nuevaFilaHueco(h));
       renumerar();
+      renumerarHuecos();
       renumerarAnomalias();
       syncDisabled();
     }
@@ -949,7 +1070,9 @@
           p.append("estacionalidad_modo", est.modo);
           p.append("estacionalidad_minimo", est.minimo);
           p.append("estacionalidad_maximo", est.maximo);
-          p.append("estacionalidad_referencia", est.referencia);
+          // "al final" vacío (solo en una fila en aditiva, donde se ignora) = igual que al inicio
+          p.append("estacionalidad_minimo_fin", est.minimo_fin !== "" ? est.minimo_fin : est.minimo);
+          p.append("estacionalidad_maximo_fin", est.maximo_fin !== "" ? est.maximo_fin : est.maximo);
         }
       }
       const conCiclos = e.ciclo_activo && e.ciclos.length > 0;
@@ -957,7 +1080,11 @@
       if (conCiclos) {
         p.set("semilla_ciclo", s.semillaCiclo);
         for (const ciclo of e.ciclos) {
-          for (const campo of CAMPOS_CICLO) p.append(`ciclo_${campo}`, ciclo[campo]);
+          for (const campo of CAMPOS_CICLO) {
+            // "al final" vacío = igual que al inicio
+            const vacioFin = campo.endsWith("_fin") && ciclo[campo] === "";
+            p.append(`ciclo_${campo}`, vacioFin ? ciclo[campo.replace("_fin", "")] : ciclo[campo]);
+          }
         }
       }
       p.set("ruido_activo", e.ruido_activo);
@@ -981,6 +1108,14 @@
             incluidas.push(i);
           }
         });
+      }
+      // Un hueco por fila; los que tienen un campo vacío se saltan hasta que se rellenen.
+      p.set("huecos_activos", e.huecos_activos);
+      if (e.huecos_activos) {
+        for (const h of e.huecos) {
+          const texto = textoHueco(h);
+          if (texto) p.append("hueco", texto);
+        }
       }
       return { params: p, incluidas };
     }
@@ -1158,7 +1293,7 @@
     }
 
     // Línea bajo el título con lo que hay activo en una serie.
-    function resumen(e, anomaliasAplicadas) {
+    function resumen(e, anomaliasAplicadas, faltantes) {
       const partes = [`${e.puntos} puntos`, `nivel ${e.nivel_base}`];
       if (e.tendencia_activa) partes.push(`tendencia ${TEXTO_OPCION.tendencia_tipo[e.tendencia_tipo]}`);
       const n = e.estacionalidades.length;
@@ -1169,6 +1304,7 @@
       if (anomaliasAplicadas > 0) {
         partes.push(anomaliasAplicadas === 1 ? "1 anomalía" : `${anomaliasAplicadas} anomalías`);
       }
+      if (faltantes > 0) partes.push(faltantes === 1 ? "1 dato faltante" : `${faltantes} datos faltantes`);
       return partes.join("  ·  ");
     }
 
@@ -1179,6 +1315,8 @@
 
       const trazas = [];
       let hayTendencia = false;
+      let hayOcultos = false;
+      const bandas = []; // zonas sin dato, sombreadas (solo en la vista de una serie)
       for (const s of visibles) {
         const color = colorDe(s, c);
         const { x, y } = s.datos;
@@ -1189,6 +1327,28 @@
           line: { color, width: 2 },
           hovertemplate: `<b>%{y:.1f}</b>  ·  punto %{x}<extra>${etiqueta}</extra>`,
         });
+        // Datos faltantes: zona sombreada y, si se pide, el valor que tenían (línea de puntos).
+        if (!todas && s.datos.huecos && s.datos.huecos.length > 0) {
+          for (const h of s.datos.huecos) {
+            bandas.push({
+              type: "rect", xref: "x", yref: "paper", x0: h.desde - 0.5, x1: h.hasta + 0.5, y0: 0, y1: 1,
+              fillcolor: c.muted, opacity: 0.15, line: { width: 0 }, layer: "below",
+            });
+          }
+          if (s.estado.ver_ocultos && s.datos.y_completa) {
+            hayOcultos = true;
+            const oculto = s.datos.y_completa.map(() => null);
+            for (const h of s.datos.huecos) {
+              // un punto de más a cada lado, para que la línea de puntos enlace con la serie
+              for (let i = Math.max(h.desde - 1, 0); i <= Math.min(h.hasta + 1, oculto.length - 1); i++) oculto[i] = s.datos.y_completa[i];
+            }
+            trazas.push({
+              x, y: oculto, type: "scatter", mode: "lines", name: nombreDe(s) + " · valor oculto",
+              line: { color, width: 2, dash: "dot" }, opacity: 0.6,
+              hovertemplate: `oculto <b>%{y:.1f}</b><extra></extra>`,
+            });
+          }
+        }
         // Tendencia como línea discontinua encima, en el color de la tinta para que se vea
         // aunque coincida con la serie (por ejemplo, sin estacionalidad ni ruido).
         // Solo en la vista de una serie: en "Todas" no se pinta.
@@ -1213,7 +1373,7 @@
       } else {
         const s = series.find((x) => x.id === vista);
         titulo.textContent = nombreDe(s);
-        resumenEl.textContent = s.datos ? resumen(s.estado, s.datos.anomalias.length) : "";
+        resumenEl.textContent = s.datos ? resumen(s.estado, s.datos.anomalias.length, s.datos.n_faltantes) : "";
       }
 
       const eje = (texto) => ({
@@ -1234,7 +1394,8 @@
         hovermode: todas ? "x unified" : "x",
         hoverlabel: { bgcolor: c.surface, bordercolor: c.axis, font: { color: c.ink, family: c.fuente, size: 13 } },
         // Con una sola serie la leyenda sobra, salvo que haya que distinguir la serie de su tendencia.
-        showlegend: (todas && visibles.length > 1) || (!todas && hayTendencia),
+        showlegend: (todas && visibles.length > 1) || (!todas && (hayTendencia || hayOcultos)),
+        shapes: bandas,
         legend: { orientation: "h", x: 0, y: 1.08, font: { color: c.ink2, size: 12 } },
       }, { responsive: true, displaylogo: false, displayModeBar: false });
 
