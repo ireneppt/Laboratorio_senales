@@ -29,7 +29,7 @@ Un proyecto es el conjunto de series de la pantalla. Se puede guardar en el nave
 
 ## Fases del proyecto
 
-Un proyecto avanza por fases, cada una con su pantalla. **1 · Series** es el laboratorio (generar, importar, escribir y dibujar series). **2 · Imputación** tiene cuatro pestañas: *Variable explicada*, *Variables explicativas*, *Correlación* e *Imputación y resultados* (las cuatro hechas). Para añadir una fase hay que añadirla a `FASES` en `public/index.html` y crear su `<section>`.
+Un proyecto avanza por fases, cada una con su pantalla. **1 · Series** es el laboratorio (generar, importar, escribir y dibujar series). **2 · Imputación** tiene cuatro pestañas: *Variable explicada*, *Variables explicativas*, *Correlación* e *Imputación y resultados* (las cuatro hechas). Esta última se reparte en sub-pestañas según con qué se imputa: *Resumen* (compara hot deck, regresión y EM según las explicativas usadas), *Sin explicativas*, *Todas las explicativas* y una *Solo X* por cada explicativa; la interpolación lineal sale siempre como referencia. Para añadir una fase hay que añadirla a `FASES` en `public/index.html` y crear su `<section>`.
 
 ## Estructura del código
 
