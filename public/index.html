@@ -173,6 +173,65 @@
     .tramo-fila button { padding: 0 10px; }
     .tramo-nuevo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--axis); }
     .tramo-nuevo input[type=number] { width: 96px; height: 34px; margin: 0; padding: 0 8px; font-size: 0.9rem; }
+    /* Pestaña "Variables explicativas" */
+    .insignia { display: block; margin-top: 4px; padding: 3px 8px; border-radius: 6px; font-size: 0.76rem; line-height: 1.35; }
+    .insignia.ok { background: color-mix(in srgb, var(--series-3) 20%, var(--surface)); color: var(--ink); }
+    .insignia.aviso { background: color-mix(in srgb, var(--series-4) 22%, var(--surface)); color: var(--ink); }
+    .insignia.malo { background: color-mix(in srgb, var(--error) 16%, var(--surface)); color: var(--ink); }
+    .insignia.neutro { background: var(--surface-2); color: var(--ink-2); }
+    .exp-serie .insignia { grid-column: 1 / -1; }
+    .exp-serie .nota { grid-column: 1 / -1; color: var(--muted); font-size: 0.75rem; }
+    .exp-serie .marca { display: none; }
+    .exp-serie.usada .marca { display: inline; color: var(--series-1); font-weight: 700; }
+    .ev-campo { gap: 8px 10px; min-height: 64px; }
+    .ev-campo.llena { border-style: dashed; border-color: var(--series-1); background: color-mix(in srgb, var(--series-1) 5%, var(--surface)); }
+    .ev-chip {
+      display: inline-flex; align-items: center; gap: 8px; padding: 6px 6px 6px 10px; border: 1px solid var(--axis);
+      border-radius: 999px; background: var(--surface); color: var(--ink); font-size: 0.9rem; font-weight: 650;
+    }
+    .ev-chip .insignia { margin: 0; padding: 2px 8px; font-weight: 400; }
+    .ev-chip button { width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; font-size: 1.1rem; line-height: 1; color: var(--ink-2); }
+    .ev-sel { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+    .ev-sel button { width: auto; height: 34px; padding: 0 14px; font-size: 0.88rem; }
+    .ev-sel select { display: inline-block; width: auto; height: 34px; margin: 0 0 0 6px; padding: 0 10px; font-size: 0.9rem; }
+    .ev-sel label { margin: 0; font-size: 0.88rem; }
+    #ev-grafica { width: 100%; height: 340px; margin-top: 8px; }
+    .ev-tabla { display: grid; grid-template-columns: minmax(120px, 1.2fr) repeat(4, minmax(90px, 1fr)); gap: 0; font-size: 0.86rem; overflow-x: auto; }
+    .ev-tabla > div { padding: 8px 10px; border-top: 1px solid var(--grid); }
+    .ev-tabla > .cab { border-top: 0; color: var(--ink-2); font-size: 0.78rem; font-weight: 650; }
+    .ev-tabla .barra { height: 6px; margin-top: 5px; border-radius: 3px; background: var(--grid); overflow: hidden; }
+    .ev-tabla .barra i { display: block; height: 100%; background: var(--series-3); }
+    .ev-tabla .barra i.aviso { background: var(--series-4); }
+    .ev-tabla .barra i.malo { background: var(--error); }
+    /* Pestaña "Correlación" */
+    .cor-tabla { display: grid; grid-template-columns: minmax(130px, 1.2fr) repeat(3, minmax(150px, 1fr)) minmax(130px, 0.9fr) minmax(80px, 0.5fr); overflow-x: auto; }
+    .cor-tabla .valor.desfase.cambia { color: color-mix(in srgb, var(--series-4) 75%, var(--ink)); }
+    .cor-cruzada { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--axis); }
+    .cor-cruzada h3 { margin: 0 0 12px; font-size: 1.05rem; }
+    .cor-controles { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 20px; margin-bottom: 8px; }
+    .cor-controles label { margin: 0; font-size: 0.88rem; }
+    .cor-controles select { display: block; width: auto; min-width: 190px; height: 38px; margin-top: 4px; padding: 0 10px; font-size: 0.92rem; }
+    .cor-controles input[type=number] { display: block; width: 100px; height: 38px; margin-top: 4px; padding: 0 10px; font-size: 0.92rem; }
+    #cor-grafica { width: 100%; height: 320px; }
+    .cor-tabla > div { padding: 12px 10px; border-top: 1px solid var(--grid); }
+    .cor-tabla > .cab { padding: 0; border-top: 0; border-bottom: 1px solid var(--axis); }
+    .cor-tabla .cab button {
+      display: flex; align-items: center; gap: 6px; width: 100%; height: auto; padding: 10px; border: 0; border-radius: 0;
+      text-align: left; color: var(--ink-2); font-size: 0.8rem; font-weight: 650;
+    }
+    .cor-tabla .cab button:hover { background: var(--surface-2); color: var(--ink); }
+    .cor-tabla .cab .flecha { font-size: 0.75rem; opacity: 0.8; }
+    .cor-tabla .nombre { display: flex; align-items: center; gap: 8px; font-weight: 650; }
+    .cor-tabla .valor { font-size: 1.3rem; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.2; }
+    .cor-tabla .valor.sin { color: var(--muted); font-weight: 400; }
+    .cor-tabla small { display: block; margin-top: 2px; color: var(--muted); font-size: 0.76rem; }
+    .cor-barra { position: relative; height: 8px; margin-top: 6px; border-radius: 4px; background: var(--grid); }
+    .cor-barra::before { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--axis); }
+    .cor-barra i { position: absolute; top: 0; bottom: 0; border-radius: 4px; background: var(--series-1); }
+    .cor-barra i.neg { background: var(--series-4); }
+    .cor-barra.r2 { background: var(--grid); }
+    .cor-barra.r2::before { display: none; }
+    .cor-barra.r2 i { left: 0; background: var(--series-3); }
     /* Barra del proyecto: nombre, estado y acciones */
     .proyecto { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
     .proyecto input[type=text] { width: 230px; height: 36px; margin: 0; font-weight: 650; }
@@ -1730,7 +1789,10 @@
 
     function cerrarSerie(s) {
       if (series.length < 2) return;
-      if (imputacion.explicada.serieId === s.id) { imputacion = estadoImputacionVacio(); reiniciarExplicada(); } // era la variable explicada
+      // si era la variable explicada se vacía; si era explicativa, se quita de la lista (el resto de la elección se conserva)
+      const explicativasRestantes = imputacion.explicativas.filter((id) => id !== s.id);
+      if (imputacion.explicada.serieId === s.id) { imputacion = estadoImputacionVacio(); reiniciarExplicada(); }
+      imputacion.explicativas = explicativasRestantes;
       guardarActiva();
       const posicion = series.indexOf(s);
       series = series.filter((x) => x !== s);
@@ -2118,6 +2180,7 @@
     // Ajusta el eje Y a los datos (un 10 % de margen), o a 0-100 si no hay ninguno.
     function ajustarEjeY(s) {
       const valores = s.manual.y.filter((v) => v !== null);
+      s.manual.baseY = null;
       if (valores.length === 0) { s.manual.yMin = 0; s.manual.yMax = 100; return; }
       const minimo = Math.min(...valores), maximo = Math.max(...valores);
       const margen = (maximo - minimo) * 0.1 || Math.abs(maximo) * 0.1 || 1;
@@ -2255,6 +2318,7 @@
         const v = parseFloat(campo.value);
         if (!Number.isFinite(v)) return;
         activa.manual[clave] = v;
+        activa.manual.baseY = null; // un límite escrito a mano pasa a ser el nuevo original
         if (activa.manual.yMin < activa.manual.yMax) pintar();
       });
     }
@@ -2272,22 +2336,47 @@
     });
 
     // Pixel del ratón -> punto de la serie y valor, con los ejes de Plotly. null si está fuera del dibujo.
-    function posicionEnGrafica(e) {
+    // Con "libreY" el cursor puede salirse por arriba o por abajo del dibujo (para ampliar el eje y).
+    function posicionEnGrafica(e, libreY = false) {
       const lay = graficaEl._fullLayout;
       if (!lay || !lay.xaxis || !lay.yaxis) return null;
       const xa = lay.xaxis, ya = lay.yaxis, caja = graficaEl.getBoundingClientRect();
       const px = e.clientX - caja.left - xa._offset, py = e.clientY - caja.top - ya._offset;
-      if (px < 0 || px > xa._length || py < 0 || py > ya._length) return null;
-      return { i: Math.round(xa.p2l(px)), v: Math.round(ya.p2l(py) * 100) / 100 };
+      if (px < 0 || px > xa._length || (!libreY && (py < 0 || py > ya._length))) return null;
+      // "exceso": cuánto se ha salido el cursor, como fracción de la altura del dibujo (+ por arriba, - por abajo)
+      const exceso = py < 0 ? -py / ya._length : py > ya._length ? -(py - ya._length) / ya._length : 0;
+      return { i: Math.round(xa.p2l(px)), v: Math.round(ya.p2l(py) * 100) / 100, exceso };
     }
 
     let trazo = null;          // último punto dibujado en el trazo en curso { i, v }
     let repintadoPendiente = false;
+    let ultimoCrecimiento = null; // instante del último ajuste del eje y durante el trazo
 
     function marcar(e) {
       const s = activa;
-      const pos = posicionEnGrafica(e);
+      // en mitad de un trazo el cursor puede salirse por arriba o por abajo: el eje y crece para seguirlo
+      const pos = posicionEnGrafica(e, trazo !== null);
       if (!pos || pos.i < 0 || pos.i >= s.manual.y.length) { trazo = null; return; }
+      // Fuera del dibujo el eje crece poco a poco: más rápido cuanto más lejos esté el cursor del borde.
+      // El trazo se queda pegado al borde, no en el valor al que apunta el cursor (que se escaparía al crecer el eje).
+      const m = s.manual;
+      if (pos.exceso !== 0) {
+        const ahora = performance.now();
+        const dt = Math.min(ahora - (ultimoCrecimiento ?? ahora - 16), 100) / 1000;
+        ultimoCrecimiento = ahora;
+        const paso = (m.yMax - m.yMin) * Math.min(Math.abs(pos.exceso), 1) * dt * 0.3;
+        // El eje solo puede crecer un 20 % del rango original (el de los campos Mínimo y Máximo del panel).
+        // Ese límite se renueva al cambiar esos campos o al ajustar el eje a los datos.
+        if (!m.baseY) m.baseY = { min: m.yMin, max: m.yMax };
+        const margenMax = (m.baseY.max - m.baseY.min) * 0.2;
+        if (pos.exceso > 0) { m.yMax = Math.min(Math.round((m.yMax + paso) * 100) / 100, m.baseY.max + margenMax); pos.v = m.yMax; }
+        else { m.yMin = Math.max(Math.round((m.yMin - paso) * 100) / 100, m.baseY.min - margenMax); pos.v = m.yMin; }
+        // los campos del panel muestran el límite actual (asignar .value no dispara "input", así que no renueva el original)
+        yMinManual.value = m.yMin;
+        yMaxManual.value = m.yMax;
+      } else {
+        ultimoCrecimiento = null;
+      }
       const y = s.manual.y;
       if (trazo && Math.abs(pos.i - trazo.i) > 1) {
         // si el cursor va rápido salta puntos: se rellenan en línea recta entre el anterior y este
@@ -2422,13 +2511,13 @@
       },
       {
         id: "explicativas", titulo: "Variables explicativas",
-        descripcion: "Las series que se usan como datos de entrada para imputar.",
-        contenido: [
-          "Lista de las series del proyecto, para marcar cuáles son explicativas.",
-          "Una miniatura, el número de puntos y los huecos de cada serie.",
-          "Vista previa con las explicativas superpuestas (con opción de normalizar).",
-          "Avisos si las series tienen longitudes distintas.",
-        ],
+        descripcion: "Las series que se usan como datos de entrada para imputar la variable explicada. Cada una dice si sirve para los huecos.",
+        contenido: [],
+      },
+      {
+        id: "correlacion", titulo: "Correlación",
+        descripcion: "Cuánto se relaciona cada variable explicativa con la variable explicada.",
+        contenido: [],
       },
       {
         id: "resultados", titulo: "Imputación y resultados",
@@ -2438,15 +2527,6 @@
           "Gráfica con los puntos imputados resaltados.",
           "Métricas de error (RMSE, MAE) cuando se conoce el valor real.",
           "Tabla con los valores imputados, descargable.",
-        ],
-      },
-      {
-        id: "correlacion", titulo: "Correlación",
-        descripcion: "Las relaciones entre las series y la autocorrelación, antes y después de imputar.",
-        contenido: [
-          "Mapa de correlaciones entre la explicada y las explicativas.",
-          "Autocorrelación (ACF y PACF) de la explicada, antes y después de imputar.",
-          "Correlación cruzada con retardos.",
         ],
       },
     ];
@@ -2459,7 +2539,10 @@
 
     function renderImputacion() {
       if (exp.ui.grafica) { try { Plotly.purge(exp.ui.grafica); } catch { /* ya no está en pantalla */ } }
+      if (expl.ui.grafica) { try { Plotly.purge(expl.ui.grafica); } catch { /* ya no está en pantalla */ } }
+      if (cor.ui.grafica) { try { Plotly.purge(cor.ui.grafica); } catch { /* ya no está en pantalla */ } }
       exp.ui = {};
+      expl.ui = {};
       const barra = document.getElementById("pestanas-imputacion");
       barra.replaceChildren();
       PESTANAS_IMPUTACION.forEach((pestana, i) => {
@@ -2512,6 +2595,14 @@
         contenedor.append(titulo, descripcion, montarExplicada(), nav);
         panel.append(contenedor);
         actualizarExplicada();
+      } else if (pestana.id === "correlacion") {
+        contenedor.append(titulo, descripcion, montarCorrelacion(), nav);
+        panel.append(contenedor);
+        actualizarCorrelacion();
+      } else if (pestana.id === "explicativas") {
+        contenedor.append(titulo, descripcion, montarExplicativas(), nav);
+        panel.append(contenedor);
+        actualizarExplicativas();
       } else {
         contenedor.append(titulo, descripcion, lista, marcador, nav);
         panel.append(contenedor);
@@ -2528,7 +2619,7 @@
     // Se elige la serie que se quiere imputar (arrastrándola a un campo) y se le quitan tramos, además de los datos
     // que ya le falten. En el proyecto se guarda la serie elegida y los tramos quitados; lo demás (zoom, herramienta,
     // vista previa...) es solo de pantalla.
-    const estadoImputacionVacio = () => ({ explicada: { serieId: null, quitados: [] } });
+    const estadoImputacionVacio = () => ({ explicada: { serieId: null, quitados: [] }, explicativas: [] });
     let imputacion = estadoImputacionVacio();
 
     const exp = {
@@ -2799,7 +2890,9 @@
     async function cambiarExplicada(nuevoId) {
       const anterior = impClonar(imputacion.explicada);
       if (anterior.serieId === nuevoId) return;
+      const explicativasAntes = [...imputacion.explicativas];
       imputacion.explicada = { serieId: nuevoId, quitados: [] };
+      imputacion.explicativas = imputacion.explicativas.filter((id) => id !== nuevoId); // la explicada no puede ser explicativa
       exp.pila = [];
       exp.rehacer = [];
       exp.azar.vista = [];
@@ -2807,7 +2900,7 @@
       const nueva = serieExplicada();
       const cuantos = anterior.quitados.length;
       const deshacerFn = anterior.serieId !== null
-        ? () => { imputacion.explicada = anterior; exp.pila = []; exp.rehacer = []; cambioImputacion(); actualizarExplicada(); }
+        ? () => { imputacion.explicada = anterior; imputacion.explicativas = explicativasAntes; exp.pila = []; exp.rehacer = []; cambioImputacion(); actualizarExplicada(); }
         : null;
       await actualizarExplicada();
       mostrarAvisoExp(nueva ? `Variable explicada: ${nombreDe(nueva)}.` : "Has quitado la variable explicada." + (cuantos ? ` (Se descartan ${cuantos === 1 ? "1 tramo" : cuantos + " tramos"}.)` : ""), deshacerFn);
@@ -3542,6 +3635,727 @@
       if (e.code === "Space" && exp.espacio) { e.preventDefault(); exp.espacio = false; if (exp.ui.caja) exp.ui.caja.classList.remove("espacio"); }
     });
 
+    // ----- Pestaña 2: Variables explicativas -----
+    // Se eligen, de entre las demás series del proyecto, las que se usarán como datos de entrada. Cada candidata dice
+    // si sirve para los huecos de la explicada (cobertura) y si es compatible (longitud, datos propios que faltan).
+    // En el proyecto solo se guarda cuáles se eligieron.
+    const expl = { ui: {}, token: 0, arrastrando: null, encima: null, normalizacion: "real", detalleAbierto: true };
+
+    const candidatasExplicativas = () => series.filter((x) => x.id !== imputacion.explicada.serieId);
+    const explicativasElegidas = () => imputacion.explicativas.map((id) => series.find((x) => x.id === id)).filter(Boolean);
+
+    // Lo que hay que imputar de la explicada: lo que ya le faltaba y lo que se le ha quitado
+    function objetivoDeExplicada() {
+      const serie = serieExplicada();
+      if (!serie || !serie.datos) return null;
+      const y = serie.datos.y, n = y.length;
+      const quitado = tramosAMascara(tramosQuitados(), n);
+      const objetivo = y.map((v, i) => v === null || quitado[i]);
+      return { serie, y, n, quitado, objetivo, aImputar: objetivo.filter(Boolean).length };
+    }
+
+    // ¿Sirve esta serie para imputar la explicada? Se compara punto a punto (el punto i con el punto i).
+    function evaluarCandidata(serie, obj) {
+      const x = serie.datos.y, nx = x.length;
+      let aImputar = 0, cubiertos = 0, comunes = 0, propios = 0;
+      for (const v of x) if (v === null) propios++;
+      for (let i = 0; i < obj.n; i++) {
+        const hay = i < nx && x[i] !== null;
+        if (obj.objetivo[i]) { aImputar++; if (hay) cubiertos++; } else if (hay) comunes++;
+      }
+      let nivel, texto;
+      if (aImputar === 0) { nivel = "neutro"; texto = "Aún no hay huecos que cubrir"; }
+      else if (cubiertos === 0) { nivel = "malo"; texto = "✕ No cubre ningún hueco"; }
+      else if (comunes < 10) { nivel = "malo"; texto = `✕ Solo ${comunes} puntos en común con la explicada`; }
+      else if (cubiertos < aImputar) { nivel = "aviso"; texto = `⚠ Cubre ${cubiertos} de ${aImputar} huecos`; }
+      else if (nx !== obj.n) { nivel = "aviso"; texto = `⚠ Cubre los ${aImputar} huecos, pero tiene otra longitud`; }
+      else { nivel = "ok"; texto = `✓ Cubre los ${aImputar} huecos`; }
+      const notas = [];
+      if (nx !== obj.n) notas.push(`Longitud ${nx} (la explicada: ${obj.n})`);
+      if (propios) notas.push(propios === 1 ? "1 dato faltante propio" : `${propios} datos faltantes propios`);
+      return { nx, propios, aImputar, cubiertos, comunes, nivel, texto, nota: notas.join(" · ") };
+    }
+
+    // ----- Montaje -----
+    function montarExplicativas() {
+      const raiz = document.createElement("div");
+      raiz.className = "exp";
+      raiz.innerHTML = `
+        <aside class="exp-lateral">
+          <h3>Series disponibles</h3>
+          <p class="ayuda">Arrastra las series al campo de la derecha (o púlsalas) para usarlas como explicativas. Cada una indica si sirve para los huecos de la explicada.</p>
+          <ul class="exp-series" id="ev-lista"></ul>
+        </aside>
+        <section class="exp-principal">
+          <div class="exp-aviso" id="ev-sin-explicada" hidden>
+            <span>Primero elige la variable explicada: hace falta saber qué huecos hay que cubrir.</span>
+            <button type="button" id="ev-ir-explicada">Elegir la variable explicada</button>
+          </div>
+          <div id="ev-trabajo">
+            <div class="campo-soltar ev-campo" id="ev-campo" aria-live="polite"></div>
+            <div class="ev-sel">
+              <button type="button" id="ev-todas">Todas</button>
+              <button type="button" id="ev-ninguna">Ninguna</button>
+            </div>
+            <div id="ev-resumen-caja" hidden>
+              <div class="exp-contadores" id="ev-resumen"></div>
+              <p class="ayuda" id="ev-resumen-texto" style="margin:10px 0 0"></p>
+            </div>
+            <div class="ev-sel">
+              <label>Ver como
+                <select id="ev-norm" aria-label="Escala de la vista previa">
+                  <option value="real">Tal cual (valores originales)</option>
+                  <option value="base100">Empezar todas en 100</option>
+                  <option value="z">Misma escala (media 0)</option>
+                </select>
+              </label>
+              <small class="ayuda" style="margin:0">Arrastra sobre la gráfica para acercar; doble clic para verla entera. Lo naranja es lo que hay que imputar.</small>
+            </div>
+            <div id="ev-grafica"></div>
+            <details class="exp-tramos" id="ev-detalle" open>
+              <summary>Compatibilidad y cobertura de cada serie elegida</summary>
+              <div class="exp-tramos-cuerpo" id="ev-tabla"></div>
+            </details>
+          </div>
+        </section>`;
+      const q = (sel) => raiz.querySelector(sel);
+      expl.ui = {
+        raiz, lista: q("#ev-lista"), campo: q("#ev-campo"), sinExplicada: q("#ev-sin-explicada"), trabajo: q("#ev-trabajo"),
+        resumenCaja: q("#ev-resumen-caja"), resumen: q("#ev-resumen"), resumenTexto: q("#ev-resumen-texto"),
+        norm: q("#ev-norm"), grafica: q("#ev-grafica"), detalle: q("#ev-detalle"), tabla: q("#ev-tabla"),
+      };
+      expl.ui.norm.value = expl.normalizacion;
+      expl.ui.detalle.open = expl.detalleAbierto;
+      for (const [clave, etiqueta, clase] of [["k", "Explicativas elegidas", ""], ["todas", "Cubiertos por todas", ""]]) {
+        const tarjeta = document.createElement("div");
+        tarjeta.className = "imp-dato " + clase;
+        tarjeta.innerHTML = `<span></span><strong data-dato="${clave}">0</strong><small data-nota="${clave}"></small>`;
+        tarjeta.querySelector("span").textContent = etiqueta;
+        expl.ui.resumen.append(tarjeta);
+      }
+      enlazarExplicativas();
+      return raiz;
+    }
+
+    async function actualizarExplicativas() {
+      if (!expl.ui.lista || !expl.ui.lista.isConnected) return;
+      const token = ++expl.token;
+      guardarActiva();
+      await Promise.all(series.map(asegurarDatos));
+      if (token !== expl.token || !expl.ui.lista.isConnected) return;
+      // lo elegido que ya no existe, o que ahora es la explicada, se quita
+      imputacion.explicativas = imputacion.explicativas.filter((id) => id !== imputacion.explicada.serieId && series.some((x) => x.id === id));
+      await refrescarExplicativas();
+    }
+
+    // ----- Pintar -----
+    async function refrescarExplicativas() {
+      if (!expl.ui.lista || !expl.ui.lista.isConnected) return;
+      const obj = objetivoDeExplicada();
+      expl.ui.sinExplicada.hidden = Boolean(obj);
+      expl.ui.trabajo.hidden = !obj;
+      pintarListaExplicativas(obj);
+      if (!obj) return;
+      pintarCampoExplicativas(obj);
+      pintarResumenExplicativas(obj);
+      pintarTablaExplicativas(obj);
+      await pintarGraficaExplicativas(obj);
+    }
+
+    function pintarListaExplicativas(obj) {
+      const lista = expl.ui.lista, c = colores();
+      lista.replaceChildren();
+      for (const serie of candidatasExplicativas()) {
+        const elegida = imputacion.explicativas.includes(serie.id);
+        const li = document.createElement("li");
+        li.className = "exp-serie" + (elegida ? " usada" : "");
+        li.draggable = Boolean(obj);
+        li.tabIndex = 0;
+        li.setAttribute("role", "button");
+        li.setAttribute("aria-pressed", elegida);
+        li.dataset.id = serie.id;
+        li.setAttribute("aria-label", `${elegida ? "Quitar" : "Usar"} ${nombreDe(serie)} ${elegida ? "de" : "como"} explicativa`);
+        const texto = document.createElement("div");
+        const nombre = document.createElement("strong");
+        nombre.textContent = nombreDe(serie);
+        const marca = document.createElement("span");
+        marca.className = "marca";
+        marca.textContent = " ✓";
+        nombre.append(marca);
+        const detalle = document.createElement("small");
+        detalle.textContent = serie.datos ? `${serie.datos.y.length} puntos · ${textoTipo(serie)}` : textoTipo(serie);
+        texto.append(nombre, detalle);
+        li.append(crearPunto(serie.color), texto);
+        if (obj && serie.datos) {
+          const ev = evaluarCandidata(serie, obj);
+          const insignia = document.createElement("div");
+          insignia.className = "insignia " + ev.nivel;
+          insignia.textContent = ev.texto;
+          li.append(insignia);
+          if (ev.nota) {
+            const nota = document.createElement("div");
+            nota.className = "nota";
+            nota.textContent = ev.nota;
+            li.append(nota);
+          }
+        }
+        if (serie.datos) li.append(impMiniatura(serie.datos.y, colorDe(serie, c)));
+        lista.append(li);
+      }
+      if (!lista.children.length) {
+        const vacio = document.createElement("li");
+        vacio.className = "ayuda";
+        vacio.textContent = "No hay más series en el proyecto. Crea otras en la fase 1 para poder usarlas como explicativas.";
+        lista.append(vacio);
+      }
+    }
+
+    function pintarCampoExplicativas(obj) {
+      const campo = expl.ui.campo;
+      campo.replaceChildren();
+      const elegidas = explicativasElegidas();
+      campo.classList.toggle("encima", expl.encima !== null);
+      campo.classList.toggle("llena", elegidas.length > 0 && expl.encima === null);
+      if (!elegidas.length) {
+        campo.textContent = expl.encima !== null ? "Suelta para usarla como explicativa" : "Arrastra aquí las series explicativas (o púlsalas en la lista)";
+        return;
+      }
+      for (const serie of elegidas) {
+        const chip = document.createElement("span");
+        chip.className = "ev-chip";
+        chip.append(crearPunto(serie.color), nombreDe(serie));
+        if (serie.datos) {
+          const ev = evaluarCandidata(serie, obj);
+          const insignia = document.createElement("span");
+          insignia.className = "insignia " + ev.nivel;
+          insignia.textContent = ev.texto;
+          chip.append(insignia);
+        }
+        const quitar = document.createElement("button");
+        quitar.type = "button";
+        quitar.dataset.quitar = serie.id;
+        quitar.title = `Quitar ${nombreDe(serie)}`;
+        quitar.setAttribute("aria-label", `Quitar ${nombreDe(serie)} de las explicativas`);
+        quitar.textContent = "×";
+        chip.append(quitar);
+        campo.append(chip);
+      }
+    }
+
+    function pintarResumenExplicativas(obj) {
+      const elegidas = explicativasElegidas().filter((x) => x.datos);
+      expl.ui.resumenCaja.hidden = elegidas.length === 0;
+      if (!elegidas.length) return;
+      let union = 0, todas = 0;
+      for (let i = 0; i < obj.n; i++) {
+        if (!obj.objetivo[i]) continue;
+        const cuantas = elegidas.filter((x) => i < x.datos.y.length && x.datos.y[i] !== null).length;
+        if (cuantas > 0) union++;
+        if (cuantas === elegidas.length) todas++;
+      }
+      const poner = (clave, valor, nota = "") => {
+        animarNumero(expl.ui.resumen.querySelector(`[data-dato="${clave}"]`), valor);
+        expl.ui.resumen.querySelector(`[data-nota="${clave}"]`).textContent = nota;
+      };
+      const pct = (v) => (obj.aImputar ? `${((v / obj.aImputar) * 100).toFixed(0)} %` : "");
+      poner("k", elegidas.length);
+      poner("todas", todas, pct(todas));
+      const sin = obj.aImputar - union;
+      const texto = expl.ui.resumenTexto;
+      if (!obj.aImputar) texto.textContent = "Todavía no hay huecos: quita tramos a la explicada en la pestaña 1, o ya tiene datos faltantes propios.";
+      else if (sin > 0) texto.textContent = `⚠ ${sin} ${sin === 1 ? "punto" : "puntos"} no ${sin === 1 ? "lo cubre" : "los cubre"} ninguna explicativa: ahí solo se podría imputar con la propia serie.`;
+      else if (todas === obj.aImputar) texto.textContent = "✓ Todas las explicativas tienen datos en todos los huecos.";
+      else texto.textContent = "✓ Cada hueco lo cubre al menos una explicativa.";
+    }
+
+    function pintarTablaExplicativas(obj) {
+      const tabla = expl.ui.tabla;
+      tabla.replaceChildren();
+      const elegidas = explicativasElegidas().filter((x) => x.datos);
+      if (!elegidas.length) {
+        const p = document.createElement("p");
+        p.className = "ayuda";
+        p.style.margin = "0";
+        p.textContent = "Elige alguna serie para ver aquí su compatibilidad con la explicada.";
+        tabla.append(p);
+        return;
+      }
+      const rejilla = document.createElement("div");
+      rejilla.className = "ev-tabla";
+      for (const titulo of ["Serie", "Longitud", "Datos faltantes propios", "Cobertura de los huecos", "Puntos en común"]) {
+        const celda = document.createElement("div");
+        celda.className = "cab";
+        celda.textContent = titulo;
+        rejilla.append(celda);
+      }
+      for (const serie of elegidas) {
+        const ev = evaluarCandidata(serie, obj);
+        const celdas = [
+          nombreDe(serie),
+          ev.nx === obj.n ? `${ev.nx}` : `${ev.nx} (≠ ${obj.n})`,
+          ev.propios ? `${ev.propios} (${((ev.propios / ev.nx) * 100).toFixed(1)} %)` : "ninguno",
+          obj.aImputar ? `${ev.cubiertos} de ${ev.aImputar} (${((ev.cubiertos / ev.aImputar) * 100).toFixed(0)} %)` : "—",
+          `${ev.comunes}`,
+        ];
+        celdas.forEach((valor, k) => {
+          const celda = document.createElement("div");
+          celda.textContent = valor;
+          if (k === 0) celda.style.fontWeight = "650";
+          if (k === 3 && obj.aImputar) {
+            const barra = document.createElement("div");
+            barra.className = "barra";
+            const relleno = document.createElement("i");
+            relleno.className = ev.nivel === "malo" ? "malo" : ev.cubiertos < ev.aImputar ? "aviso" : "";
+            relleno.style.width = `${(ev.cubiertos / ev.aImputar) * 100}%`;
+            barra.append(relleno);
+            celda.append(barra);
+          }
+          rejilla.append(celda);
+        });
+      }
+      tabla.append(rejilla);
+    }
+
+    // Cambia la escala de una serie para poder verla junto a otras. La media y la desviación de la explicada se
+    // calculan solo con lo que sigue ahí (lo quitado no cuenta: en la práctica no se conocería).
+    function escalarValores(valores, modo) {
+      if (modo === "real") return valores;
+      const conocidos = valores.filter((v) => v !== null);
+      if (!conocidos.length) return valores;
+      if (modo === "base100") {
+        const base = conocidos.find((v) => v !== 0);
+        return base === undefined ? valores : valores.map((v) => (v === null ? null : (v / Math.abs(base)) * 100));
+      }
+      const media = conocidos.reduce((a, b) => a + b, 0) / conocidos.length;
+      const desviacion = Math.sqrt(conocidos.reduce((a, b) => a + (b - media) ** 2, 0) / conocidos.length) || 1;
+      return valores.map((v) => (v === null ? null : (v - media) / desviacion));
+    }
+
+    async function pintarGraficaExplicativas(obj) {
+      const grafica = expl.ui.grafica;
+      if (!grafica || !grafica.isConnected) return;
+      const c = colores();
+      const modo = expl.normalizacion;
+      const conocidaE = obj.y.map((v, i) => (obj.quitado[i] ? null : v));
+      const trazas = [{
+        x: obj.y.map((_, i) => i), y: escalarValores(conocidaE, modo), type: "scatter", mode: "lines",
+        name: `${nombreDe(obj.serie)} (explicada)`, line: { color: colorDe(obj.serie, c), width: 3 },
+        hovertemplate: "<b>%{y:.2f}</b>  ·  punto %{x}<extra>%{fullData.name}</extra>",
+      }];
+      for (const serie of explicativasElegidas()) {
+        if (!serie.datos) continue;
+        const x = serie.datos.y;
+        trazas.push({
+          x: x.map((_, i) => i), y: escalarValores(x, modo), type: "scatter", mode: "lines", name: nombreDe(serie),
+          line: { color: colorDe(serie, c), width: 1.6 },
+          hovertemplate: "<b>%{y:.2f}</b>  ·  punto %{x}<extra>%{fullData.name}</extra>",
+        });
+      }
+      const banda = (a, b, color, opacidad) => ({
+        type: "rect", xref: "x", yref: "paper", x0: a - 0.5, x1: b + 0.5, y0: 0, y1: 1,
+        fillcolor: color, opacity: opacidad, line: { width: 0 }, layer: "below",
+      });
+      const bandas = [
+        ...huecosDeOrigen(obj.y).map(([a, b]) => banda(a, b, c.muted, 0.2)),
+        ...tramosQuitados().map(([a, b]) => banda(a, b, c.series[3], 0.28)),
+      ];
+      const eje = (texto) => ({
+        title: texto ? { text: texto, font: { color: c.muted, size: 12 }, standoff: 8 } : undefined,
+        gridcolor: c.grid, gridwidth: 1, zeroline: false, linecolor: c.axis, tickfont: { color: c.muted, size: 11 }, ticks: "",
+      });
+      await Plotly.react(grafica, trazas, {
+        paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", font: { family: c.fuente, color: c.ink2 },
+        margin: { t: 34, r: 16, b: 40, l: 56 }, hovermode: "x unified", shapes: bandas,
+        showlegend: trazas.length > 1, legend: { orientation: "h", x: 0, y: 1.14, font: { color: c.ink2, size: 12 } },
+        xaxis: { ...eje("Punto"), showgrid: false, showline: true },
+        yaxis: { ...eje(modo === "real" ? "Valor" : modo === "base100" ? "Base 100" : "Desviaciones típicas"), showline: false },
+        hoverlabel: { bgcolor: c.surface, bordercolor: c.axis, font: { color: c.ink, family: c.fuente, size: 13 } },
+      }, { responsive: true, displaylogo: false, displayModeBar: false });
+    }
+
+    // ----- Cambios -----
+    function cambiarExplicativas(ids) {
+      const nuevas = [...new Set(ids)].filter((id) => id !== imputacion.explicada.serieId && series.some((x) => x.id === id));
+      if (JSON.stringify(nuevas) === JSON.stringify(imputacion.explicativas)) return;
+      imputacion.explicativas = nuevas;
+      cambioImputacion();
+      refrescarExplicativas();
+    }
+    const alternarExplicativa = (id) => cambiarExplicativas(
+      imputacion.explicativas.includes(id) ? imputacion.explicativas.filter((x) => x !== id) : [...imputacion.explicativas, id],
+    );
+
+    function enlazarExplicativas() {
+      const u = expl.ui;
+      u.lista.addEventListener("click", (e) => {
+        const li = e.target.closest(".exp-serie");
+        if (li) alternarExplicativa(Number(li.dataset.id));
+      });
+      u.lista.addEventListener("keydown", (e) => {
+        const li = e.target.closest(".exp-serie");
+        if (li && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); alternarExplicativa(Number(li.dataset.id)); }
+      });
+      u.lista.addEventListener("dragstart", (e) => {
+        const li = e.target.closest(".exp-serie");
+        if (!li) return;
+        e.dataTransfer.setData("text/plain", li.dataset.id);
+        e.dataTransfer.effectAllowed = "copy";
+        expl.arrastrando = Number(li.dataset.id);
+        li.classList.add("arrastrando");
+      });
+      u.lista.addEventListener("dragend", () => { expl.arrastrando = null; expl.encima = null; refrescarExplicativas(); });
+      const sobre = (e) => {
+        if (expl.arrastrando === null) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+        if (expl.encima !== expl.arrastrando) { expl.encima = expl.arrastrando; const obj = objetivoDeExplicada(); if (obj) pintarCampoExplicativas(obj); }
+      };
+      u.campo.addEventListener("dragenter", sobre);
+      u.campo.addEventListener("dragover", sobre);
+      u.campo.addEventListener("dragleave", (e) => {
+        if (!u.campo.contains(e.relatedTarget) && expl.encima !== null) { expl.encima = null; const obj = objetivoDeExplicada(); if (obj) pintarCampoExplicativas(obj); }
+      });
+      u.campo.addEventListener("drop", (e) => {
+        e.preventDefault();
+        const dato = Number(e.dataTransfer.getData("text/plain"));
+        const id = Number.isFinite(dato) && dato > 0 ? dato : expl.arrastrando;
+        expl.encima = null;
+        expl.arrastrando = null;
+        if (id && !imputacion.explicativas.includes(id)) cambiarExplicativas([...imputacion.explicativas, id]); else refrescarExplicativas();
+      });
+      u.campo.addEventListener("click", (e) => {
+        const boton = e.target.closest("[data-quitar]");
+        if (boton) cambiarExplicativas(imputacion.explicativas.filter((id) => id !== Number(boton.dataset.quitar)));
+      });
+      u.raiz.querySelector("#ev-todas").addEventListener("click", () => cambiarExplicativas(candidatasExplicativas().map((x) => x.id)));
+      u.raiz.querySelector("#ev-ninguna").addEventListener("click", () => cambiarExplicativas([]));
+      u.norm.addEventListener("change", () => {
+        expl.normalizacion = u.norm.value;
+        const obj = objetivoDeExplicada();
+        if (obj) pintarGraficaExplicativas(obj);
+      });
+      u.detalle.addEventListener("toggle", () => { expl.detalleAbierto = u.detalle.open; });
+      u.raiz.querySelector("#ev-ir-explicada").addEventListener("click", () => irAPestanaImputacion("explicada"));
+    }
+
+    // ----- Pestaña 3: Correlación -----
+    // Para cada variable explicativa se calcula su relación con la explicada: correlación (Pearson), correlación por
+    // orden (Spearman) y R². Solo cuentan los puntos en que las dos series tienen dato y que no se le han quitado a la
+    // explicada (lo quitado no se conocería en la práctica).
+    const cor = { ui: {}, token: 0, orden: { columna: null, sentido: -1 }, serieGrafica: null, maxLag: null };
+    const formatoCor = new Intl.NumberFormat("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    function parejasComunes(obj, serie) {
+      const x = serie.datos.y, xs = [], ys = [];
+      for (let i = 0; i < obj.n; i++) {
+        if (obj.objetivo[i] || i >= x.length || x[i] === null) continue;
+        xs.push(x[i]);
+        ys.push(obj.y[i]);
+      }
+      return { xs, ys };
+    }
+
+    // Correlación de Pearson: lo que se mueven juntas dos series, de −1 a +1. null si no se puede calcular.
+    function correlacionPearson(xs, ys) {
+      const n = xs.length;
+      if (n < 3) return null;
+      const mx = xs.reduce((a, b) => a + b, 0) / n, my = ys.reduce((a, b) => a + b, 0) / n;
+      let sxy = 0, sxx = 0, syy = 0;
+      for (let i = 0; i < n; i++) {
+        const dx = xs[i] - mx, dy = ys[i] - my;
+        sxy += dx * dy; sxx += dx * dx; syy += dy * dy;
+      }
+      if (sxx === 0 || syy === 0) return null; // una serie constante no se relaciona con nada
+      return Math.max(-1, Math.min(1, sxy / Math.sqrt(sxx * syy)));
+    }
+
+    // Posición de cada valor al ordenarlos de menor a mayor; los empates reparten la posición media
+    function rangosMedios(valores) {
+      const orden = valores.map((v, i) => [v, i]).sort((a, b) => a[0] - b[0]);
+      const rangos = new Array(valores.length);
+      for (let i = 0; i < orden.length;) {
+        let j = i;
+        while (j + 1 < orden.length && orden[j + 1][0] === orden[i][0]) j++;
+        const medio = (i + j) / 2 + 1;
+        for (let k = i; k <= j; k++) rangos[orden[k][1]] = medio;
+        i = j + 1;
+      }
+      return rangos;
+    }
+    const correlacionSpearman = (xs, ys) => (xs.length < 3 ? null : correlacionPearson(rangosMedios(xs), rangosMedios(ys)));
+
+    // Intervalo de confianza del 95 % de una correlación (transformación de Fisher)
+    function intervaloCorrelacion(r, n) {
+      if (r === null || n <= 3 || Math.abs(r) >= 1) return null;
+      const z = Math.atanh(r), error = 1 / Math.sqrt(n - 3);
+      return [Math.tanh(z - 1.96 * error), Math.tanh(z + 1.96 * error)];
+    }
+
+    // Desfase máximo que se prueba: el que escribe el usuario, o un valor razonable según la longitud de la serie
+    const desfaseMaximo = (obj) => Math.max(1, Math.min(cor.maxLag ?? Math.max(3, Math.min(30, Math.floor(obj.n / 4))), Math.max(obj.n - 5, 1)));
+
+    // Correlación cruzada: la explicada en el punto t frente a la explicativa en el punto t − k.
+    // Con k > 0 se comparan valores ANTERIORES de la explicativa (va por delante); con k < 0, posteriores (va por detrás).
+    function correlacionCruzada(obj, serie, maxLag) {
+      const x = serie.datos.y, resultado = [];
+      for (let k = -maxLag; k <= maxLag; k++) {
+        const xs = [], ys = [];
+        for (let t = 0; t < obj.n; t++) {
+          const j = t - k;
+          if (obj.objetivo[t] || j < 0 || j >= x.length || x[j] === null) continue;
+          xs.push(x[j]);
+          ys.push(obj.y[t]);
+        }
+        resultado.push({ k, n: xs.length, r: xs.length >= 5 ? correlacionPearson(xs, ys) : null });
+      }
+      return resultado;
+    }
+    // El desfase con más relación (sin fijarse en el signo); si hay empate, el más cercano a 0
+    function mejorDesfase(cruz) {
+      let mejor = null;
+      for (const c of cruz) {
+        if (c.r === null) continue;
+        if (!mejor || Math.abs(c.r) > Math.abs(mejor.r) + 1e-12 || (Math.abs(Math.abs(c.r) - Math.abs(mejor.r)) <= 1e-12 && Math.abs(c.k) < Math.abs(mejor.k))) mejor = c;
+      }
+      return mejor;
+    }
+
+    function calcularCorrelaciones(obj) {
+      const maxLag = desfaseMaximo(obj);
+      return explicativasElegidas().filter((x) => x.datos).map((serie) => {
+        const { xs, ys } = parejasComunes(obj, serie);
+        const r = correlacionPearson(xs, ys);
+        const cruz = correlacionCruzada(obj, serie, maxLag);
+        return {
+          serie, n: xs.length, r, rho: correlacionSpearman(xs, ys), r2: r === null ? null : r * r, intervalo: intervaloCorrelacion(r, xs.length),
+          cruz, mejor: mejorDesfase(cruz), r0: (cruz.find((c) => c.k === 0) || {}).r ?? null,
+        };
+      });
+    }
+
+    function montarCorrelacion() {
+      const raiz = document.createElement("div");
+      raiz.className = "cor";
+      raiz.innerHTML = `
+        <div class="exp-aviso" id="cor-falta" hidden>
+          <span id="cor-falta-texto"></span>
+          <button type="button" id="cor-falta-ir"></button>
+        </div>
+        <div id="cor-trabajo" hidden>
+          <p class="ayuda" id="cor-info" style="margin:0 0 14px"></p>
+          <div class="cor-tabla" id="cor-tabla" role="table" aria-label="Correlación de cada explicativa con la explicada"></div>
+          <section class="cor-cruzada">
+            <h3>Correlación cruzada (con desfases)</h3>
+            <div class="cor-controles">
+              <label>Serie
+                <select id="cor-serie" aria-label="Serie que se muestra en el gráfico"></select>
+              </label>
+              <label>Desfase máximo (puntos)
+                <input type="number" id="cor-maxlag" min="1" max="200" step="1" aria-label="Desfase máximo en puntos">
+              </label>
+            </div>
+            <div id="cor-grafica"></div>
+          </section>
+        </div>`;
+      cor.ui = { raiz, falta: raiz.querySelector("#cor-falta"), faltaTexto: raiz.querySelector("#cor-falta-texto"), faltaIr: raiz.querySelector("#cor-falta-ir"), trabajo: raiz.querySelector("#cor-trabajo"), info: raiz.querySelector("#cor-info"), tabla: raiz.querySelector("#cor-tabla"), serie: raiz.querySelector("#cor-serie"), maxlag: raiz.querySelector("#cor-maxlag"), grafica: raiz.querySelector("#cor-grafica") };
+      cor.ui.serie.addEventListener("change", () => { cor.serieGrafica = cor.ui.serie.value; pintarCorrelacion(); });
+      cor.ui.maxlag.addEventListener("change", () => {
+        const v = parseInt(cor.ui.maxlag.value);
+        cor.maxLag = Number.isInteger(v) ? Math.min(Math.max(v, 1), 200) : null;
+        pintarCorrelacion();
+      });
+      cor.ui.tabla.addEventListener("click", (e) => {
+        const boton = e.target.closest("[data-orden]");
+        if (!boton) return;
+        const columna = boton.dataset.orden;
+        cor.orden = cor.orden.columna === columna ? { columna, sentido: -cor.orden.sentido } : { columna, sentido: columna === "nombre" ? 1 : -1 };
+        pintarCorrelacion();
+      });
+      return raiz;
+    }
+
+    async function actualizarCorrelacion() {
+      if (!cor.ui.tabla || !cor.ui.tabla.isConnected) return;
+      const token = ++cor.token;
+      guardarActiva();
+      await Promise.all(series.map(asegurarDatos));
+      if (token !== cor.token || !cor.ui.tabla.isConnected) return;
+      imputacion.explicativas = imputacion.explicativas.filter((id) => id !== imputacion.explicada.serieId && series.some((x) => x.id === id));
+      pintarCorrelacion();
+    }
+
+    function pintarCorrelacion() {
+      const u = cor.ui;
+      if (!u.tabla || !u.tabla.isConnected) return;
+      const obj = objetivoDeExplicada();
+      const faltaAlgo = !obj ? ["Primero elige la variable explicada.", "Elegir la variable explicada", "explicada"]
+        : !explicativasElegidas().length ? ["Elige alguna variable explicativa para ver su correlación.", "Elegir las explicativas", "explicativas"] : null;
+      u.falta.hidden = !faltaAlgo;
+      u.trabajo.hidden = Boolean(faltaAlgo);
+      if (faltaAlgo) {
+        u.faltaTexto.textContent = faltaAlgo[0];
+        u.faltaIr.textContent = faltaAlgo[1];
+        u.faltaIr.onclick = () => irAPestanaImputacion(faltaAlgo[2]);
+        return;
+      }
+      const observados = obj.n - obj.aImputar;
+      u.info.textContent = `Variable explicada: ${nombreDe(obj.serie)}. Se usan solo los puntos en que las dos series tienen dato y que no has quitado a la explicada (la explicada tiene ${observados} de ${obj.n}).`;
+
+      const todas = calcularCorrelaciones(obj);
+      let filas = todas;
+      const { columna, sentido } = cor.orden;
+      if (columna) {
+        const clave = { nombre: (f) => nombreDe(f.serie).toLowerCase(), r: (f) => (f.r === null ? -1 : Math.abs(f.r)), rho: (f) => (f.rho === null ? -1 : Math.abs(f.rho)), r2: (f) => (f.r2 === null ? -1 : f.r2), lag: (f) => (f.mejor ? Math.abs(f.mejor.r) : -1), n: (f) => f.n }[columna];
+        filas = [...filas].sort((a, b) => (clave(a) < clave(b) ? -1 : clave(a) > clave(b) ? 1 : 0) * sentido);
+      }
+
+      const tabla = u.tabla;
+      tabla.replaceChildren();
+      const CABECERAS = [
+        ["nombre", "Serie", "La variable explicativa."],
+        ["r", "Correlación (Pearson)", "De −1 a +1: cuánto suben y bajan juntas en línea recta. Cerca de 0, no hay relación; negativa, cuando una sube la otra baja."],
+        ["rho", "Correlación por orden (Spearman)", "Lo mismo, pero fijándose solo en el orden de los valores: no le afectan los valores extremos ni las curvas."],
+        ["r2", "R² (parte que explica)", "La correlación (Pearson) al cuadrado: qué parte de lo que se mueve la explicada la explica esta serie."],
+        ["lag", "Mejor desfase", "Los puntos de desfase con los que más se parecen la explicada y la explicativa (de la correlación cruzada). Positivo: la explicativa va por delante; negativo: va por detrás; 0: sin desfase."],
+        ["n", "Puntos usados", "Puntos en que las dos series tienen dato y que no has quitado a la explicada."],
+      ];
+      for (const [id, texto, ayuda] of CABECERAS) {
+        const cab = document.createElement("div");
+        cab.className = "cab";
+        cab.setAttribute("role", "columnheader");
+        cab.setAttribute("aria-sort", columna === id ? (sentido === 1 ? "ascending" : "descending") : "none");
+        const boton = document.createElement("button");
+        boton.type = "button";
+        boton.dataset.orden = id;
+        boton.title = ayuda + " Pulsa para ordenar.";
+        boton.append(texto);
+        if (columna === id) {
+          const flecha = document.createElement("span");
+          flecha.className = "flecha";
+          flecha.textContent = sentido === 1 ? "↑" : "↓";
+          boton.append(flecha);
+        }
+        cab.append(boton);
+        tabla.append(cab);
+      }
+
+      const celda = () => { const d = document.createElement("div"); d.setAttribute("role", "cell"); return d; };
+      const numero = (v, clase = "") => {
+        const d = celda();
+        const valor = document.createElement("div");
+        valor.className = "valor" + (v === null ? " sin" : "");
+        valor.textContent = v === null ? "—" : formatoCor.format(v);
+        d.append(valor);
+        if (v !== null && clase !== "r2") {
+          const barra = document.createElement("div");
+          barra.className = "cor-barra";
+          const relleno = document.createElement("i");
+          relleno.className = v < 0 ? "neg" : "";
+          relleno.style.left = v < 0 ? `${50 + v * 50}%` : "50%";
+          relleno.style.width = `${Math.abs(v) * 50}%`;
+          barra.append(relleno);
+          d.append(barra);
+        }
+        return d;
+      };
+      for (const f of filas) {
+        const nombre = celda();
+        nombre.className = "nombre";
+        nombre.append(crearPunto(f.serie.color), nombreDe(f.serie));
+        tabla.append(nombre);
+
+        const pearson = numero(f.r);
+        const nota = document.createElement("small");
+        nota.textContent = f.intervalo ? `intervalo 95 %: ${formatoCor.format(f.intervalo[0])} a ${formatoCor.format(f.intervalo[1])}`
+          : f.r === null ? (f.n < 3 ? "muy pocos puntos" : "una de las dos series es constante") : "";
+        if (nota.textContent) pearson.append(nota);
+        tabla.append(pearson, numero(f.rho));
+
+        const r2 = celda();
+        const valor = document.createElement("div");
+        valor.className = "valor" + (f.r2 === null ? " sin" : "");
+        valor.textContent = f.r2 === null ? "—" : `${(f.r2 * 100).toFixed(0)} %`;
+        r2.append(valor);
+        if (f.r2 !== null) {
+          const barra = document.createElement("div");
+          barra.className = "cor-barra r2";
+          const relleno = document.createElement("i");
+          relleno.style.width = `${f.r2 * 100}%`;
+          barra.append(relleno);
+          r2.append(barra);
+        }
+        tabla.append(r2);
+
+        const lag = celda();
+        const valorLag = document.createElement("div");
+        valorLag.className = "valor desfase" + (f.mejor ? "" : " sin");
+        valorLag.textContent = f.mejor ? (f.mejor.k > 0 ? `+${f.mejor.k}` : String(f.mejor.k)) : "—";
+        lag.append(valorLag);
+        if (f.mejor) {
+          valorLag.classList.toggle("cambia", f.mejor.k !== 0);
+          const notaLag = document.createElement("small");
+          notaLag.textContent = f.mejor.k === 0 ? `correlación ${formatoCor.format(f.mejor.r)}`
+            : `${formatoCor.format(f.mejor.r)} (con desfase 0: ${f.r0 === null ? "—" : formatoCor.format(f.r0)})`;
+          lag.append(notaLag);
+        }
+        tabla.append(lag);
+
+        const puntos = celda();
+        puntos.textContent = String(f.n);
+        tabla.append(puntos);
+      }
+      pintarCruzada(obj, todas);
+    }
+
+    // ----- Gráfico de la correlación cruzada -----
+    async function pintarCruzada(obj, filas) {
+      const u = cor.ui;
+      if (!u.grafica || !u.grafica.isConnected) return;
+      // selector: cada explicativa, o todas a la vez
+      const opciones = [...filas.map((f) => [String(f.serie.id), nombreDe(f.serie)]), ...(filas.length > 1 ? [["todas", "Todas (líneas)"]] : [])];
+      if (!opciones.some(([v]) => v === cor.serieGrafica)) cor.serieGrafica = opciones[0][0];
+      u.serie.replaceChildren(...opciones.map(([valor, texto]) => new Option(texto, valor)));
+      u.serie.value = cor.serieGrafica;
+      u.maxlag.value = desfaseMaximo(obj);
+
+      const c = colores();
+      const maxLag = desfaseMaximo(obj);
+      const elegidas = cor.serieGrafica === "todas" ? filas : filas.filter((f) => String(f.serie.id) === cor.serieGrafica);
+      const trazas = [];
+      for (const f of elegidas) {
+        const x = f.cruz.map((d) => d.k), y = f.cruz.map((d) => d.r), n = f.cruz.map((d) => d.n);
+        const plantilla = "desfase %{x}: <b>%{y:.2f}</b>  ·  %{customdata} puntos<extra>" + nombreDe(f.serie) + "</extra>";
+        if (cor.serieGrafica === "todas") {
+          trazas.push({ x, y, customdata: n, type: "scatter", mode: "lines+markers", name: nombreDe(f.serie), line: { color: colorDe(f.serie, c), width: 2 }, marker: { size: 5 }, hovertemplate: plantilla, connectgaps: false });
+        } else {
+          const mejor = f.mejor ? f.mejor.k : null;
+          trazas.push({
+            x, y, customdata: n, type: "bar", name: nombreDe(f.serie), hovertemplate: plantilla,
+            marker: { color: y.map((v) => (v !== null && v < 0 ? c.series[3] : c.series[0])), // azul si es positiva y naranja si es negativa, como en la tabla
+            opacity: x.map((k) => (k === mejor ? 1 : 0.5)), line: { color: c.ink, width: x.map((k) => (k === mejor ? 2 : 0)) } },
+          });
+        }
+      }
+      // línea del desfase 0 y límites del 95 % (lo que queda dentro puede ser casualidad)
+      const n0 = Math.max(...elegidas.map((f) => (f.cruz.find((d) => d.k === 0) || { n: 0 }).n), 0);
+      const limite = n0 > 3 ? 1.96 / Math.sqrt(n0) : null;
+      const linea = (y, dash) => ({ type: "line", xref: "paper", x0: 0, x1: 1, yref: "y", y0: y, y1: y, line: { color: c.muted, width: 1, dash } });
+      const formas = [{ type: "line", xref: "x", x0: 0, x1: 0, yref: "paper", y0: 0, y1: 1, line: { color: c.axis, width: 1 } }, linea(0, "solid")];
+      if (limite !== null && limite < 1) formas.push(linea(limite, "dot"), linea(-limite, "dot"));
+      const eje = (texto) => ({
+        title: texto ? { text: texto, font: { color: c.muted, size: 12 }, standoff: 8 } : undefined,
+        gridcolor: c.grid, gridwidth: 1, zeroline: false, linecolor: c.axis, tickfont: { color: c.muted, size: 11 }, ticks: "",
+      });
+      await Plotly.react(u.grafica, trazas, {
+        paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", font: { family: c.fuente, color: c.ink2 },
+        margin: { t: 20, r: 16, b: 48, l: 56 }, shapes: formas, bargap: 0.25, hovermode: "closest",
+        showlegend: cor.serieGrafica === "todas", legend: { orientation: "h", x: 0, y: 1.12, font: { color: c.ink2, size: 12 } },
+        xaxis: { ...eje("Desfase (puntos)"), showgrid: false, showline: true, dtick: maxLag > 20 ? 5 : 1, range: [-maxLag - 0.6, maxLag + 0.6] },
+        yaxis: { ...eje("Correlación"), range: [-1.05, 1.05], showline: false },
+        hoverlabel: { bgcolor: c.surface, bordercolor: c.axis, font: { color: c.ink, family: c.fuente, size: 13 } },
+      }, { responsive: true, displaylogo: false, displayModeBar: false });
+    }
+
     // Al abrir otro proyecto o empezar uno nuevo se olvida lo que era solo de pantalla
     function reiniciarExplicada() {
       exp.pila = [];
@@ -3556,11 +4370,14 @@
     function imputacionDesdeGuardada(guardada, mapa) {
       const e = estadoImputacionVacio();
       const ex = guardada && guardada.explicada;
-      if (!ex || mapa[ex.serieId] === undefined) return e;
-      e.explicada.serieId = mapa[ex.serieId];
-      e.explicada.quitados = (Array.isArray(ex.quitados) ? ex.quitados : [])
-        .filter((t) => Array.isArray(t) && t.length === 2 && t.every((v) => Number.isInteger(v) && v >= 0))
-        .map(([a, b]) => [Math.min(a, b), Math.max(a, b)]);
+      if (ex && mapa[ex.serieId] !== undefined) {
+        e.explicada.serieId = mapa[ex.serieId];
+        e.explicada.quitados = (Array.isArray(ex.quitados) ? ex.quitados : [])
+          .filter((t) => Array.isArray(t) && t.length === 2 && t.every((v) => Number.isInteger(v) && v >= 0))
+          .map(([a, b]) => [Math.min(a, b), Math.max(a, b)]);
+      }
+      const nuevas = (guardada && Array.isArray(guardada.explicativas) ? guardada.explicativas : []).map((id) => mapa[id]);
+      e.explicativas = [...new Set(nuevas.filter((id) => id !== undefined && id !== e.explicada.serieId))];
       return e;
     }
 
@@ -3569,9 +4386,10 @@
     // (con las semillas, así que sale idéntica); de las manuales, sus valores. Nada de lo que es solo de pantalla
     // (pestaña abierta, zoom, secciones plegadas) forma parte del proyecto.
     const FORMATO = "laboratorio-senales";
-    const VERSION_FORMATO = 2;          // sube cuando cambie el formato; MIGRACIONES[n] pasa de la versión n a la n+1
+    const VERSION_FORMATO = 3;          // sube cuando cambie el formato; MIGRACIONES[n] pasa de la versión n a la n+1
     const MIGRACIONES = {
       1: (doc) => ({ ...doc, version: 2, imputacion: estadoImputacionVacio() }), // v2 añade la fase de imputación
+      2: (doc) => ({ ...doc, version: 3, imputacion: { ...doc.imputacion, explicativas: [] } }), // v3 añade las variables explicativas
     };
     const ID_BORRADOR = "__borrador__"; // copia automática del trabajo sin guardar, por si se cierra la página
     const NOMBRE_SIN_TITULO = "Proyecto sin título";
