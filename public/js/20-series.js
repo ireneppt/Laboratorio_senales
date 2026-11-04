@@ -443,9 +443,12 @@ function anadirSerie() {
 function cerrarSerie(s) {
   if (series.length < 2) return;
   // si era la variable explicada se vacía; si era explicativa, se quita de la lista (el resto de la elección se conserva)
+  const { metodos, parametros } = imputacion;
   const explicativasRestantes = imputacion.explicativas.filter((id) => id !== s.id);
   if (imputacion.explicada.serieId === s.id) { imputacion = estadoImputacionVacio(); reiniciarExplicada(); }
   imputacion.explicativas = explicativasRestantes;
+  imputacion.metodos = metodos;                                              // los métodos elegidos se conservan
+  imputacion.parametros = { ...parametros, donante: parametros.donante === s.id ? null : parametros.donante };
   guardarActiva();
   const posicion = series.indexOf(s);
   series = series.filter((x) => x !== s);

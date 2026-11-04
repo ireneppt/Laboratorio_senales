@@ -3,7 +3,7 @@
 // Para cada variable explicativa se calcula su relación con la explicada: correlación (Pearson), correlación por
 // orden (Spearman) y R². Solo cuentan los puntos en que las dos series tienen dato y que no se le han quitado a la
 // explicada (lo quitado no se conocería en la práctica).
-const cor = { ui: {}, token: 0, orden: { columna: null, sentido: -1 }, serieGrafica: null, maxLag: null };
+const cor = { ui: {}, token: 0, orden: { columna: null, sentido: -1 }, serieGrafica: null, maxLag: null, medida: "pearson" };
 const formatoCor = new Intl.NumberFormat("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function parejasComunes(obj, serie) {
@@ -105,6 +105,19 @@ function montarCorrelacion() {
     <div id="cor-trabajo" hidden>
       <p class="ayuda" id="cor-info" style="margin:0 0 14px"></p>
       <div class="cor-tabla" id="cor-tabla" role="table" aria-label="Correlación de cada explicativa con la explicada"></div>
+      <section class="cor-matriz">
+        <h3>Correlación entre las explicativas</h3>
+        <div class="cor-controles">
+          <label>Medida
+            <select id="cor-medida" aria-label="Medida de la matriz">
+              <option value="pearson">Correlación (Pearson)</option>
+              <option value="spearman">Correlación por orden (Spearman)</option>
+            </select>
+          </label>
+        </div>
+        <div class="cor-matriz-rejilla" id="cor-matriz" role="table" aria-label="Correlación de cada explicativa con las demás"></div>
+        <p class="ayuda" id="cor-matriz-nota" style="margin:10px 0 0" hidden></p>
+      </section>
       <section class="cor-cruzada">
         <h3>Correlación cruzada (con desfases)</h3>
         <div class="cor-controles">
@@ -118,7 +131,10 @@ function montarCorrelacion() {
         <div id="cor-grafica"></div>
       </section>
     </div>`;
-  cor.ui = { raiz, falta: raiz.querySelector("#cor-falta"), faltaTexto: raiz.querySelector("#cor-falta-texto"), faltaIr: raiz.querySelector("#cor-falta-ir"), trabajo: raiz.querySelector("#cor-trabajo"), info: raiz.querySelector("#cor-info"), tabla: raiz.querySelector("#cor-tabla"), serie: raiz.querySelector("#cor-serie"), maxlag: raiz.querySelector("#cor-maxlag"), grafica: raiz.querySelector("#cor-grafica") };
+  cor.ui = { raiz, falta: raiz.querySelector("#cor-falta"), faltaTexto: raiz.querySelector("#cor-falta-texto"), faltaIr: raiz.querySelector("#cor-falta-ir"), trabajo: raiz.querySelector("#cor-trabajo"), info: raiz.querySelector("#cor-info"), tabla: raiz.querySelector("#cor-tabla"), serie: raiz.querySelector("#cor-serie"), maxlag: raiz.querySelector("#cor-maxlag"), grafica: raiz.querySelector("#cor-grafica"),
+    matriz: raiz.querySelector("#cor-matriz"), matrizNota: raiz.querySelector("#cor-matriz-nota"), medida: raiz.querySelector("#cor-medida") };
+  cor.ui.medida.value = cor.medida;
+  cor.ui.medida.addEventListener("change", () => { cor.medida = cor.ui.medida.value; pintarMatrizCorrelacion(); });
   cor.ui.serie.addEventListener("change", () => { cor.serieGrafica = cor.ui.serie.value; pintarCorrelacion(); });
   cor.ui.maxlag.addEventListener("change", () => {
     const v = parseInt(cor.ui.maxlag.value);
@@ -265,6 +281,7 @@ function pintarCorrelacion() {
     puntos.textContent = String(f.n);
     tabla.append(puntos);
   }
+  pintarMatrizCorrelacion();
   pintarCruzada(obj, todas);
 }
 
@@ -315,4 +332,114 @@ async function pintarCruzada(obj, filas) {
     yaxis: { ...eje("Correlación"), range: [-1.05, 1.05], showline: false },
     hoverlabel: { bgcolor: c.surface, bordercolor: c.axis, font: { color: c.ink, family: c.fuente, size: 13 } },
   }, { responsive: true, displaylogo: false, displayModeBar: false });
+}
+// ----- Matriz de correlaciones entre las explicativas -----
+// Sirve para detectar explicativas repetidas: si dos van casi iguales, meter las dos aporta poco. Se usan los puntos en
+// que las dos series tienen dato (aquí no interviene la explicada, así que sus tramos quitados no cuentan).
+const UMBRAL_PARECIDAS = 0.9;
+
+function parejasEntre(a, b) {
+  const x = a.datos.y, y = b.datos.y, xs = [], ys = [];
+  for (let i = 0; i < Math.min(x.length, y.length); i++) {
+    if (x[i] === null || y[i] === null) continue;
+    xs.push(x[i]);
+    ys.push(y[i]);
+  }
+  return { xs, ys };
+}
+
+// celdas[i][j] = { r, n }: la correlación de la explicativa i con la j y los puntos usados
+function matrizDeCorrelaciones(elegidas, medida) {
+  const calcular = medida === "spearman" ? correlacionSpearman : correlacionPearson;
+  return elegidas.map((a, i) => elegidas.map((b, j) => {
+    if (i === j) return { r: 1, n: a.datos.y.filter((v) => v !== null).length };
+    const { xs, ys } = parejasEntre(a, b);
+    return { r: calcular(xs, ys), n: xs.length };
+  }));
+}
+
+function pintarMatrizCorrelacion() {
+  const u = cor.ui;
+  if (!u.matriz || !u.matriz.isConnected) return;
+  const elegidas = explicativasElegidas().filter((x) => x.datos);
+  const rejilla = u.matriz;
+  rejilla.replaceChildren();
+  u.matrizNota.hidden = true;
+  u.medida.disabled = elegidas.length < 2;
+  if (elegidas.length < 2) {
+    rejilla.style.gridTemplateColumns = "";
+    const aviso = document.createElement("p");
+    aviso.className = "ayuda";
+    aviso.style.margin = "0";
+    aviso.textContent = "Elige al menos dos variables explicativas para ver cómo se relacionan entre sí.";
+    rejilla.append(aviso);
+    return;
+  }
+  const celdas = matrizDeCorrelaciones(elegidas, cor.medida);
+  rejilla.style.gridTemplateColumns = `minmax(110px, 1.2fr) repeat(${elegidas.length}, minmax(62px, 1fr))`;
+
+  const esquina = document.createElement("div");
+  esquina.className = "esq";
+  rejilla.append(esquina);
+  elegidas.forEach((s, j) => {
+    const cab = document.createElement("div");
+    cab.className = "cab-col";
+    cab.dataset.col = j;
+    cab.title = nombreDe(s);
+    cab.setAttribute("role", "columnheader");
+    cab.textContent = nombreDe(s);
+    rejilla.append(cab);
+  });
+
+  const parecidas = [];
+  elegidas.forEach((fila, i) => {
+    const cab = document.createElement("div");
+    cab.className = "cab-fila";
+    cab.dataset.fila = i;
+    cab.setAttribute("role", "rowheader");
+    cab.append(crearPunto(fila.color), nombreDe(fila));
+    rejilla.append(cab);
+    elegidas.forEach((_, j) => {
+      const { r, n } = celdas[i][j];
+      const celda = document.createElement("div");
+      celda.setAttribute("role", "cell");
+      celda.dataset.fila = i;
+      celda.dataset.col = j;
+      celda.className = "celda" + (i === j ? " diagonal" : "");
+      if (r === null) {
+        celda.classList.add("sin");
+        celda.textContent = "—";
+        celda.title = n < 3 ? `${nombreDe(fila)} y ${nombreDe(elegidas[j])}: muy pocos puntos en común (${n})` : `${nombreDe(fila)} y ${nombreDe(elegidas[j])}: una de las dos series es constante`;
+      } else {
+        celda.textContent = formatoCor.format(r);
+        if (i !== j) {
+          const intensidad = Math.round(Math.abs(r) * 85);
+          celda.style.background = `color-mix(in srgb, var(${r < 0 ? "--series-4" : "--series-1"}) ${intensidad}%, var(--surface))`;
+          celda.title = `${nombreDe(fila)} y ${nombreDe(elegidas[j])}: ${formatoCor.format(r)} (${n} puntos)`;
+          if (Math.abs(r) >= UMBRAL_PARECIDAS) {
+            celda.classList.add("alta");
+            if (j > i) parecidas.push([nombreDe(fila), nombreDe(elegidas[j]), r]);
+          }
+        } else {
+          celda.title = nombreDe(fila);
+        }
+      }
+      rejilla.append(celda);
+    });
+  });
+
+  // al pasar el ratón por una celda se resaltan su fila y su columna
+  rejilla.onmouseover = (e) => {
+    const c = e.target.closest("[data-fila][data-col]");
+    rejilla.querySelectorAll(".resaltada").forEach((x) => x.classList.remove("resaltada"));
+    if (!c) return;
+    rejilla.querySelectorAll(`[data-fila="${c.dataset.fila}"], [data-col="${c.dataset.col}"]`).forEach((x) => x.classList.add("resaltada"));
+  };
+  rejilla.onmouseleave = () => rejilla.querySelectorAll(".resaltada").forEach((x) => x.classList.remove("resaltada"));
+
+  if (parecidas.length) {
+    const lista = parecidas.slice(0, 6).map(([a, b, r]) => `${a} y ${b} (${formatoCor.format(r)})`).join("; ");
+    u.matrizNota.textContent = `Muy parecidas entre sí (correlación de ${formatoCor.format(UMBRAL_PARECIDAS)} o más, en valor absoluto): ${lista}${parecidas.length > 6 ? "…" : ""}. Meter las dos aporta poco.`;
+    u.matrizNota.hidden = false;
+  }
 }

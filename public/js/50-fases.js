@@ -57,13 +57,8 @@ const PESTANAS_IMPUTACION = [
   },
   {
     id: "resultados", titulo: "Imputación y resultados",
-    descripcion: "Imputar los datos faltantes y comprobar cómo de bien ha salido.",
-    contenido: [
-      "Elegir el método, y comparar varios sobre los mismos huecos.",
-      "Gráfica con los puntos imputados resaltados.",
-      "Métricas de error (RMSE, MAE) cuando se conoce el valor real.",
-      "Tabla con los valores imputados, descargable.",
-    ],
+    descripcion: "Imputa los datos faltantes con distintos métodos y compáralos con el valor real de lo que quitaste.",
+    contenido: [],
   },
 ];
 let pestanaImputacion = PESTANAS_IMPUTACION[0].id;
@@ -77,6 +72,7 @@ function renderImputacion() {
   if (exp.ui.grafica) { try { Plotly.purge(exp.ui.grafica); } catch { /* ya no está en pantalla */ } }
   if (expl.ui.grafica) { try { Plotly.purge(expl.ui.grafica); } catch { /* ya no está en pantalla */ } }
   if (cor.ui.grafica) { try { Plotly.purge(cor.ui.grafica); } catch { /* ya no está en pantalla */ } }
+  if (resImp.ui.grafica) { try { Plotly.purge(resImp.ui.grafica); } catch { /* ya no está en pantalla */ } }
   exp.ui = {};
   expl.ui = {};
   const barra = document.getElementById("pestanas-imputacion");
@@ -131,6 +127,10 @@ function renderImputacion() {
     contenedor.append(titulo, descripcion, montarExplicada(), nav);
     panel.append(contenedor);
     actualizarExplicada();
+  } else if (pestana.id === "resultados") {
+    contenedor.append(titulo, descripcion, montarResultados(), nav);
+    panel.append(contenedor);
+    actualizarResultados();
   } else if (pestana.id === "correlacion") {
     contenedor.append(titulo, descripcion, montarCorrelacion(), nav);
     panel.append(contenedor);

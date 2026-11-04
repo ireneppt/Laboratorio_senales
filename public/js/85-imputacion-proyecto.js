@@ -21,5 +21,15 @@ function imputacionDesdeGuardada(guardada, mapa) {
   }
   const nuevas = (guardada && Array.isArray(guardada.explicativas) ? guardada.explicativas : []).map((id) => mapa[id]);
   e.explicativas = [...new Set(nuevas.filter((id) => id !== undefined && id !== e.explicada.serieId))];
+  // métodos de imputación elegidos y sus parámetros (solo los que existen)
+  const ids = METODOS_IMPUTACION.map((m) => m.id);
+  e.metodos = ids.filter((id) => guardada && Array.isArray(guardada.metodos) && guardada.metodos.includes(id));
+  const p = (guardada && guardada.parametros) || {};
+  const donante = p.donante === null || p.donante === undefined ? undefined : mapa[p.donante];
+  e.parametros = {
+    k: Number.isInteger(p.k) ? Math.min(Math.max(p.k, 1), 50) : 1,
+    donante: donante !== undefined && donante !== e.explicada.serieId ? donante : null,
+    escalar: p.escalar === true,
+  };
   return e;
 }

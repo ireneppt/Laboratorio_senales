@@ -4,10 +4,11 @@
 // (con las semillas, así que sale idéntica); de las manuales, sus valores. Nada de lo que es solo de pantalla
 // (pestaña abierta, zoom, secciones plegadas) forma parte del proyecto.
 const FORMATO = "laboratorio-senales";
-const VERSION_FORMATO = 3;          // sube cuando cambie el formato; MIGRACIONES[n] pasa de la versión n a la n+1
+const VERSION_FORMATO = 4;          // sube cuando cambie el formato; MIGRACIONES[n] pasa de la versión n a la n+1
 const MIGRACIONES = {
   1: (doc) => ({ ...doc, version: 2, imputacion: estadoImputacionVacio() }), // v2 añade la fase de imputación
   2: (doc) => ({ ...doc, version: 3, imputacion: { ...doc.imputacion, explicativas: [] } }), // v3 añade las variables explicativas
+  3: (doc) => ({ ...doc, version: 4, imputacion: { ...doc.imputacion, metodos: [], parametros: PARAMETROS_IMPUTACION_INICIALES() } }), // v4 añade los métodos de imputación
 };
 const ID_BORRADOR = "__borrador__"; // copia automática del trabajo sin guardar, por si se cierra la página
 const NOMBRE_SIN_TITULO = "Proyecto sin título";

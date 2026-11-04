@@ -2,9 +2,10 @@
 from typing import Annotated, Literal
 
 from fastapi import FastAPI, HTTPException, Query
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from senales import Anomalias, Ciclos, ErrorDeEntrada, Estacionalidad, Huecos, Ruido, Tendencia, generar_serie
+from senales.imputacion import imputar
 from senales.constantes import (
     MAGNITUD_ALEATORIA, MAX_ANOMALIAS, MAX_CICLOS, MAX_ESTACIONALIDADES, MAX_HUECOS, PHI_AUTOCORRELACION,
 )
@@ -112,5 +113,26 @@ def get_series(
             ),
             huecos=Huecos(activos=huecos_activos, textos=hueco),
         )
+    except ErrorDeEntrada as error:
+        raise HTTPException(422, str(error))
+
+
+class MetodoPedido(BaseModel):
+    metodo: str
+    parametros: dict = {}  # los de cada método: k (hot deck), donante y escalar (serie donante)
+
+
+class PeticionImputar(BaseModel):
+    y: list[float | None] = Field(min_length=3, max_length=10_000)         # la explicada, con None donde le falta
+    quitados: list[tuple[int, int]] = Field(default=[], max_length=1000)  # tramos [desde, hasta] que se le han quitado para probar
+    explicativas: list[list[float | None]] = Field(default=[], max_length=20)
+    metodos: list[MetodoPedido] = Field(min_length=1, max_length=10)
+
+
+@app.post("/api/imputar")
+def post_imputar(peticion: PeticionImputar):
+    """Imputa la explicada con cada método pedido y devuelve lo imputado y sus errores (sobre lo que se quitó)."""
+    try:
+        return imputar(peticion.y, peticion.quitados, peticion.explicativas, [m.model_dump() for m in peticion.metodos])
     except ErrorDeEntrada as error:
         raise HTTPException(422, str(error))

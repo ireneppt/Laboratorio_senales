@@ -3,7 +3,9 @@
 // Se elige la serie que se quiere imputar (arrastrándola a un campo) y se le quitan tramos, además de los datos
 // que ya le falten. En el proyecto se guarda la serie elegida y los tramos quitados; lo demás (zoom, herramienta,
 // vista previa...) es solo de pantalla.
-const estadoImputacionVacio = () => ({ explicada: { serieId: null, quitados: [] }, explicativas: [] });
+// Parámetros de los métodos de imputación: vecinos del hot deck, y la serie donante (y si se ajusta a la escala)
+const PARAMETROS_IMPUTACION_INICIALES = () => ({ k: 1, donante: null, escalar: false });
+const estadoImputacionVacio = () => ({ explicada: { serieId: null, quitados: [] }, explicativas: [], metodos: [], parametros: PARAMETROS_IMPUTACION_INICIALES() });
 let imputacion = estadoImputacionVacio();
 
 const exp = {
@@ -275,8 +277,10 @@ async function cambiarExplicada(nuevoId) {
   const anterior = impClonar(imputacion.explicada);
   if (anterior.serieId === nuevoId) return;
   const explicativasAntes = [...imputacion.explicativas];
+  const donanteAntes = imputacion.parametros.donante;
   imputacion.explicada = { serieId: nuevoId, quitados: [] };
   imputacion.explicativas = imputacion.explicativas.filter((id) => id !== nuevoId); // la explicada no puede ser explicativa
+  if (imputacion.parametros.donante === nuevoId) imputacion.parametros.donante = null; // ni donante
   exp.pila = [];
   exp.rehacer = [];
   exp.azar.vista = [];
@@ -284,7 +288,7 @@ async function cambiarExplicada(nuevoId) {
   const nueva = serieExplicada();
   const cuantos = anterior.quitados.length;
   const deshacerFn = anterior.serieId !== null
-    ? () => { imputacion.explicada = anterior; imputacion.explicativas = explicativasAntes; exp.pila = []; exp.rehacer = []; cambioImputacion(); actualizarExplicada(); }
+    ? () => { imputacion.explicada = anterior; imputacion.explicativas = explicativasAntes; imputacion.parametros.donante = donanteAntes; exp.pila = []; exp.rehacer = []; cambioImputacion(); actualizarExplicada(); }
     : null;
   await actualizarExplicada();
   mostrarAvisoExp(nueva ? `Variable explicada: ${nombreDe(nueva)}.` : "Has quitado la variable explicada." + (cuantos ? ` (Se descartan ${cuantos === 1 ? "1 tramo" : cuantos + " tramos"}.)` : ""), deshacerFn);

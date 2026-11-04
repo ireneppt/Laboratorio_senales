@@ -140,6 +140,26 @@
 /* Pestaña "Correlación" */
 .cor-tabla { display: grid; grid-template-columns: minmax(130px, 1.2fr) repeat(3, minmax(150px, 1fr)) minmax(130px, 0.9fr) minmax(80px, 0.5fr); overflow-x: auto; }
 .cor-tabla .valor.desfase.cambia { color: color-mix(in srgb, var(--series-4) 75%, var(--ink)); }
+.cor-matriz { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--axis); }
+.cor-matriz h3 { margin: 0 0 12px; font-size: 1.05rem; }
+.cor-matriz-rejilla { display: grid; overflow-x: auto; gap: 3px; }
+.cor-matriz-rejilla .cab-col {
+  padding: 4px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center;
+  color: var(--ink-2); font-size: 0.8rem; font-weight: 650;
+}
+.cor-matriz-rejilla .cab-fila {
+  display: flex; align-items: center; gap: 8px; padding: 0 8px 0 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  color: var(--ink-2); font-size: 0.85rem; font-weight: 650;
+}
+.cor-matriz-rejilla .celda {
+  display: flex; align-items: center; justify-content: center; min-height: 48px; border-radius: 6px;
+  background: var(--surface-2); font-variant-numeric: tabular-nums; font-size: 0.95rem; font-weight: 650; cursor: default;
+}
+.cor-matriz-rejilla .celda.diagonal { background: var(--grid); color: var(--muted); font-weight: 400; }
+.cor-matriz-rejilla .celda.sin { color: var(--muted); font-weight: 400; }
+.cor-matriz-rejilla .celda.alta { outline: 2px solid var(--ink); outline-offset: -2px; }
+.cor-matriz-rejilla .celda.resaltada { box-shadow: 0 0 0 2px var(--series-1); }
+.cor-matriz-rejilla .cab-col.resaltada, .cor-matriz-rejilla .cab-fila.resaltada { color: var(--ink); }
 .cor-cruzada { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--axis); }
 .cor-cruzada h3 { margin: 0 0 12px; font-size: 1.05rem; }
 .cor-controles { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 20px; margin-bottom: 8px; }

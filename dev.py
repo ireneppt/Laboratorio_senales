@@ -20,4 +20,5 @@ async def sin_cache(request, call_next):
 app.mount("/", StaticFiles(directory="public", html=True), name="public")
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    # reload=True: al guardar un archivo .py el servidor se reinicia solo, así nunca se queda con código viejo
+    uvicorn.run("dev:app", host="127.0.0.1", port=8000, reload=True)
