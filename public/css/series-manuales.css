@@ -1,0 +1,37 @@
+/* Menú de nueva serie, series manuales y adaptación a pantallas pequeñas. */
+/* Menú "+ Nueva serie" */
+.nueva-serie { position: relative; }
+.menu-nueva {
+  position: absolute; top: calc(100% + 8px); left: 0; z-index: 20; width: 270px; padding: 8px;
+  background: var(--surface); border: 1px solid var(--axis); border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+.menu-nueva button { display: block; width: 100%; height: auto; margin: 0; padding: 10px 12px; border: 0; text-align: left; line-height: 1.35; }
+.menu-nueva small { display: block; color: var(--muted); font-size: 0.8rem; }
+/* Series creadas a mano: el panel de la serie se cambia por el de su tipo */
+.es-manual > fieldset:not(:first-of-type) { display: none; }
+.es-manual .solo-generada { display: none; }
+#panel-manual { margin-top: 14px; }
+#panel-manual legend { cursor: default; }
+textarea {
+  display: block; width: 100%; margin-top: 6px; padding: 10px 12px; resize: vertical;
+  border: 1px solid var(--axis); border-radius: 8px; background: var(--surface); color: var(--ink);
+  font: 0.9rem/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.botones-manual { display: flex; gap: 10px; margin-bottom: 12px; }
+.botones-manual > * { flex: 1; margin: 0; }
+label.boton-archivo {
+  display: flex; align-items: center; justify-content: center; padding: 0 12px; min-height: 40px;
+  border: 1px solid var(--axis); border-radius: 8px; background: var(--surface); color: var(--ink);
+  font-size: 1rem; text-align: center; cursor: pointer;
+}
+label.boton-archivo:hover { background: var(--grid); }
+button[aria-pressed=true] { background: var(--series-1); border-color: var(--series-1); color: #fff; }
+small.ayuda { display: block; margin: 0 0 14px; color: var(--muted); font-size: 0.8rem; line-height: 1.4; }
+#chart.dibujando { cursor: crosshair; touch-action: none; user-select: none; }
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+  .tarjeta-grafica { order: -1; position: static; }
+}
+  

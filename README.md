@@ -30,3 +30,12 @@ Un proyecto es el conjunto de series de la pantalla. Se puede guardar en el nave
 ## Fases del proyecto
 
 Un proyecto avanza por fases, cada una con su pantalla. **1 · Series** es el laboratorio (generar, importar, escribir y dibujar series). **2 · Imputación** tiene cuatro pestañas: *Variable explicada* y *Variables explicativas* (hechas), *Correlación* e *Imputación y resultados* (por hacer). Para añadir una fase hay que añadirla a `FASES` en `public/index.html` y crear su `<section>`.
+
+## Estructura del código
+
+- `app.py`: la API (FastAPI) que genera las series.
+- `public/index.html`: solo el esqueleto de la página (marcado). Carga los estilos y los scripts.
+- `public/css/`: los estilos, en el mismo orden en que se cargan: `base`, `imputacion`, `proyecto`, `panel`, `formulario` y `series-manuales`.
+- `public/js/`: el JavaScript, en trozos numerados por orden de carga: `00-base` (constantes y validación), `10-bloques` (bloques del formulario), `20-series` (series y pestañas), `30-grafica`, `40-series-manuales`, `50-fases`, `60-explicada`, `70-explicativas`, `80-correlacion`, `85-imputacion-proyecto`, `90-proyectos` y `99-arranque`.
+
+Los scripts son **clásicos, no módulos**: comparten el mismo ámbito global y el orden de carga importa (cada uno usa lo definido en los anteriores). Al añadir un archivo hay que añadirlo en `index.html` en el sitio que le toque.

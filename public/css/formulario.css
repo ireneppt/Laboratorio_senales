@@ -1,0 +1,158 @@
+/* Formulario de generación: secciones, campos, color, interruptores y tarjetas. */
+/* Secciones del panel */
+/* Cada sección es una tarjeta con su tono suave de fondo y un borde fino del mismo color */
+fieldset {
+  --tono: var(--axis);
+  margin: 0; min-width: 0; padding: 16px 16px 2px;
+  border: 1px solid color-mix(in srgb, var(--tono) 18%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--tono) 4%, var(--surface));
+}
+fieldset + fieldset { margin-top: 14px; }
+fieldset:nth-of-type(1) { --tono: var(--series-7); }
+fieldset:nth-of-type(2) { --tono: var(--series-1); }
+fieldset:nth-of-type(3) { --tono: var(--series-3); }
+fieldset:nth-of-type(4) { --tono: var(--series-4); }
+fieldset:nth-of-type(5) { --tono: var(--series-2); }
+fieldset:nth-of-type(6) { --tono: var(--series-8); }
+fieldset:nth-of-type(7) { --tono: var(--series-5); }
+/* float evita que el legend "corte" el borde superior del fieldset */
+legend {
+  float: left; width: 100%; padding: 0; margin-bottom: 16px; font-weight: 700; font-size: 1.15rem;
+  display: flex; align-items: center; gap: 10px; cursor: pointer;
+}
+legend + * { clear: both; }
+/* Resumen de la sección (se ve sobre todo con la sección plegada) y flecha para plegar */
+.resumen-seccion {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--ink-2); font-size: 0.85rem; font-weight: 400; text-align: right;
+}
+button.plegar {
+  flex: none; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 8px; color: var(--ink-2);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+button.plegar::before {
+  content: ""; width: 8px; height: 8px; margin-top: -4px;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg);
+  transition: transform 0.15s;
+}
+fieldset.cerrado { padding-bottom: 16px; }
+fieldset.cerrado > legend { margin-bottom: 0; }
+fieldset.cerrado > :not(legend) { display: none; }
+fieldset.cerrado button.plegar::before { margin-top: 0; margin-left: -4px; transform: rotate(-45deg); }
+
+label { display: block; margin-bottom: 14px; color: var(--ink-2); font-size: 0.9rem; }
+input[type=number], input[type=text], select {
+  display: block;
+  width: 100%;
+  height: 40px;
+  margin-top: 6px;
+  padding: 0 12px;
+  border: 1px solid var(--axis);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+}
+input:focus-visible, select:focus-visible, button:focus-visible, .switch:focus-visible {
+  outline: 2px solid var(--series-1);
+  outline-offset: 1px;
+}
+/* Un campo apagado se ve distinto de uno activo: fondo gris, borde discontinuo y texto atenuado */
+input:disabled, select:disabled {
+  border-style: dashed; background: color-mix(in srgb, var(--ink) 7%, var(--surface));
+  color: var(--muted); -webkit-text-fill-color: var(--muted); cursor: not-allowed;
+}
+/* Campo con un valor no válido: borde rojo y un texto que dice qué se espera */
+input.invalido { border-color: var(--error); }
+small.error { display: block; margin-top: 4px; color: var(--error); font-size: 0.8rem; }
+
+[hidden] { display: none !important; }
+
+/* Color y nombre de la serie */
+.identidad { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+.nombre-texto { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.05rem; font-weight: 650; }
+.identidad input[type=text] { flex: 1; min-width: 0; height: 36px; margin-top: 0; }
+.color-selector { position: relative; flex: none; }
+button.punto-grande {
+  display: block; width: 28px; height: 28px; padding: 0; border-radius: 50%;
+  border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--axis); cursor: pointer;
+}
+button.icono {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px; color: var(--ink-2);
+}
+button.icono:hover:not(:disabled) { color: var(--ink); }
+/* La paleta flota sobre el panel y solo se ve al pulsar el punto de color */
+.paleta {
+  position: absolute; top: calc(100% + 8px); left: 0; z-index: 20; width: 232px;
+  display: flex; flex-wrap: wrap; gap: 10px; padding: 14px;
+  background: var(--surface); border: 1px solid var(--axis); border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+button.muestra, .muestra-otro {
+  position: relative; display: block; flex: none; width: 30px; height: 30px; margin: 0; padding: 0;
+  border: 2px solid var(--surface); border-radius: 50%; cursor: pointer;
+}
+.muestra-otro {
+  background: conic-gradient(#e34948, #eda100, #1baf7a, #2a78d6, #6250d6, #e87ba4, #e34948);
+}
+/* El selector del navegador queda encima, invisible: el círculo de color es el botón */
+#color-otro { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; opacity: 0; cursor: pointer; }
+button.muestra.elegida, .muestra-otro.elegida { box-shadow: 0 0 0 2px var(--ink); }
+
+/* Interruptor de cada sección */
+label.toggle { display: flex; align-items: center; gap: 8px; margin: 0; cursor: pointer; color: inherit; font-size: inherit; }
+legend label.toggle { gap: 10px; color: var(--ink); }
+.switch {
+  appearance: none; flex: none; position: relative; margin: 0;
+  width: 38px; height: 22px; border-radius: 999px;
+  background: var(--axis); cursor: pointer; transition: background 0.15s;
+}
+.switch::after {
+  content: ""; position: absolute; top: 2px; left: 2px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; transition: transform 0.15s;
+}
+.switch:checked { background: var(--series-1); }
+.switch:checked::after { transform: translateX(16px); }
+.switch:disabled { opacity: 0.45; cursor: default; }
+.alea { accent-color: var(--series-1); margin: 0; }
+label.opcion { font-size: 0.9rem; color: var(--ink-2); }
+
+/* Tarjetas de estacionalidad y anomalía */
+.estac { margin-bottom: 12px; padding: 16px; border-radius: 10px; background: var(--surface-2); }
+.estac-cab { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.estac-titulo { font-size: 0.78rem; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-2); }
+.estac label:last-child { margin-bottom: 0; }
+/* Los valores de un ciclo, de dos en dos */
+.rejilla2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.rejilla2 label { margin-bottom: 12px; font-size: 0.85rem; }
+.rejilla2 input[type=number], .rejilla2 select { padding: 0 10px; font-size: 0.95rem; }
+button.separado { margin-top: 10px; }
+.campo { margin-bottom: 14px; color: var(--ink-2); font-size: 0.9rem; }
+.fila { display: flex; gap: 12px; align-items: center; }
+.fila input[type=number] { flex: 1; min-width: 0; margin-top: 6px; }
+.fila label.toggle { margin: 6px 0 0; font-size: 0.85rem; white-space: nowrap; }
+.resuelto { display: block; min-height: 1em; margin-top: 10px; color: var(--ink-2); font-size: 0.85rem; }
+
+button {
+  width: 100%; height: 40px;
+  border: 1px solid var(--axis); border-radius: 8px;
+  background: transparent; color: var(--ink);
+  font: inherit; font-size: 0.95rem; cursor: pointer;
+}
+button:hover:not(:disabled) { background: var(--surface-2); }
+button:disabled { opacity: 0.45; cursor: default; }
+button.quitar {
+  width: 24px; height: 24px; padding: 0; border: 0;
+  color: var(--ink-2); font-size: 1.1rem; line-height: 1;
+}
+button.quitar:hover:not(:disabled) { background: var(--grid); color: var(--ink); }
+
+.aleatorias { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--grid); }
+.aleatorias-titulo { display: block; margin-bottom: 10px; font-size: 0.78rem; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-2); }
+.trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.trio label { font-size: 0.8rem; }
+.trio input[type=number] { padding: 0 6px; }
