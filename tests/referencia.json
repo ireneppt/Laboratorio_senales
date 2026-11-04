@@ -1,0 +1,330 @@
+{
+ "anomalia_apagada": {
+  "estado": 200,
+  "huella": "dd9a9ed5c59fde9f3e4dab1febf563a344ba2622639953540dfbce4b6f8d5148"
+ },
+ "anomalia_cambio_nivel": {
+  "estado": 200,
+  "huella": "adad497a915668b17b529105b42e1052f3ae9174f03ce86e321c1dc4c305ad35"
+ },
+ "anomalia_error_decaimiento_rango": {
+  "detalle": "El decaimiento debe estar entre 0 y 0.95",
+  "estado": 422
+ },
+ "anomalia_error_decaimiento_texto": {
+  "detalle": "Anomalía no válida: transitorio,30,10,mucho",
+  "estado": 422
+ },
+ "anomalia_error_magnitud_rango": {
+  "detalle": "La magnitud debe estar entre -1000 y 1000",
+  "estado": 422
+ },
+ "anomalia_error_magnitud_texto": {
+  "detalle": "Anomalía no válida: puntual,30,xx",
+  "estado": 422
+ },
+ "anomalia_error_numero": {
+  "detalle": "Anomalía no válida: puntual,abc,25",
+  "estado": 422
+ },
+ "anomalia_error_partes": {
+  "detalle": "Anomalía no válida: puntual,30",
+  "estado": 422
+ },
+ "anomalia_error_rango_aleatorio": {
+  "detalle": "El mínimo de la magnitud aleatoria no puede superar al máximo",
+  "estado": 422
+ },
+ "anomalia_error_tipo": {
+  "detalle": "Anomalía no válida: rara,30,25",
+  "estado": 422
+ },
+ "anomalia_fuera_del_eje": {
+  "estado": 200,
+  "huella": "3e71b9012c4b71291406ece14085c7ed2a35597c3f90c70e0d432ce15f9bd9a1"
+ },
+ "anomalia_puntual": {
+  "estado": 200,
+  "huella": "91c2c48b593c2d6522b7228c0e58d6cf9202964c5cad98cd3ed81960544394f9"
+ },
+ "anomalia_transitorio_decaimiento": {
+  "estado": 200,
+  "huella": "d4d236432ef1fb067a3b497abe9f3d69ee662ce30b03cf8e5e25eaad7199efc6"
+ },
+ "anomalia_transitorio_defecto": {
+  "estado": 200,
+  "huella": "e5e92de25921c9d9bc7bcdbd1b02643b3b6d492042020324d1a11bd2d7b6c502"
+ },
+ "anomalias_aleatorias": {
+  "estado": 200,
+  "huella": "6dcc46479adc8f47e4da85a15f396dff1858955761eb4052c8b5082531b5e95c"
+ },
+ "anomalias_aleatorias_otra_semilla": {
+  "estado": 200,
+  "huella": "939949001ec8ddaf3c15c29075090f6dc8a39f136057e3ef8a6a3da77ae4df1d"
+ },
+ "anomalias_aleatorias_rango": {
+  "estado": 200,
+  "huella": "488062c39aa6e0e7466957fa7ec10216db859730066dd1867a2f7132cdd474b3"
+ },
+ "anomalias_varias": {
+  "estado": 200,
+  "huella": "4ba82011b92830ce0dfc50c5a599645f7985887b146a5cfeef0090db9238a430"
+ },
+ "ciclo_con_variacion": {
+  "estado": 200,
+  "huella": "4c2cf52d244322beae437e0065832f252865c6e71ac091cc1d6aa5a9f0323e76"
+ },
+ "ciclo_defecto": {
+  "estado": 200,
+  "huella": "5657609fc0b8325ce676e6d723965f7e5a239571559ca189a67ec1937ca4a55c"
+ },
+ "ciclo_error_longitudes": {
+  "detalle": "Cada ciclo necesita todos sus valores",
+  "estado": 422
+ },
+ "ciclo_error_min_mayor": {
+  "detalle": "El mínimo del ciclo no puede superar al máximo",
+  "estado": 422
+ },
+ "ciclo_multiplicativo": {
+  "estado": 200,
+  "huella": "336a8f779c7e2a8c3fec4eb1d7785ade153afbd07afcab247fba7ea1207606e1"
+ },
+ "ciclo_otra_semilla": {
+  "estado": 200,
+  "huella": "98a8aba14f8936f43a1bb0015bb4bef6a5203279ef9264bf8482d6f3f218624b"
+ },
+ "ciclo_sin_variacion": {
+  "estado": 200,
+  "huella": "91249201783e5d824e9ac7f7a336e787497e2eb8de7c23a116547c6db51ee909"
+ },
+ "ciclos_sin_semillas": {
+  "estado": 200,
+  "huella": "16e6bd42af68bf25e28df3d7ee730046b9c9962684ab73a0ad40d6faf8cc8c7a"
+ },
+ "ciclos_varios": {
+  "estado": 200,
+  "huella": "8ec33802c7ab2310195145ac2145dfc9ced44be670a668b5c501589f8a4da07d"
+ },
+ "estacionalidad_aditiva": {
+  "estado": 200,
+  "huella": "652cf9b328f33a32209d3408a887374d5b75bce3159a1dc2bab56b62b02da27d"
+ },
+ "estacionalidad_aditiva_ignora_fin": {
+  "estado": 200,
+  "huella": "554f1efa322fde43a5d2b85626ea421927badd0aae4824c19358931db4209841"
+ },
+ "estacionalidad_con_tendencia": {
+  "estado": 200,
+  "huella": "cc93a07a179bee7f1973fa831a785694a6d2f59ba7d63c1decca0487c54872de"
+ },
+ "estacionalidad_defecto": {
+  "estado": 200,
+  "huella": "e3b2568710d59cce61c67e3871240baf54f309318b2324468979a9cb0470e722"
+ },
+ "estacionalidad_error_longitudes": {
+  "detalle": "Cada estacionalidad necesita un periodo, un modo, un mínimo y un máximo",
+  "estado": 422
+ },
+ "estacionalidad_error_min_fin_mayor": {
+  "detalle": "El mínimo de la estacionalidad no puede superar al máximo",
+  "estado": 422
+ },
+ "estacionalidad_error_min_mayor": {
+  "detalle": "El mínimo de la estacionalidad no puede superar al máximo",
+  "estado": 422
+ },
+ "estacionalidad_multiples": {
+  "estado": 200,
+  "huella": "4673500d1ec494115186e4e8ce3dcba9649d6beb8404ce0175470289920a8f7f"
+ },
+ "estacionalidad_multiplicativa": {
+  "estado": 200,
+  "huella": "32e8a45c572ec892c756d31c15ab839d57897a833828fa58166772839e50d6e7"
+ },
+ "hueco_apagado": {
+  "estado": 200,
+  "huella": "dd9a9ed5c59fde9f3e4dab1febf563a344ba2622639953540dfbce4b6f8d5148"
+ },
+ "hueco_con_ruido_y_anomalia": {
+  "estado": 200,
+  "huella": "28f3093d6410a18192b834b7f088a447a81146d9fdc285c9f88c6db51c604888"
+ },
+ "hueco_error_formato": {
+  "detalle": "Hueco no válido: 60",
+  "estado": 422
+ },
+ "hueco_error_numero": {
+  "detalle": "Hueco no válido: a,b",
+  "estado": 422
+ },
+ "hueco_error_orden": {
+  "detalle": "El final del hueco no puede ser anterior al inicio",
+  "estado": 422
+ },
+ "hueco_punto": {
+  "estado": 200,
+  "huella": "9eef7ebf6e37a52845b1cd51e4934cca76e07a2ecfe9d0e67c98e4ccdba999e5"
+ },
+ "hueco_rango": {
+  "estado": 200,
+  "huella": "18be03e46688565f824e80efd220a96dfd8ab285c779610a374f38ff6c2e3d2a"
+ },
+ "hueco_se_pega_al_borde": {
+  "estado": 200,
+  "huella": "5b87f864385f54a8db711aee7a9c23d987e7ddaa72611b3be3b6e674a9b38bed"
+ },
+ "huecos_varios": {
+  "estado": 200,
+  "huella": "05844493686dea2643b7002d5b2d4c89b487f7d5aba6b67b67e7c7d253be1b1c"
+ },
+ "limite_demasiadas_ondas": {
+  "estado": 422
+ },
+ "limite_demasiados_huecos": {
+  "estado": 422
+ },
+ "limite_demasiados_puntos": {
+  "estado": 422
+ },
+ "limite_nivel_enorme": {
+  "estado": 422
+ },
+ "limite_periodo_estacional": {
+  "estado": 422
+ },
+ "limite_phi": {
+  "estado": 422
+ },
+ "limite_pocos_puntos": {
+  "estado": 422
+ },
+ "limite_tipo_de_tendencia": {
+  "estado": 422
+ },
+ "nivel_cero": {
+  "estado": 200,
+  "huella": "317a31c96d8e170d04b0c778efb915dec129440e2a435d531318d5a3e59e0f20"
+ },
+ "nivel_negativo": {
+  "estado": 200,
+  "huella": "394e2bcac3bdb6f6170ac5716abe5af5c97cdd2d0006fa58a62de33611f8fa2d"
+ },
+ "por_defecto": {
+  "estado": 200,
+  "huella": "351dac00dd382a1cfba30d81207071d93dd20b1231e3325969e63f772413e3d1"
+ },
+ "por_defecto_500": {
+  "estado": 200,
+  "huella": "a4f0294921878a383668e979a03990349a00879a08342bb0a5aaf692c2ad1b9b"
+ },
+ "ruido_autocorrelado_negativo": {
+  "estado": 200,
+  "huella": "76571a6db3895ccc0a36bfbf78353d251f5a21b564b4a272661bef07f06696fd"
+ },
+ "ruido_autocorrelado_phi_alto": {
+  "estado": 200,
+  "huella": "16c445363967b530380b5807cc0e293c2f0ac16f60ca1b99234734ee47d04468"
+ },
+ "ruido_autocorrelado_phi_cero": {
+  "estado": 200,
+  "huella": "f53a96e23a53ae4fd093d3e75efb4e7f23160948b1190aed45fd8df899780f22"
+ },
+ "ruido_autocorrelado_positivo": {
+  "estado": 200,
+  "huella": "8c3919f10fd5ebb030a437ad074f860f432878cd05a59afe2aa2798c7bcb5f0c"
+ },
+ "ruido_blanco": {
+  "estado": 200,
+  "huella": "9252ffea63b2111d1a14b89ae99e5d53b96c527afab4cd40b6b9a2a84eabeaa4"
+ },
+ "ruido_colas_pesadas": {
+  "estado": 200,
+  "huella": "0590a142625b99c5d3c3800cb4fc47082f06b8c9ef3d394fc786e963b670009b"
+ },
+ "ruido_con_nivel_negativo": {
+  "estado": 200,
+  "huella": "6a2894b62bb7e3f2c0ea5b4f588b0d6e2ba4268f832b6bb616ab1160bbf22cbe"
+ },
+ "ruido_garch": {
+  "estado": 200,
+  "huella": "63e138ae87872f7d42b2a9a03bbe928e795c437bc8026226dedaa4ea49eda880"
+ },
+ "ruido_grado_cero": {
+  "estado": 200,
+  "huella": "4595d00907015e7709a481dd8ed423d25684bfa5eaf59dfe12efcd3a4c5103f9"
+ },
+ "ruido_heterocedastico": {
+  "estado": 200,
+  "huella": "a566aef65804ae67301316abcf868cd2c761059c83b041b27ed2c634520a5fdf"
+ },
+ "ruido_otra_semilla": {
+  "estado": 200,
+  "huella": "0e3ab5dedc6ccbf0bfa8ae076fb83372c522269d27421c2f3e6ce46507119fd1"
+ },
+ "tendencia_amortiguada": {
+  "estado": 200,
+  "huella": "22ccf2ca836f9b11b3660be4f4cb8f57f96032689939bf539ee8d661ba9e1671"
+ },
+ "tendencia_apagada": {
+  "estado": 200,
+  "huella": "4beace3e235d669d8aff808dc167ba61b3b20d2850c3537881d6fe6011dd059c"
+ },
+ "tendencia_baja_a_cero": {
+  "estado": 200,
+  "huella": "b494983ace935f1a31c251c931d146100a7fdfc6e420f802d8ffded3a6fc2315"
+ },
+ "tendencia_cuadratica": {
+  "estado": 200,
+  "huella": "9e6f8e44d80f61a199d8584e8140788519307e512dbbd80ee00cee9740c94ded"
+ },
+ "tendencia_exponencial": {
+  "estado": 200,
+  "huella": "969f38d1e06c81efe59cb898a831c9d8936cd4268a1e4ae3ac6431804abe7c5f"
+ },
+ "tendencia_lineal": {
+  "estado": 200,
+  "huella": "76655ca5c10d1320c72dc88c42d2b7eed757c99adc9131994df98480a544e4c1"
+ },
+ "tendencia_logaritmica": {
+  "estado": 200,
+  "huella": "8cb4b406f4a553fd7911c1cfbeb39d2a71e81efffb00dcfe6b827845a79fabf5"
+ },
+ "tendencia_negativa_pasa_a_menos": {
+  "estado": 200,
+  "huella": "3ba48edb4c9f18459ba486106f79a6a5e9bbe293c7475fece513c570d1b6ab56"
+ },
+ "todo_activo": {
+  "estado": 200,
+  "huella": "afdfbe85964ed7bd1324918c99d3887aedeb343282485225f1c8af5223d59e55"
+ },
+ "todo_activo_valor_final": {
+  "estado": 200,
+  "huella": "b6369aad177d96929c4ec4dda5fd48f66c028ac0603d5b5a74f0235fdafced0c"
+ },
+ "todo_apagado": {
+  "estado": 200,
+  "huella": "ec69afdf6ab7e2b530e8ef1d22258995440d74539371ee7c3f725c2eddc2479f"
+ },
+ "valor_final_con_nivel_cero": {
+  "estado": 200,
+  "huella": "67bbad8a7aaef2232eb4f2567738b8b46c0fc177c0253ee8c70b01a5d874656e"
+ },
+ "valor_final_cuadratica": {
+  "estado": 200,
+  "huella": "47b2f42f4abd3e7d2479cc716f148576f58f187ab97396daa793a50bdc1b5ab8"
+ },
+ "valor_final_lineal": {
+  "estado": 200,
+  "huella": "dd9a9ed5c59fde9f3e4dab1febf563a344ba2622639953540dfbce4b6f8d5148"
+ },
+ "valor_final_logaritmica": {
+  "estado": 200,
+  "huella": "57dcfb531d8e81bdc0c50e32739673894516fedb1200da2cbb38b4eb37303a0a"
+ },
+ "valor_final_menor_que_inicial": {
+  "estado": 200,
+  "huella": "590dea76aa13f075ede78fe6deeee74190e3bbf03522b9b0e0bd34775630128e"
+ }
+}
