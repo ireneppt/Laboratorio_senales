@@ -443,12 +443,23 @@ function anadirSerie() {
 function cerrarSerie(s) {
   if (series.length < 2) return;
   // si era la variable explicada se vacía; si era explicativa, se quita de la lista (el resto de la elección se conserva)
-  const { metodos, parametros } = imputacion;
+  const { metodos, parametros, combinaciones } = imputacion;
   const explicativasRestantes = imputacion.explicativas.filter((id) => id !== s.id);
   if (imputacion.explicada.serieId === s.id) { imputacion = estadoImputacionVacio(); reiniciarExplicada(); }
   imputacion.explicativas = explicativasRestantes;
   imputacion.metodos = Object.fromEntries(Object.entries(metodos).filter(([clave]) => clave !== `solo:${s.id}`)); // los métodos elegidos se conservan (menos los de la ventana de esta serie)
   imputacion.parametros = { ...parametros, donante: parametros.donante === s.id ? null : parametros.donante };
+  imputacion.combinaciones = combinaciones.map((c) => {                                                      // las combinaciones pierden esta serie (con menos de 2, vuelven a "todas")
+    const resto = Array.isArray(c.explicativas) ? c.explicativas.filter((id) => id !== s.id) : null;
+    return { ...c, explicativas: resto && resto.length >= 2 ? resto : null };
+  });
+  const vistas = new Set();                                                                                  // las que han quedado iguales se funden en la primera
+  imputacion.combinaciones = imputacion.combinaciones.filter((c) => {
+    const clave = [...(c.explicativas || explicativasRestantes)].sort((a, b) => a - b).join(",");
+    if (vistas.has(clave)) { delete imputacion.metodos[`multi:${c.id}`]; return false; }
+    vistas.add(clave);
+    return true;
+  });
   guardarActiva();
   const posicion = series.indexOf(s);
   series = series.filter((x) => x !== s);

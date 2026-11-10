@@ -48,3 +48,15 @@
 .res-tabla-comp input[type=checkbox] { width: 18px; height: 18px; margin: 0; accent-color: var(--series-1); }
 #res-grafica-ranking { width: 100%; margin: 16px 0; }
 #res-grafica-comp { width: 100%; height: 340px; margin: 16px 0; }
+.res-multi { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 0.9rem; }
+.res-anadir { border-style: dashed; color: var(--ink-2); }
+/* las combinaciones van dentro de "Multivariante": un recuadro más pequeño, pegado a la barra de arriba */
+.res-combinaciones {
+  align-items: center; gap: 4px; width: fit-content; max-width: 100%; margin: -4px 0 14px; padding: 6px 8px;
+  border: 1px solid var(--axis); border-radius: 10px; background: var(--surface-2);
+}
+.res-combinaciones button { height: 28px; padding: 0 10px; font-size: 0.82rem; }
+.res-combinaciones .tab .cerrar { width: 20px; height: 20px; margin-right: 4px; font-size: 0.95rem; }
+.res-combinaciones .tab.activa { background: var(--surface); }
+.res-combinaciones .tab:not(.activa) button:hover:not(:disabled) { background: var(--grid); }
+.res-aviso { margin: -6px 0 12px; color: var(--error); font-size: 0.9rem; font-weight: 650; }

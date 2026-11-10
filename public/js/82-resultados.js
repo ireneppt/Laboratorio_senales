@@ -1,8 +1,8 @@
 // Imputación, pestaña 4: imputación y resultados.
 // Se imputa la variable explicada con los métodos elegidos (el cálculo está en Python, ruta /api/imputar) y se mide
 // su error contra el valor real de lo que se quitó en la pestaña 1. Se reparte en sub-pestañas según con qué se
-// imputa: "Sin explicativas", "Todas las explicativas" y "Solo X" (una por explicativa), más un "Resumen" que las
-// compara. En el proyecto se guarda qué métodos se eligieron y sus parámetros; los resultados se recalculan al abrir.
+// imputa: "Sin explicativas", "Solo X" (una por explicativa), una o varias "Multivariante" (combinaciones de explicativas a
+// la vez, las que se elijan) y, al final, una "Comparación" que junta lo marcado en todas. En el proyecto se guarda qué métodos se eligieron y sus parámetros; los resultados se recalculan al abrir.
 
 const GRUPOS_IMPUTACION = [
   ["implicito", "Implícitos"],
@@ -38,7 +38,7 @@ const MEDIDAS_RESUMEN = [
 
 const resImp = {
   ui: {}, token: 0, controlador: null, temporizador: 0, cargando: false, error: "",
-  sub: "sin", medida: "rmse", dibujar: null, orden: { columna: null, sentido: 1 }, destacado: null, detalleAbierto: true,
+  sub: "sin", multiActiva: null, medida: "rmse", dibujar: null, orden: { columna: null, sentido: 1 }, destacado: null, detalleAbierto: true,
   vista: null,      // lo calculado para la sub-pestaña que se ve
   comparacion: null, // lo calculado para la comparación: un resultado por cada ventana con métodos marcados
   cache: new Map(), // lo ya calculado, para no volver a pedirlo (la clave es una huella de la petición)
@@ -49,6 +49,73 @@ const idsConExplicativas = () => METODOS_IMPUTACION.filter((m) => m.explicativas
 const idsSinExplicativas = () => METODOS_IMPUTACION.filter((m) => !m.explicativas).map((m) => m.id);
 const colorDeMetodo = (id, c) => c.series[METODOS_IMPUTACION.findIndex((m) => m.id === id) % c.series.length];
 const explicativasConDatos = () => explicativasElegidas().filter((x) => x.datos);
+// las explicativas de una combinación: las que tiene elegidas (al menos 2) o, si no hay elección, todas
+function explicativasDe(combinacion) {
+  const todas = explicativasConDatos();
+  const elegidas = Array.isArray(combinacion.explicativas) ? todas.filter((x) => combinacion.explicativas.includes(x.id)) : todas;
+  return elegidas.length >= 2 ? elegidas : todas;
+}
+const idsDeCombinacion = (combinacion) => explicativasDe(combinacion).map((x) => x.id);
+const claveSubconjunto = (ids) => [...ids].sort((a, b) => a - b).join(",");
+
+// el primer subconjunto de 2 o más explicativas que todavía no tiene ventana (de más a menos explicativas), o null
+function subconjuntoLibre() {
+  const ids = explicativasConDatos().map((x) => x.id);
+  const usados = new Set(imputacion.combinaciones.map((c) => claveSubconjunto(idsDeCombinacion(c))));
+  const combinar = (desde, tamano) => {
+    if (tamano === 0) return [[]];
+    const salida = [];
+    for (let i = desde; i <= ids.length - tamano; i++) for (const resto of combinar(i + 1, tamano - 1)) salida.push([ids[i], ...resto]);
+    return salida;
+  };
+  for (let tamano = ids.length; tamano >= 2; tamano--) {
+    const libre = combinar(0, tamano).find((c) => !usados.has(claveSubconjunto(c)));
+    if (libre) return libre;
+  }
+  return null;
+}
+
+function anadirCombinacion() {
+  const libre = subconjuntoLibre();
+  if (!libre) return;
+  const id = Math.max(0, ...imputacion.combinaciones.map((c) => c.id)) + 1;
+  imputacion.combinaciones.push({ id, explicativas: libre.length >= explicativasConDatos().length ? null : libre });
+  irAVentana(`multi:${id}`);
+}
+
+function quitarCombinacion(combinacion) {
+  if (!combinacion || imputacion.combinaciones.length < 2) return;
+  const eraLaActiva = resImp.sub === `multi:${combinacion.id}`;
+  const posicion = imputacion.combinaciones.indexOf(combinacion);
+  imputacion.combinaciones = imputacion.combinaciones.filter((c) => c !== combinacion);
+  delete imputacion.metodos[`multi:${combinacion.id}`];
+  // si era la que se veía, pasa a la anterior; si no, se queda donde estaba
+  irAVentana(eraLaActiva ? `multi:${imputacion.combinaciones[Math.max(0, posicion - 1)].id}` : resImp.sub);
+}
+
+// cambia de ventana y lo repinta todo (también para guardar el cambio en el proyecto)
+function irAVentana(id) {
+  resImp.sub = id;
+  resImp.destacado = null;
+  resImp.orden = { columna: null, sentido: 1 };
+  resImp.comparacion = null;
+  resImp.vista = null;
+  cambioImputacion();
+  pintarSubpestanas();
+  pintarMetodosImputacion();
+  pintarResultados(objetivoDeExplicada());
+  ejecutarImputacion();
+}
+
+function botonAnadirCombinacion() {
+  const boton = document.createElement("button");
+  boton.type = "button";
+  boton.dataset.accion = "anadir";
+  boton.className = "res-anadir";
+  boton.title = "Añadir otra combinación de explicativas";
+  boton.textContent = "+ combinación";
+  return boton;
+}
 
 // Números para las tablas: pocos decimales, más cuanto más pequeños
 function numeroResultado(v) {
@@ -69,12 +136,21 @@ function subpestanasImputacion() {
   const elegidas = explicativasConDatos();
   const lista = [];
   lista.push({ id: "sin", titulo: "Sin explicativas", series: [], ayuda: "Métodos que solo usan la propia serie (o la serie donante)." });
-  if (elegidas.length >= 2) lista.push({ id: "todas", titulo: "Todas las explicativas", series: elegidas, ayuda: "Los métodos con explicativas, usando todas a la vez." });
   for (const s of elegidas) {
     lista.push({
       id: `solo:${s.id}`, titulo: elegidas.length >= 2 ? `Solo ${nombreDe(s)}` : `Con ${nombreDe(s)}`, series: [s], serie: s,
       ayuda: `Los métodos con explicativas, usando únicamente ${nombreDe(s)}.`,
     });
+  }
+  if (elegidas.length >= 2) {
+    for (const combinacion of imputacion.combinaciones) {
+      const usadas = explicativasDe(combinacion);
+      const nombres = usadas.length === elegidas.length ? "todas" : usadas.map(nombreDe).join(" + ");
+      lista.push({
+        id: `multi:${combinacion.id}`, titulo: nombres, series: usadas, combinacion,
+        ayuda: `Los métodos con explicativas, usando ${usadas.map(nombreDe).join(" + ")} a la vez (eliges cuáles a la izquierda).`,
+      });
+    }
   }
   lista.push({ id: "comparacion", titulo: "Comparación", ayuda: "Compara en una sola tabla los métodos que has marcado en las otras ventanas." });
   return lista;
@@ -146,6 +222,8 @@ function montarResultados() {
       </div>
       <div id="res-trabajo" hidden>
         <div class="pestanas res-subpestanas" id="res-subpestanas" role="tablist" aria-label="Con qué explicativas se imputa"></div>
+        <div class="pestanas res-combinaciones" id="res-combinaciones" role="tablist" aria-label="Combinaciones de explicativas" hidden></div>
+        <p class="res-aviso" id="res-aviso-combinacion" role="alert" hidden>Ya has hecho esta combinación.</p>
         <p class="ayuda" id="res-info" style="margin:0 0 12px"></p>
         <div class="res-estado" id="res-estado" role="status"></div>
         <div id="res-vista-comp" hidden>
@@ -171,7 +249,7 @@ function montarResultados() {
   const q = (sel) => raiz.querySelector(sel);
   resImp.ui = {
     raiz, metodos: q("#res-metodos"), ayudaLateral: q("#res-ayuda-lateral"), falta: q("#res-falta"), faltaTexto: q("#res-falta-texto"), faltaIr: q("#res-falta-ir"),
-    trabajo: q("#res-trabajo"), subpestanas: q("#res-subpestanas"), info: q("#res-info"), estado: q("#res-estado"),
+    trabajo: q("#res-trabajo"), subpestanas: q("#res-subpestanas"), combinaciones: q("#res-combinaciones"), avisoCombinacion: q("#res-aviso-combinacion"), info: q("#res-info"), estado: q("#res-estado"),
     vistaComp: q("#res-vista-comp"), medida: q("#res-medida"), tablaComp: q("#res-tabla-comp"), graficaRanking: q("#res-grafica-ranking"), graficaComp: q("#res-grafica-comp"),
     vistaConjunto: q("#res-vista-conjunto"), tabla: q("#res-tabla"), grafica: q("#res-grafica"), detalle: q("#res-detalle"), tramos: q("#res-tramos"),
   };
@@ -186,19 +264,26 @@ function montarResultados() {
   q("#res-ninguno").addEventListener("click", () => cambiarMetodosVisibles(false));
   resImp.ui.metodos.addEventListener("change", alCambiarMetodo);
   resImp.ui.tabla.addEventListener("click", alPulsarTabla);
-  resImp.ui.subpestanas.addEventListener("click", (e) => {
-    const boton = e.target.closest("button[data-sub]");
-    if (!boton || boton.dataset.sub === resImp.sub) return;
-    resImp.sub = boton.dataset.sub;
-    resImp.destacado = null;
-    resImp.orden = { columna: null, sentido: 1 };
-    resImp.comparacion = null;
-    pintarSubpestanas();
-    pintarMetodosImputacion();
-    pintarResultados(objetivoDeExplicada());   // si ya está calculado se ve al momento
-    ejecutarImputacion();
-  });
+  resImp.ui.subpestanas.addEventListener("click", alPulsarVentana);
+  resImp.ui.combinaciones.addEventListener("click", alPulsarVentana);
   return raiz;
+}
+
+// las ventanas se eligen en la barra de arriba y, dentro de "Multivariante", en la de las combinaciones
+function alPulsarVentana(e) {
+  if (e.target.closest('button[data-accion="anadir"]')) { anadirCombinacion(); return; }
+  const quitar = e.target.closest('button[data-accion="quitar"]');
+  if (quitar) { quitarCombinacion(imputacion.combinaciones.find((c) => c.id === Number(quitar.dataset.combinacion))); return; }
+  const boton = e.target.closest("button[data-sub]");
+  if (!boton || boton.dataset.sub === resImp.sub) return;
+  resImp.sub = boton.dataset.sub;
+  resImp.destacado = null;
+  resImp.orden = { columna: null, sentido: 1 };
+  resImp.comparacion = null;
+  pintarSubpestanas();
+  pintarMetodosImputacion();
+  pintarResultados(objetivoDeExplicada());   // si ya está calculado se ve al momento
+  ejecutarImputacion();
 }
 
 async function actualizarResultados() {
@@ -212,7 +297,7 @@ async function actualizarResultados() {
   const donante = imputacion.parametros.donante;
   if (donante !== null && (donante === imputacion.explicada.serieId || !series.some((x) => x.id === donante))) imputacion.parametros.donante = null;
   // lo elegido en ventanas que ya no existen (explicativas quitadas) se olvida
-  const validas = new Set(["sin", "todas", ...imputacion.explicativas.map((id) => `solo:${id}`)]);
+  const validas = new Set(["sin", ...imputacion.combinaciones.map((c) => `multi:${c.id}`), ...imputacion.explicativas.map((id) => `solo:${id}`)]);
   for (const clave of Object.keys(imputacion.metodos)) if (!validas.has(clave)) delete imputacion.metodos[clave];
   pintarSubpestanas();
   pintarMetodosImputacion();
@@ -222,20 +307,65 @@ async function actualizarResultados() {
 function pintarSubpestanas() {
   const barra = resImp.ui.subpestanas;
   const actual = subActual();
+  const lista = subpestanasImputacion();
   resImp.ui.raiz.classList.toggle("res-ancha", actual.id === "comparacion");   // la comparación no usa la lista de métodos
+  if (actual.combinacion) resImp.multiActiva = actual.id;
   barra.replaceChildren();
-  for (const s of subpestanasImputacion()) {
+  let grupoPuesto = false;
+  for (const s of lista) {
+    if (s.combinacion) {                       // todas las combinaciones comparten una sola pestaña, "Multivariante"
+      if (grupoPuesto) continue;
+      grupoPuesto = true;
+    }
+    const destino = s.combinacion ? lista.find((x) => x.id === resImp.multiActiva) || s : s;
+    const activa = s.combinacion ? Boolean(actual.combinacion) : s.id === actual.id;
     const boton = document.createElement("button");
     boton.type = "button";
-    boton.dataset.sub = s.id;
-    boton.title = s.ayuda;
-    boton.className = s.id === actual.id ? "activa" : "";
+    boton.dataset.sub = destino.id;
+    boton.title = s.combinacion ? "Los métodos con varias explicativas a la vez; tus combinaciones salen dentro." : s.ayuda;
+    boton.className = activa ? "activa" : "";
     boton.setAttribute("role", "tab");
-    boton.setAttribute("aria-selected", s.id === actual.id);
+    boton.setAttribute("aria-selected", activa);
     if (s.serie) boton.append(crearPunto(s.serie.color));
-    boton.append(s.titulo);
+    boton.append(s.combinacion ? "Multivariante" : s.titulo);
     barra.append(boton);
   }
+  // las combinaciones, dentro de la pestaña Multivariante
+  const fila = resImp.ui.combinaciones;
+  fila.replaceChildren();
+  fila.hidden = !actual.combinacion;
+  resImp.ui.avisoCombinacion.hidden = true;
+  if (!actual.combinacion) return;
+  const clavesCombinaciones = lista.filter((x) => x.combinacion).map((x) => claveSubconjunto(x.series.map((y) => y.id)));
+  for (const s of lista.filter((x) => x.combinacion)) {
+    const pestana = document.createElement("div");
+    pestana.className = "tab" + (s.id === actual.id ? " activa" : "");
+    const boton = document.createElement("button");
+    boton.type = "button";
+    boton.className = "tab-nombre";
+    boton.dataset.sub = s.id;
+    boton.title = s.ayuda;
+    boton.setAttribute("role", "tab");
+    boton.setAttribute("aria-selected", s.id === actual.id);
+    boton.append(s.titulo);
+    pestana.append(boton);
+    if (lista.filter((x) => x.combinacion).length > 1) {
+      const cerrar = document.createElement("button");
+      cerrar.type = "button";
+      cerrar.className = "cerrar";
+      cerrar.dataset.accion = "quitar";
+      cerrar.dataset.combinacion = s.combinacion.id;
+      cerrar.title = `Quitar la combinación ${s.titulo}`;
+      cerrar.setAttribute("aria-label", cerrar.title);
+      cerrar.textContent = "×";
+      pestana.append(cerrar);
+    }
+    fila.append(pestana);
+  }
+  if (subconjuntoLibre()) fila.append(botonAnadirCombinacion());
+  // aviso si la combinación que se ve es igual a otra que ya existe
+  const repetida = clavesCombinaciones.filter((clave) => clave === claveSubconjunto(actual.series.map((y) => y.id))).length > 1;
+  resImp.ui.avisoCombinacion.hidden = !repetida;
 }
 
 // ----- Lista de métodos: solo los que valen para la sub-pestaña que se ve -----
@@ -250,6 +380,25 @@ function pintarMetodosImputacion() {
   resImp.ui.ayudaLateral.textContent = sinExplicativas
     ? "Marca los que quieras comparar: todos se calculan sobre los mismos huecos."
     : "Marca los que quieras comparar. La interpolación lineal se añade siempre como referencia.";
+  if (sub.combinacion) {
+    const encabezado = document.createElement("h4");
+    encabezado.textContent = "Explicativas";
+    cont.append(encabezado);
+    const candidatas = explicativasConDatos();
+    const usadas = sub.series;
+    for (const s of candidatas) {
+      const etiqueta = document.createElement("label");
+      etiqueta.className = "toggle opcion res-multi";
+      const casilla = document.createElement("input");
+      casilla.type = "checkbox";
+      casilla.className = "alea";
+      casilla.dataset.multi = s.id;
+      casilla.checked = usadas.includes(s);
+      casilla.disabled = casilla.checked && usadas.length <= 2;      // una combinación necesita al menos 2 (para cambiar una, marca la nueva y quita la otra)
+      etiqueta.append(casilla, crearPunto(s.color), ` ${nombreDe(s)}`);
+      cont.append(etiqueta);
+    }
+  }
   for (const [grupo, titulo] of GRUPOS_IMPUTACION) {
     const metodos = METODOS_IMPUTACION.filter((x) => x.grupo === grupo && visibles.includes(x.id));
     if (!metodos.length) continue;
@@ -309,6 +458,21 @@ function pintarMetodosImputacion() {
 
 function alCambiarMetodo(e) {
   const objetivo = e.target;
+  if (objetivo.dataset.multi) {
+    const id = Number(objetivo.dataset.multi);
+    const combinacion = subActual().combinacion;
+    const nuevas = explicativasDe(combinacion).map((x) => x.id).filter((otra) => otra !== id);
+    if (objetivo.checked) nuevas.push(id);
+    const orden = explicativasConDatos().map((x) => x.id);
+    const lista = orden.filter((otra) => nuevas.includes(otra));
+    combinacion.explicativas = lista.length >= orden.length ? null : lista;
+    cambioImputacion();
+    resImp.comparacion = null;
+    pintarSubpestanas();                                       // el título de la ventana dice qué combinación es
+    pintarMetodosImputacion();
+    ejecutarImputacion();
+    return;
+  }
   if (objetivo.dataset.metodo) {
     const elegidos = new Set(elegidosDe(subActual().id));
     if (objetivo.checked) elegidos.add(objetivo.dataset.metodo); else elegidos.delete(objetivo.dataset.metodo);
@@ -395,9 +559,9 @@ async function pedirImputacion() {
   const quitados = obj.y.filter((v, i) => obj.quitado[i] && v !== null).length;   // los quitados que tienen valor real
   u.info.textContent = aImputar === 0
     ? "Todavía no hay nada que imputar: quita tramos a la explicada en la pestaña 1, o usa una serie con datos faltantes."
-    : `Hay ${aImputar} ${aImputar === 1 ? "punto" : "puntos"} que imputar` + (quitados > 0
-      ? `: ${quitados} que has quitado tú (con valor real, para medir el error) y ${aImputar - quitados} que ya faltaban.`
-      : ". No has quitado ningún tramo con valor real, así que no se puede medir el error (quita alguno en la pestaña 1).");
+    : (quitados > 0
+      ? ""
+      : "No has quitado ningún tramo con valor real, así que no se puede medir el error (quita alguno en la pestaña 1).");
 
   const sub = subActual();
   const especificaciones = ventanasDe(sub).map(especificacion).filter((e) => e.ids.length);
@@ -679,11 +843,11 @@ function pintarTramosResultados(filas) {
 }
 
 // ----- Comparación: lo marcado en todas las ventanas, en una sola tabla -----
-const etiquetaConjunto = (sub) => (sub.id === "sin" ? "—" : sub.id === "todas" ? "Todas" : nombreDe(sub.serie));
+const etiquetaConjunto = (sub) => (sub.id === "sin" ? "—" : sub.combinacion ? (sub.series.length === explicativasConDatos().length ? "Todas" : sub.series.map(nombreDe).join(" + ")) : nombreDe(sub.serie));
 const etiquetaFila = (f) => (f.conjunto === "—" ? f.nombre : `${f.nombre} · ${f.conjunto}`);
 const COLUMNAS_COMPARACION = [
   COLUMNAS_RESULTADOS[0],
-  ["conjunto", "Explicativas", "Con qué explicativas se ha calculado: todas, solo una, o ninguna (—)."],
+  ["conjunto", "Explicativas", "Con qué explicativas se ha calculado: todas, algunas (X1 + X3), solo una o ninguna (—)."],
   ...COLUMNAS_RESULTADOS.slice(1),
 ];
 
@@ -838,8 +1002,10 @@ function pintarTablaComparacion(filas, dibujadas) {
 function pintarRankingComparacion(filas) {
   const grafica = resImp.ui.graficaRanking;
   const [clave, nombreMedida, mayorEsMejor] = MEDIDAS_RESUMEN.find((m) => m[0] === resImp.medida) || MEDIDAS_RESUMEN[0];
-  const con = filas.filter((f) => !f.error && f.metricas && f.metricas[clave] !== null && f.metricas[clave] !== undefined && !(f.esReferencia && clave === "mejora"))
-    .sort((a, b) => (mayorEsMejor ? b.metricas[clave] - a.metricas[clave] : a.metricas[clave] - b.metricas[clave]));
+  // La interpolación es la referencia de la mejora: su mejora sobre sí misma es 0 %, y así sigue saliendo en el ranking
+  const valor = (f) => (f.esReferencia && clave === "mejora" ? 0 : f.metricas[clave]);
+  const con = filas.filter((f) => !f.error && f.metricas && (f.esReferencia && clave === "mejora" ? true : f.metricas[clave] !== null && f.metricas[clave] !== undefined))
+    .sort((a, b) => (mayorEsMejor ? valor(b) - valor(a) : valor(a) - valor(b)));
   if (!con.length) {
     try { Plotly.purge(grafica); } catch { /* aún no había gráfica */ }
     grafica.style.height = "0";
@@ -853,7 +1019,7 @@ function pintarRankingComparacion(filas) {
     gridcolor: c.grid, gridwidth: 1, zeroline: false, linecolor: c.axis, tickfont: { color: c.muted, size: 11 }, ticks: "",
   });
   Plotly.react(grafica, [{
-    type: "bar", orientation: "h", y: con.map(etiquetaFila), x: con.map((f) => f.metricas[clave] * factor),
+    type: "bar", orientation: "h", y: con.map(etiquetaFila), x: con.map((f) => valor(f) * factor),
     marker: { color: con.map((f) => colorDeMetodo(f.metodo, c)), opacity: con.map((f) => (f.esReferencia ? 0.4 : 1)) },
     hovertemplate: `<b>%{x:.3g}${clave === "mejora" ? " %" : ""}</b><extra>%{y}</extra>`,
   }], {

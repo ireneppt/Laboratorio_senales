@@ -22,15 +22,27 @@ function imputacionDesdeGuardada(guardada, mapa) {
   const nuevas = (guardada && Array.isArray(guardada.explicativas) ? guardada.explicativas : []).map((id) => mapa[id]);
   e.explicativas = [...new Set(nuevas.filter((id) => id !== undefined && id !== e.explicada.serieId))];
   // métodos de imputación elegidos y sus parámetros (solo los que existen)
-  // métodos elegidos en cada ventana ("sin", "todas" y "solo:<serie>"): solo los que existen y valen para esa ventana
+  // combinaciones de la ventana multivariante: { id, explicativas } (explicativas null = todas las elegidas)
+  const guardadas = guardada && Array.isArray(guardada.combinaciones) && guardada.combinaciones.length ? guardada.combinaciones : [{ id: 1, explicativas: guardada ? guardada.multivariante : null }];
+  const usados = new Set();
+  e.combinaciones = [];
+  for (const c of guardadas.slice(0, 20)) {
+    const id = Number.isInteger(c && c.id) && c.id > 0 && !usados.has(c.id) ? c.id : Math.max(0, ...usados) + 1;
+    usados.add(id);
+    const lista = Array.isArray(c && c.explicativas) ? [...new Set(c.explicativas.map((x) => mapa[x]).filter((x) => x !== undefined && e.explicativas.includes(x)))] : [];
+    e.combinaciones.push({ id, explicativas: lista.length >= 2 && lista.length < e.explicativas.length ? lista : null });
+  }
+  // métodos elegidos en cada ventana ("sin", "solo:<serie>" y "multi:<combinación>"): solo los que existen y valen para esa ventana
   const guardados = guardada && guardada.metodos && !Array.isArray(guardada.metodos) && typeof guardada.metodos === "object" ? guardada.metodos : {};
   for (const [clave, lista] of Object.entries(guardados)) {
     const esSolo = clave.startsWith("solo:");
     const idSolo = esSolo ? mapa[Number(clave.slice(5))] : undefined;
-    const existe = clave === "sin" || clave === "todas" || (esSolo && idSolo !== undefined && e.explicativas.includes(idSolo));
+    const idCombinacion = clave === "multi" ? e.combinaciones[0].id : clave.startsWith("multi:") ? Number(clave.slice(6)) : undefined;   // "multi" a secas es el formato anterior
+    const esMulti = idCombinacion !== undefined && e.combinaciones.some((c) => c.id === idCombinacion);
+    const existe = clave === "sin" || esMulti || (esSolo && idSolo !== undefined && e.explicativas.includes(idSolo));
     if (!existe || !Array.isArray(lista)) continue;
     const ids = METODOS_IMPUTACION.filter((m) => m.explicativas === (clave !== "sin") && lista.includes(m.id)).map((m) => m.id);
-    if (ids.length) e.metodos[esSolo ? `solo:${idSolo}` : clave] = ids;
+    if (ids.length) e.metodos[esSolo ? `solo:${idSolo}` : esMulti ? `multi:${idCombinacion}` : clave] = ids;
   }
   const p = (guardada && guardada.parametros) || {};
   const donante = p.donante === null || p.donante === undefined ? undefined : mapa[p.donante];

@@ -4,7 +4,7 @@
 // (con las semillas, así que sale idéntica); de las manuales, sus valores. Nada de lo que es solo de pantalla
 // (pestaña abierta, zoom, secciones plegadas) forma parte del proyecto.
 const FORMATO = "laboratorio-senales";
-const VERSION_FORMATO = 5;          // sube cuando cambie el formato; MIGRACIONES[n] pasa de la versión n a la n+1
+const VERSION_FORMATO = 6;          // sube cuando cambie el formato; MIGRACIONES[n] pasa de la versión n a la n+1
 const MIGRACIONES = {
   1: (doc) => ({ ...doc, version: 2, imputacion: estadoImputacionVacio() }), // v2 añade la fase de imputación
   2: (doc) => ({ ...doc, version: 3, imputacion: { ...doc.imputacion, explicativas: [] } }), // v3 añade las variables explicativas
@@ -15,6 +15,11 @@ const MIGRACIONES = {
     const metodos = { sin: elegidos(false), todas: elegidos(true) };
     for (const id of doc.imputacion.explicativas || []) metodos[`solo:${id}`] = elegidos(true);
     return { ...doc, version: 5, imputacion: { ...doc.imputacion, metodos } };
+  },
+  5: (doc) => {                                                                                                                       // v6: la ventana "todas" pasa a ser la combinación 1 de la multivariante
+    const metodos = { ...doc.imputacion.metodos };
+    if (metodos.todas) { metodos["multi:1"] = metodos.todas; delete metodos.todas; }
+    return { ...doc, version: 6, imputacion: { ...doc.imputacion, metodos, combinaciones: [{ id: 1, explicativas: null }] } };
   },
 };
 const ID_BORRADOR = "__borrador__"; // copia automática del trabajo sin guardar, por si se cierra la página
