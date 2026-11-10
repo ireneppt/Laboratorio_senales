@@ -447,7 +447,7 @@ function cerrarSerie(s) {
   const explicativasRestantes = imputacion.explicativas.filter((id) => id !== s.id);
   if (imputacion.explicada.serieId === s.id) { imputacion = estadoImputacionVacio(); reiniciarExplicada(); }
   imputacion.explicativas = explicativasRestantes;
-  imputacion.metodos = metodos;                                              // los métodos elegidos se conservan
+  imputacion.metodos = Object.fromEntries(Object.entries(metodos).filter(([clave]) => clave !== `solo:${s.id}`)); // los métodos elegidos se conservan (menos los de la ventana de esta serie)
   imputacion.parametros = { ...parametros, donante: parametros.donante === s.id ? null : parametros.donante };
   guardarActiva();
   const posicion = series.indexOf(s);

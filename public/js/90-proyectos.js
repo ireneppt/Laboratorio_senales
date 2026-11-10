@@ -4,11 +4,18 @@
 // (con las semillas, así que sale idéntica); de las manuales, sus valores. Nada de lo que es solo de pantalla
 // (pestaña abierta, zoom, secciones plegadas) forma parte del proyecto.
 const FORMATO = "laboratorio-senales";
-const VERSION_FORMATO = 4;          // sube cuando cambie el formato; MIGRACIONES[n] pasa de la versión n a la n+1
+const VERSION_FORMATO = 5;          // sube cuando cambie el formato; MIGRACIONES[n] pasa de la versión n a la n+1
 const MIGRACIONES = {
   1: (doc) => ({ ...doc, version: 2, imputacion: estadoImputacionVacio() }), // v2 añade la fase de imputación
   2: (doc) => ({ ...doc, version: 3, imputacion: { ...doc.imputacion, explicativas: [] } }), // v3 añade las variables explicativas
   3: (doc) => ({ ...doc, version: 4, imputacion: { ...doc.imputacion, metodos: [], parametros: PARAMETROS_IMPUTACION_INICIALES() } }), // v4 añade los métodos de imputación
+  4: (doc) => {                                                                                                                       // v5: los métodos se eligen por ventana (sin / todas / solo X)
+    const antiguos = Array.isArray(doc.imputacion.metodos) ? doc.imputacion.metodos : [];
+    const elegidos = (conExplicativas) => METODOS_IMPUTACION.filter((m) => m.explicativas === conExplicativas && antiguos.includes(m.id)).map((m) => m.id);
+    const metodos = { sin: elegidos(false), todas: elegidos(true) };
+    for (const id of doc.imputacion.explicativas || []) metodos[`solo:${id}`] = elegidos(true);
+    return { ...doc, version: 5, imputacion: { ...doc.imputacion, metodos } };
+  },
 };
 const ID_BORRADOR = "__borrador__"; // copia automática del trabajo sin guardar, por si se cierra la página
 const NOMBRE_SIN_TITULO = "Proyecto sin título";

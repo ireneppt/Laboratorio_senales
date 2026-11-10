@@ -22,8 +22,16 @@ function imputacionDesdeGuardada(guardada, mapa) {
   const nuevas = (guardada && Array.isArray(guardada.explicativas) ? guardada.explicativas : []).map((id) => mapa[id]);
   e.explicativas = [...new Set(nuevas.filter((id) => id !== undefined && id !== e.explicada.serieId))];
   // métodos de imputación elegidos y sus parámetros (solo los que existen)
-  const ids = METODOS_IMPUTACION.map((m) => m.id);
-  e.metodos = ids.filter((id) => guardada && Array.isArray(guardada.metodos) && guardada.metodos.includes(id));
+  // métodos elegidos en cada ventana ("sin", "todas" y "solo:<serie>"): solo los que existen y valen para esa ventana
+  const guardados = guardada && guardada.metodos && !Array.isArray(guardada.metodos) && typeof guardada.metodos === "object" ? guardada.metodos : {};
+  for (const [clave, lista] of Object.entries(guardados)) {
+    const esSolo = clave.startsWith("solo:");
+    const idSolo = esSolo ? mapa[Number(clave.slice(5))] : undefined;
+    const existe = clave === "sin" || clave === "todas" || (esSolo && idSolo !== undefined && e.explicativas.includes(idSolo));
+    if (!existe || !Array.isArray(lista)) continue;
+    const ids = METODOS_IMPUTACION.filter((m) => m.explicativas === (clave !== "sin") && lista.includes(m.id)).map((m) => m.id);
+    if (ids.length) e.metodos[esSolo ? `solo:${idSolo}` : clave] = ids;
+  }
   const p = (guardada && guardada.parametros) || {};
   const donante = p.donante === null || p.donante === undefined ? undefined : mapa[p.donante];
   e.parametros = {

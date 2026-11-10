@@ -5,7 +5,7 @@
 // vista previa...) es solo de pantalla.
 // Parámetros de los métodos de imputación: vecinos del hot deck, y la serie donante (y si se ajusta a la escala)
 const PARAMETROS_IMPUTACION_INICIALES = () => ({ k: 1, donante: null, escalar: false });
-const estadoImputacionVacio = () => ({ explicada: { serieId: null, quitados: [] }, explicativas: [], metodos: [], parametros: PARAMETROS_IMPUTACION_INICIALES() });
+const estadoImputacionVacio = () => ({ explicada: { serieId: null, quitados: [] }, explicativas: [], metodos: {}, parametros: PARAMETROS_IMPUTACION_INICIALES() });
 let imputacion = estadoImputacionVacio();
 
 const exp = {

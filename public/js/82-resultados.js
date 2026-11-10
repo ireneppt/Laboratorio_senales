@@ -38,9 +38,9 @@ const MEDIDAS_RESUMEN = [
 
 const resImp = {
   ui: {}, token: 0, controlador: null, temporizador: 0, cargando: false, error: "",
-  sub: "resumen", medida: "rmse", metodoGrafica: null, orden: { columna: null, sentido: 1 }, destacado: null, detalleAbierto: true,
+  sub: "sin", medida: "rmse", dibujar: null, orden: { columna: null, sentido: 1 }, destacado: null, detalleAbierto: true,
   vista: null,      // lo calculado para la sub-pestaña que se ve
-  resumen: null,    // lo calculado para el resumen: un resultado por cada conjunto de explicativas
+  comparacion: null, // lo calculado para la comparación: un resultado por cada ventana con métodos marcados
   cache: new Map(), // lo ya calculado, para no volver a pedirlo (la clave es una huella de la petición)
 };
 
@@ -68,7 +68,6 @@ function formatoMedida(clave, v) {
 function subpestanasImputacion() {
   const elegidas = explicativasConDatos();
   const lista = [];
-  if (elegidas.length >= 2) lista.push({ id: "resumen", titulo: "Resumen", ayuda: "Compara hot deck, regresión y EM según con qué explicativas se calculan." });
   lista.push({ id: "sin", titulo: "Sin explicativas", series: [], ayuda: "Métodos que solo usan la propia serie (o la serie donante)." });
   if (elegidas.length >= 2) lista.push({ id: "todas", titulo: "Todas las explicativas", series: elegidas, ayuda: "Los métodos con explicativas, usando todas a la vez." });
   for (const s of elegidas) {
@@ -77,6 +76,7 @@ function subpestanasImputacion() {
       ayuda: `Los métodos con explicativas, usando únicamente ${nombreDe(s)}.`,
     });
   }
+  lista.push({ id: "comparacion", titulo: "Comparación", ayuda: "Compara en una sola tabla los métodos que has marcado en las otras ventanas." });
   return lista;
 }
 function subActual() {
@@ -91,10 +91,13 @@ const metodosDeSub = (sub) => (sub.id === "sin" ? idsSinExplicativas() : idsConE
 
 // Lo que se pide al servidor para una sub-pestaña: las explicativas que usa y los métodos elegidos de su grupo.
 // En las que usan explicativas se añade siempre la interpolación, como referencia.
+const elegidosDe = (subId) => (Array.isArray(imputacion.metodos[subId]) ? imputacion.metodos[subId] : []);
+// la comparación junta todas las demás ventanas
+const ventanasDe = (sub) => (sub.id === "comparacion" ? subpestanasImputacion().filter((s) => s.id !== "comparacion") : [sub]);
 function especificacion(sub) {
-  const elegidos = METODOS_IMPUTACION.map((m) => m.id).filter((id) => imputacion.metodos.includes(id) && metodosDeSub(sub).includes(id));
-  const conReferencia = sub.id !== "sin" && elegidos.length > 0;
-  return { sub, series: sub.series || [], ids: elegidos, referencia: conReferencia ? REFERENCIA_IMPUTACION : null };
+  const elegidos = METODOS_IMPUTACION.map((m) => m.id).filter((id) => elegidosDe(sub.id).includes(id) && metodosDeSub(sub).includes(id));
+  // la interpolación va siempre en la petición (de ella sale la "mejora"), pero solo se enseña como fila si no es la ventana "sin"
+  return { sub, series: sub.series || [], ids: elegidos, referencia: elegidos.length > 0 ? REFERENCIA_IMPUTACION : null };
 }
 
 function pedidosDe(ids) {
@@ -145,20 +148,15 @@ function montarResultados() {
         <div class="pestanas res-subpestanas" id="res-subpestanas" role="tablist" aria-label="Con qué explicativas se imputa"></div>
         <p class="ayuda" id="res-info" style="margin:0 0 12px"></p>
         <div class="res-estado" id="res-estado" role="status"></div>
-        <div id="res-vista-resumen" hidden>
+        <div id="res-vista-comp" hidden>
+          <div class="res-tabla res-tabla-comp" id="res-tabla-comp" role="table" aria-label="Comparación de los métodos marcados"></div>
           <div class="res-controles">
-            <label>Ver
-              <select id="res-medida" aria-label="Medida que se muestra en el resumen"></select>
+            <label>Ranking por
+              <select id="res-medida" aria-label="Medida del ranking"></select>
             </label>
           </div>
-          <div class="res-tabla" id="res-tabla-resumen" role="table" aria-label="Comparación según con qué explicativas se imputa"></div>
-          <div id="res-grafica-resumen"></div>
-          <div class="res-controles">
-            <label>Serie imputada con
-              <select id="res-metodo-grafica" aria-label="Método con el que se dibuja la serie imputada"></select>
-            </label>
-          </div>
-          <div id="res-grafica-imputado"></div>
+          <div id="res-grafica-ranking"></div>
+          <div id="res-grafica-comp"></div>
         </div>
         <div id="res-vista-conjunto" hidden>
           <div class="res-tabla" id="res-tabla" role="table" aria-label="Error de cada método"></div>
@@ -174,13 +172,14 @@ function montarResultados() {
   resImp.ui = {
     raiz, metodos: q("#res-metodos"), ayudaLateral: q("#res-ayuda-lateral"), falta: q("#res-falta"), faltaTexto: q("#res-falta-texto"), faltaIr: q("#res-falta-ir"),
     trabajo: q("#res-trabajo"), subpestanas: q("#res-subpestanas"), info: q("#res-info"), estado: q("#res-estado"),
-    vistaResumen: q("#res-vista-resumen"), medida: q("#res-medida"), tablaResumen: q("#res-tabla-resumen"), graficaResumen: q("#res-grafica-resumen"), metodoGrafica: q("#res-metodo-grafica"), graficaImputado: q("#res-grafica-imputado"),
+    vistaComp: q("#res-vista-comp"), medida: q("#res-medida"), tablaComp: q("#res-tabla-comp"), graficaRanking: q("#res-grafica-ranking"), graficaComp: q("#res-grafica-comp"),
     vistaConjunto: q("#res-vista-conjunto"), tabla: q("#res-tabla"), grafica: q("#res-grafica"), detalle: q("#res-detalle"), tramos: q("#res-tramos"),
   };
   for (const [clave, nombre] of MEDIDAS_RESUMEN) resImp.ui.medida.append(new Option(nombre, clave));
   resImp.ui.medida.value = resImp.medida;
   resImp.ui.medida.addEventListener("change", () => { resImp.medida = resImp.ui.medida.value; pintarResultados(objetivoDeExplicada()); });
-  resImp.ui.metodoGrafica.addEventListener("change", () => { resImp.metodoGrafica = resImp.ui.metodoGrafica.value; pintarResultados(objetivoDeExplicada()); });
+  resImp.ui.tablaComp.addEventListener("click", alPulsarTabla);
+  resImp.ui.tablaComp.addEventListener("change", alMarcarDibujo);
   resImp.ui.detalle.open = resImp.detalleAbierto;
   resImp.ui.detalle.addEventListener("toggle", () => { resImp.detalleAbierto = resImp.ui.detalle.open; });
   q("#res-todos").addEventListener("click", () => cambiarMetodosVisibles(true));
@@ -193,6 +192,7 @@ function montarResultados() {
     resImp.sub = boton.dataset.sub;
     resImp.destacado = null;
     resImp.orden = { columna: null, sentido: 1 };
+    resImp.comparacion = null;
     pintarSubpestanas();
     pintarMetodosImputacion();
     pintarResultados(objetivoDeExplicada());   // si ya está calculado se ve al momento
@@ -211,6 +211,9 @@ async function actualizarResultados() {
   imputacion.explicativas = imputacion.explicativas.filter((id) => id !== imputacion.explicada.serieId && series.some((x) => x.id === id));
   const donante = imputacion.parametros.donante;
   if (donante !== null && (donante === imputacion.explicada.serieId || !series.some((x) => x.id === donante))) imputacion.parametros.donante = null;
+  // lo elegido en ventanas que ya no existen (explicativas quitadas) se olvida
+  const validas = new Set(["sin", "todas", ...imputacion.explicativas.map((id) => `solo:${id}`)]);
+  for (const clave of Object.keys(imputacion.metodos)) if (!validas.has(clave)) delete imputacion.metodos[clave];
   pintarSubpestanas();
   pintarMetodosImputacion();
   ejecutarImputacion();
@@ -219,6 +222,7 @@ async function actualizarResultados() {
 function pintarSubpestanas() {
   const barra = resImp.ui.subpestanas;
   const actual = subActual();
+  resImp.ui.raiz.classList.toggle("res-ancha", actual.id === "comparacion");   // la comparación no usa la lista de métodos
   barra.replaceChildren();
   for (const s of subpestanasImputacion()) {
     const boton = document.createElement("button");
@@ -239,6 +243,7 @@ function pintarMetodosImputacion() {
   const cont = resImp.ui.metodos;
   cont.replaceChildren();
   const sub = subActual();
+  if (sub.id === "comparacion") return;
   const visibles = metodosDeSub(sub);
   const p = imputacion.parametros;
   const sinExplicativas = sub.id === "sin";
@@ -261,7 +266,7 @@ function pintarMetodosImputacion() {
       casilla.type = "checkbox";
       casilla.className = "alea";
       casilla.dataset.metodo = m.id;
-      casilla.checked = imputacion.metodos.includes(m.id);
+      casilla.checked = elegidosDe(sub.id).includes(m.id);
       etiqueta.append(casilla, ` ${m.nombre}`);
       tarjeta.append(etiqueta);
       if (m.id === "hot_deck") {
@@ -305,7 +310,7 @@ function pintarMetodosImputacion() {
 function alCambiarMetodo(e) {
   const objetivo = e.target;
   if (objetivo.dataset.metodo) {
-    const elegidos = new Set(imputacion.metodos);
+    const elegidos = new Set(elegidosDe(subActual().id));
     if (objetivo.checked) elegidos.add(objetivo.dataset.metodo); else elegidos.delete(objetivo.dataset.metodo);
     cambiarMetodosImputacion(METODOS_IMPUTACION.map((m) => m.id).filter((id) => elegidos.has(id)));
     return;
@@ -328,8 +333,9 @@ function alCambiarMetodo(e) {
 }
 
 function cambiarMetodosImputacion(ids) {
-  if (JSON.stringify(ids) === JSON.stringify(imputacion.metodos)) return;
-  imputacion.metodos = ids;
+  const sub = subActual().id;
+  if (JSON.stringify(ids) === JSON.stringify(elegidosDe(sub))) return;
+  if (ids.length) imputacion.metodos[sub] = ids; else delete imputacion.metodos[sub];
   cambioImputacion();
   pintarMetodosImputacion();
   ejecutarImputacion();
@@ -338,7 +344,7 @@ function cambiarMetodosImputacion(ids) {
 // "Todos" y "Ninguno" solo afectan a los métodos que se ven en esta sub-pestaña
 function cambiarMetodosVisibles(marcar) {
   const visibles = metodosDeSub(subActual());
-  const elegidos = new Set(imputacion.metodos);
+  const elegidos = new Set(elegidosDe(subActual().id));
   for (const id of visibles) { if (marcar) elegidos.add(id); else elegidos.delete(id); }
   cambiarMetodosImputacion(METODOS_IMPUTACION.map((m) => m.id).filter((id) => elegidos.has(id)));
 }
@@ -353,7 +359,7 @@ function ejecutarImputacion() {
 // Pide (o saca de lo ya calculado) un conjunto de métodos con unas explicativas
 async function pedirConjunto(spec, obj, signal) {
   if (!spec.ids.length) return { vacio: true };
-  const ids = spec.referencia ? [...spec.ids, spec.referencia] : spec.ids;
+  const ids = spec.referencia && !spec.ids.includes(spec.referencia) ? [...spec.ids, spec.referencia] : spec.ids;
   const texto = JSON.stringify({ y: obj.y, quitados: tramosQuitados(), explicativas: spec.series.map((x) => x.datos.y), metodos: pedidosDe(ids) });
   const clave = huellaTexto(texto);
   if (resImp.cache.has(clave)) return resImp.cache.get(clave);
@@ -370,11 +376,6 @@ async function pedirConjunto(spec, obj, signal) {
   if (resImp.cache.size >= 60) resImp.cache.delete(resImp.cache.keys().next().value);
   resImp.cache.set(clave, resultado);
   return resultado;
-}
-
-// Para el resumen: todas las explicativas juntas y cada una por separado
-function resumenEspecificaciones() {
-  return subpestanasImputacion().filter((s) => s.id === "todas" || s.id.startsWith("solo:")).map(especificacion);
 }
 
 async function pedirImputacion() {
@@ -399,9 +400,9 @@ async function pedirImputacion() {
       : ". No has quitado ningún tramo con valor real, así que no se puede medir el error (quita alguno en la pestaña 1).");
 
   const sub = subActual();
-  const especificaciones = sub.id === "resumen" ? resumenEspecificaciones() : [especificacion(sub)];
-  if (!aImputar || !especificaciones.some((e) => e.ids.length)) {
-    resImp.vista = null; resImp.resumen = null; resImp.error = ""; resImp.cargando = false;
+  const especificaciones = ventanasDe(sub).map(especificacion).filter((e) => e.ids.length);
+  if (!aImputar || !especificaciones.length) {
+    resImp.vista = null; resImp.comparacion = null; resImp.error = ""; resImp.cargando = false;
     pintarResultados(obj);
     return;
   }
@@ -416,13 +417,13 @@ async function pedirImputacion() {
     const resultados = await Promise.all(especificaciones.map((e) => pedirConjunto(e, obj, resImp.controlador.signal)));
     if (token !== resImp.token) return;
     const error = resultados.find((r) => r.error);
-    if (error) { resImp.error = error.error; resImp.vista = null; resImp.resumen = null; }
-    else if (sub.id === "resumen") resImp.resumen = especificaciones.map((e, i) => ({ spec: e, datos: resultados[i].datos }));
+    if (error) { resImp.error = error.error; resImp.vista = null; resImp.comparacion = null; }
+    else if (sub.id === "comparacion") resImp.comparacion = especificaciones.map((e, i) => ({ spec: e, datos: resultados[i].datos }));
     else resImp.vista = { spec: especificaciones[0], datos: resultados[0].datos };
   } catch (err) {
     if (err.name === "AbortError" || token !== resImp.token) return;
     resImp.error = "No se pudo conectar con el servidor para imputar.";
-    resImp.vista = null; resImp.resumen = null;
+    resImp.vista = null; resImp.comparacion = null;
   }
   resImp.cargando = false;
   if (u.tabla.isConnected) pintarResultados(objetivoDeExplicada());
@@ -440,25 +441,25 @@ function pintarResultados(obj) {
   pintarEstadoResultados();
   const u = resImp.ui;
   const sub = subActual();
-  const esResumen = sub.id === "resumen";
-  const especificaciones = esResumen ? resumenEspecificaciones() : [especificacion(sub)];
+  const esComp = sub.id === "comparacion";
+  const especificaciones = ventanasDe(sub).map(especificacion);
   const hayMetodos = especificaciones.some((e) => e.ids.length);
-  const datos = esResumen ? resImp.resumen : (resImp.vista && resImp.vista.spec.sub.id === sub.id ? resImp.vista : null);
+  const datos = esComp ? resImp.comparacion : (resImp.vista && resImp.vista.spec.sub.id === sub.id ? resImp.vista : null);
   const listo = Boolean(obj) && Boolean(datos) && hayMetodos && obj.aImputar > 0;
-  u.vistaResumen.hidden = !(esResumen && listo);
-  u.vistaConjunto.hidden = !(!esResumen && listo);
+  u.vistaComp.hidden = !(esComp && listo);
+  u.vistaConjunto.hidden = !(!esComp && listo);
   if (!listo) {
-    for (const g of [u.grafica, u.graficaResumen, u.graficaImputado]) { try { Plotly.purge(g); } catch { /* aún no había gráfica */ } }
+    for (const g of [u.grafica, u.graficaRanking, u.graficaComp]) { try { Plotly.purge(g); } catch { /* aún no había gráfica */ } }
     if (!resImp.error && obj && obj.aImputar && !hayMetodos && !resImp.cargando) {
-      u.estado.textContent = sub.id === "sin" ? "Marca algún método a la izquierda para ver cómo imputa y cuánto se equivoca."
+      u.estado.textContent = esComp ? "Todavía no has marcado ningún método en las otras ventanas." : sub.id === "sin" ? "Marca algún método a la izquierda para ver cómo imputa y cuánto se equivoca."
         : "Marca hot deck, regresión o EM a la izquierda para ver cómo imputan con estas explicativas.";
       u.estado.classList.remove("error");
       u.estado.hidden = false;
     }
     return;
   }
-  if (esResumen) {
-    pintarResumenImputacion();
+  if (esComp) {
+    pintarComparacionImputacion(obj);
     return;
   }
   const filas = filasDeResultados(resImp.vista);
@@ -470,7 +471,7 @@ function pintarResultados(obj) {
 // Una fila por método elegido (y la referencia, si se añade): lo que devolvió el servidor
 function filasDeResultados(vista) {
   const delServidor = Object.fromEntries(((vista.datos && vista.datos.resultados) || []).map((r) => [r.metodo, r]));
-  const ids = vista.spec.referencia && !vista.spec.ids.includes(vista.spec.referencia) ? [...vista.spec.ids, vista.spec.referencia] : vista.spec.ids;
+  const ids = vista.spec.sub.id !== "sin" && vista.spec.referencia && !vista.spec.ids.includes(vista.spec.referencia) ? [...vista.spec.ids, vista.spec.referencia] : vista.spec.ids;
   return ids.map(metodoDeImputacion).filter(Boolean).map((m) => delServidor[m.id] || { metodo: m.id, nombre: m.nombre, grupo: m.grupo, error: "Sin resultado" });
 }
 
@@ -677,102 +678,189 @@ function pintarTramosResultados(filas) {
   cont.append(rejilla);
 }
 
-// ----- Resumen: cada método con explicativas, según con cuáles se calcula -----
-function pintarResumenImputacion() {
-  const u = resImp.ui;
-  const conjuntos = resImp.resumen;                                   // [{ spec, datos }] : "todas" y cada "solo"
-  const [clave, nombreMedida, mayorEsMejor] = MEDIDAS_RESUMEN.find((m) => m[0] === resImp.medida) || MEDIDAS_RESUMEN[0];
-  const ids = conjuntos[0].spec.ids;                                  // los métodos elegidos con explicativas
-  const valorDe = (conjunto, id) => {
-    const r = (conjunto.datos.resultados || []).find((x) => x.metodo === id);
-    return !r || r.error || !r.metricas ? { v: null, r } : { v: r.metricas[clave], r };
-  };
-  const etiqueta = (cj) => (cj.spec.sub.id === "todas" ? "Todas" : `Solo ${nombreDe(cj.spec.sub.serie)}`);
-  const tabla = u.tablaResumen;
-  tabla.replaceChildren();
-  tabla.style.gridTemplateColumns = `minmax(200px, 1.6fr) repeat(${conjuntos.length}, minmax(120px, 1fr))`;
-  const c = colores();
-  const cabecera = (texto, ayuda = "") => { const d = document.createElement("div"); d.className = "cab"; d.textContent = texto; if (ayuda) d.title = ayuda; return d; };
-  tabla.append(cabecera(nombreMedida, "Cada fila es un método y cada columna, el conjunto de explicativas con el que se calcula. El mejor de cada fila va resaltado."));
-  for (const cj of conjuntos) tabla.append(cabecera(etiqueta(cj), cj.spec.sub.ayuda));
+// ----- Comparación: lo marcado en todas las ventanas, en una sola tabla -----
+const etiquetaConjunto = (sub) => (sub.id === "sin" ? "—" : sub.id === "todas" ? "Todas" : nombreDe(sub.serie));
+const etiquetaFila = (f) => (f.conjunto === "—" ? f.nombre : `${f.nombre} · ${f.conjunto}`);
+const COLUMNAS_COMPARACION = [
+  COLUMNAS_RESULTADOS[0],
+  ["conjunto", "Explicativas", "Con qué explicativas se ha calculado: todas, solo una, o ninguna (—)."],
+  ...COLUMNAS_RESULTADOS.slice(1),
+];
 
-  const filaDe = (id, esReferencia) => {
-    const m = metodoDeImputacion(id);
-    const nombre = document.createElement("div");
-    nombre.className = "nombre" + (esReferencia ? " tenue" : "");
+// Una fila por método marcado y ventana, ordenadas por método; la interpolación va una sola vez, al final, como referencia
+function filasComparacion() {
+  const filas = [];
+  const delServidor = (cj, id) => (cj.datos.resultados || []).find((x) => x.metodo === id);
+  for (const m of METODOS_IMPUTACION) {
+    if (m.id === REFERENCIA_IMPUTACION) continue;
+    for (const cj of resImp.comparacion) {
+      if (!cj.spec.ids.includes(m.id)) continue;
+      const r = delServidor(cj, m.id) || { error: "Sin resultado" };
+      filas.push({ ...r, clave: `${m.id}@${cj.spec.sub.id}`, metodo: m.id, nombre: m.nombre, conjunto: etiquetaConjunto(cj.spec.sub) });
+    }
+  }
+  const referencia = resImp.comparacion.map((cj) => delServidor(cj, REFERENCIA_IMPUTACION)).find(Boolean);
+  if (referencia) filas.push({ ...referencia, clave: REFERENCIA_IMPUTACION, metodo: REFERENCIA_IMPUTACION, nombre: metodoDeImputacion(REFERENCIA_IMPUTACION).nombre, conjunto: "—", esReferencia: true });
+  return filas;
+}
+
+// Qué filas se dibujan: las que el usuario marque; mientras no marque ninguna, las 3 con menos error
+function dibujadasComparacion(filas) {
+  if (resImp.dibujar) return resImp.dibujar;
+  const mejores = filas.filter((f) => !f.error && !f.esReferencia && f.metricas && f.metricas.rmse !== null).sort((a, b) => a.metricas.rmse - b.metricas.rmse).slice(0, 3);
+  return new Set(mejores.map((f) => f.clave));
+}
+
+function alMarcarDibujo(e) {
+  const casilla = e.target.closest("input[data-dibujar]");
+  if (!casilla) return;
+  const dibujar = new Set(dibujadasComparacion(filasComparacion()));
+  if (casilla.checked) dibujar.add(casilla.dataset.dibujar); else dibujar.delete(casilla.dataset.dibujar);
+  resImp.dibujar = dibujar;
+  pintarResultados(objetivoDeExplicada());
+}
+
+function pintarComparacionImputacion(obj) {
+  const filas = filasComparacion();
+  const dibujadas = dibujadasComparacion(filas);
+  pintarTablaComparacion(filas, dibujadas);
+  pintarRankingComparacion(filas);
+  const c = colores();
+  const paraDibujar = filas.filter((f) => dibujadas.has(f.clave) && !f.error)
+    .map((f, i) => ({ ...f, metodo: f.esReferencia ? REFERENCIA_IMPUTACION : f.clave, nombre: etiquetaFila(f), color: f.esReferencia ? undefined : c.series[i % c.series.length] }));
+  pintarGraficaResultados(paraDibujar, obj, resImp.ui.graficaComp);
+}
+
+function pintarTablaComparacion(filas, dibujadas) {
+  const tabla = resImp.ui.tablaComp;
+  tabla.replaceChildren();
+  const { columna, sentido } = resImp.orden;
+  const valor = (f, c) => (c === "nombre" || c === "conjunto" ? String(f[c]).toLowerCase() : f.error || !f.metricas || f.metricas[c] === null ? null : f.metricas[c]);
+  let ordenadas = filas;
+  if (columna) {
+    ordenadas = [...filas].sort((a, b) => {
+      const x = valor(a, columna), y = valor(b, columna);
+      if (x === null && y === null) return 0;
+      if (x === null) return 1;
+      if (y === null) return -1;
+      return (x < y ? -1 : x > y ? 1 : 0) * sentido;
+    });
+  }
+  const mejor = {};
+  for (const [c, mayorEsMejor] of [["mae", false], ["rmse", false], ["r2", true], ["mejora", true]]) {
+    const valores = filas.map((f) => valor(f, c)).filter((v) => v !== null);
+    if (valores.length > 1 || (valores.length === 1 && filas.length === 1)) mejor[c] = mayorEsMejor ? Math.max(...valores) : Math.min(...valores);
+  }
+
+  const cabeceraFija = document.createElement("div");
+  cabeceraFija.className = "cab";
+  cabeceraFija.title = "Marca las filas que quieras ver en la gráfica de la serie.";
+  cabeceraFija.textContent = "Dibujar";
+  tabla.append(cabeceraFija);
+  for (const [id, texto, ayuda] of COLUMNAS_COMPARACION) {
+    const cab = document.createElement("div");
+    cab.className = "cab";
+    cab.setAttribute("role", "columnheader");
+    cab.setAttribute("aria-sort", columna === id ? (sentido === 1 ? "ascending" : "descending") : "none");
+    const boton = document.createElement("button");
+    boton.type = "button";
+    boton.dataset.orden = id;
+    boton.title = ayuda + " Pulsa para ordenar.";
+    boton.append(texto);
+    if (columna === id) {
+      const flecha = document.createElement("span");
+      flecha.className = "flecha";
+      flecha.textContent = sentido === 1 ? "↑" : "↓";
+      boton.append(flecha);
+    }
+    cab.append(boton);
+    tabla.append(cab);
+  }
+
+  const c = colores();
+  for (const f of ordenadas) {
+    const tenue = f.esReferencia ? " tenue" : "";
+    const celda = (clase = "") => { const d = document.createElement("div"); d.setAttribute("role", "cell"); d.dataset.clave = f.clave; d.className = (clase + tenue).trim(); return d; };
+    const marca = celda("marca");
+    const casilla = document.createElement("input");
+    casilla.type = "checkbox";
+    casilla.dataset.dibujar = f.clave;
+    casilla.checked = dibujadas.has(f.clave) && !f.error;
+    casilla.disabled = Boolean(f.error);
+    casilla.setAttribute("aria-label", `Dibujar ${etiquetaFila(f)}`);
+    marca.append(casilla);
+    tabla.append(marca);
+    const nombre = celda("nombre");
     const punto = document.createElement("span");
     punto.className = "punto-color";
-    punto.style.background = colorDeMetodo(id, c);
+    punto.style.background = colorDeMetodo(f.metodo, c);
     const texto = document.createElement("span");
-    texto.append(m.nombre);
-    if (esReferencia) {
-      const nota = document.createElement("small");
-      nota.textContent = "la referencia (igual en todas)";
-      texto.append(nota);
+    texto.append(f.nombre);
+    if (f.esReferencia) {
+      const referencia = document.createElement("small");
+      referencia.textContent = "la referencia";
+      texto.append(referencia);
     }
     nombre.append(punto, texto);
     tabla.append(nombre);
-    const valores = conjuntos.map((cj) => valorDe(cj, id));
-    const validos = valores.map((x) => x.v).filter((v) => v !== null);
-    const mejorFila = validos.length > 1 ? (mayorEsMejor ? Math.max(...validos) : Math.min(...validos)) : null;
-    valores.forEach(({ v, r }) => {
-      const d = document.createElement("div");
-      d.className = "valor" + (esReferencia ? " tenue" : "") + (!esReferencia && v !== null && v === mejorFila ? " mejor" : "");
-      d.textContent = esReferencia && clave === "mejora" ? "—" : formatoMedida(clave, v);
-      if (r && r.error) { d.textContent = "—"; d.title = r.error; }
-      if (r && r.sin_imputar > 0) {
-        const sin = document.createElement("small");
-        sin.textContent = `${r.sin_imputar} sin imputar`;
-        d.append(sin);
-      }
+    const conjunto = celda("conjunto");
+    conjunto.textContent = f.conjunto;
+    tabla.append(conjunto);
+    if (f.error) {
+      const aviso = celda("sin-calculo");
+      aviso.textContent = f.error;
+      aviso.style.gridColumn = "4 / -1";
+      tabla.append(aviso);
+      continue;
+    }
+    const m = f.metricas;
+    const poner = (clave, texto) => {
+      const d = celda("valor" + (mejor[clave] !== undefined && m[clave] === mejor[clave] ? " mejor" : ""));
+      d.textContent = texto;
       tabla.append(d);
-    });
-  };
-  ids.forEach((id) => filaDe(id, false));
-  filaDe(REFERENCIA_IMPUTACION, true);
-  pintarGraficaResumen(conjuntos, ids, clave, nombreMedida, valorDe, etiqueta);
-  pintarImputadoResumen(conjuntos, ids);
-}
-
-// La serie con lo imputado por un método usando todas las explicativas, junto a lo original (lo conocido y el valor real de lo quitado)
-function pintarImputadoResumen(conjuntos, ids) {
-  const u = resImp.ui;
-  u.metodoGrafica.replaceChildren();
-  for (const id of ids) u.metodoGrafica.append(new Option(metodoDeImputacion(id).nombre, id));
-  if (!ids.includes(resImp.metodoGrafica)) resImp.metodoGrafica = ids[0];
-  u.metodoGrafica.value = resImp.metodoGrafica;
-  const todas = conjuntos.find((cj) => cj.spec.sub.id === "todas") || conjuntos[0];
-  const fila = (todas.datos.resultados || []).find((x) => x.metodo === resImp.metodoGrafica);
-  pintarGraficaResultados(fila ? [fila] : [], objetivoDeExplicada(), u.graficaImputado);
-}
-
-function pintarGraficaResumen(conjuntos, ids, clave, nombreMedida, valorDe, etiqueta) {
-  const grafica = resImp.ui.graficaResumen;
-  if (!grafica || !grafica.isConnected) return;
-  const c = colores();
-  const etiquetas = conjuntos.map(etiqueta);
-  const factor = clave === "mejora" ? 100 : 1;
-  const trazas = ids.map((id) => ({
-    x: etiquetas, y: conjuntos.map((cj) => { const v = valorDe(cj, id).v; return v === null ? null : v * factor; }),
-    type: "bar", name: metodoDeImputacion(id).nombre, marker: { color: colorDeMetodo(id, c) },
-    hovertemplate: `<b>%{y:.3g}${clave === "mejora" ? " %" : ""}</b><extra>${metodoDeImputacion(id).nombre}</extra>`,
-  }));
-  const referencia = valorDe(conjuntos[0], REFERENCIA_IMPUTACION).v;
-  if (referencia !== null && clave !== "mejora") {
-    trazas.push({
-      x: etiquetas, y: etiquetas.map(() => referencia), type: "scatter", mode: "lines", name: "Interpolación lineal (referencia)",
-      opacity: 0.4, line: { color: c.ink, width: 2, dash: "dash" }, hovertemplate: `<b>%{y:.3g}</b><extra>Interpolación (referencia)</extra>`,
-    });
+    };
+    poner("mae", numeroResultado(m.mae));
+    poner("rmse", numeroResultado(m.rmse));
+    poner("r2", decimalesResultado(m.r2));
+    poner("mejora", f.esReferencia ? "—" : porcentajeResultado(m.mejora));
+    const n = celda("n");
+    n.textContent = String(m.n);
+    if (f.sin_imputar > 0) {
+      const sin = document.createElement("small");
+      sin.textContent = `${f.sin_imputar} sin imputar`;
+      n.append(sin);
+    }
+    tabla.append(n);
   }
+}
+
+// Barras horizontales: todas las filas, de la mejor a la peor según la medida elegida
+function pintarRankingComparacion(filas) {
+  const grafica = resImp.ui.graficaRanking;
+  const [clave, nombreMedida, mayorEsMejor] = MEDIDAS_RESUMEN.find((m) => m[0] === resImp.medida) || MEDIDAS_RESUMEN[0];
+  const con = filas.filter((f) => !f.error && f.metricas && f.metricas[clave] !== null && f.metricas[clave] !== undefined && !(f.esReferencia && clave === "mejora"))
+    .sort((a, b) => (mayorEsMejor ? b.metricas[clave] - a.metricas[clave] : a.metricas[clave] - b.metricas[clave]));
+  if (!con.length) {
+    try { Plotly.purge(grafica); } catch { /* aún no había gráfica */ }
+    grafica.style.height = "0";
+    return;
+  }
+  grafica.style.height = `${90 + 34 * con.length}px`;
+  const c = colores();
+  const factor = clave === "mejora" ? 100 : 1;
   const eje = (texto) => ({
     title: texto ? { text: texto, font: { color: c.muted, size: 12 }, standoff: 8 } : undefined,
     gridcolor: c.grid, gridwidth: 1, zeroline: false, linecolor: c.axis, tickfont: { color: c.muted, size: 11 }, ticks: "",
   });
-  Plotly.react(grafica, trazas, {
+  Plotly.react(grafica, [{
+    type: "bar", orientation: "h", y: con.map(etiquetaFila), x: con.map((f) => f.metricas[clave] * factor),
+    marker: { color: con.map((f) => colorDeMetodo(f.metodo, c)), opacity: con.map((f) => (f.esReferencia ? 0.4 : 1)) },
+    hovertemplate: `<b>%{x:.3g}${clave === "mejora" ? " %" : ""}</b><extra>%{y}</extra>`,
+  }], {
     paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", font: { family: c.fuente, color: c.ink2 },
-    margin: { t: 16, r: 16, b: 90, l: 64 }, barmode: "group", showlegend: true, hovermode: "closest",
-    legend: { orientation: "h", x: 0, y: -0.25, yanchor: "top", font: { color: c.ink2, size: 12 } },
-    xaxis: { ...eje(""), showgrid: false, showline: true }, yaxis: { ...eje(clave === "mejora" ? `${nombreMedida} (%)` : nombreMedida), showline: false },
+    margin: { t: 8, r: 16, b: 48, l: 250 }, showlegend: false, hovermode: "closest",
+    xaxis: { ...eje(clave === "mejora" ? `${nombreMedida} (%)` : nombreMedida), showline: false },
+    yaxis: { ...eje(""), autorange: "reversed", showgrid: false, showline: true },
     hoverlabel: { bgcolor: c.surface, bordercolor: c.axis, font: { color: c.ink, family: c.fuente, size: 13 } },
   }, { responsive: true, displaylogo: false, displayModeBar: false });
 }
