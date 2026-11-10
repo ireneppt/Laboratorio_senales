@@ -38,7 +38,7 @@ const MEDIDAS_RESUMEN = [
 
 const resImp = {
   ui: {}, token: 0, controlador: null, temporizador: 0, cargando: false, error: "",
-  sub: "resumen", medida: "rmse", orden: { columna: null, sentido: 1 }, destacado: null, detalleAbierto: true,
+  sub: "resumen", medida: "rmse", metodoGrafica: null, orden: { columna: null, sentido: 1 }, destacado: null, detalleAbierto: true,
   vista: null,      // lo calculado para la sub-pestaña que se ve
   resumen: null,    // lo calculado para el resumen: un resultado por cada conjunto de explicativas
   cache: new Map(), // lo ya calculado, para no volver a pedirlo (la clave es una huella de la petición)
@@ -153,6 +153,12 @@ function montarResultados() {
           </div>
           <div class="res-tabla" id="res-tabla-resumen" role="table" aria-label="Comparación según con qué explicativas se imputa"></div>
           <div id="res-grafica-resumen"></div>
+          <div class="res-controles">
+            <label>Serie imputada con
+              <select id="res-metodo-grafica" aria-label="Método con el que se dibuja la serie imputada"></select>
+            </label>
+          </div>
+          <div id="res-grafica-imputado"></div>
         </div>
         <div id="res-vista-conjunto" hidden>
           <div class="res-tabla" id="res-tabla" role="table" aria-label="Error de cada método"></div>
@@ -168,12 +174,13 @@ function montarResultados() {
   resImp.ui = {
     raiz, metodos: q("#res-metodos"), ayudaLateral: q("#res-ayuda-lateral"), falta: q("#res-falta"), faltaTexto: q("#res-falta-texto"), faltaIr: q("#res-falta-ir"),
     trabajo: q("#res-trabajo"), subpestanas: q("#res-subpestanas"), info: q("#res-info"), estado: q("#res-estado"),
-    vistaResumen: q("#res-vista-resumen"), medida: q("#res-medida"), tablaResumen: q("#res-tabla-resumen"), graficaResumen: q("#res-grafica-resumen"),
+    vistaResumen: q("#res-vista-resumen"), medida: q("#res-medida"), tablaResumen: q("#res-tabla-resumen"), graficaResumen: q("#res-grafica-resumen"), metodoGrafica: q("#res-metodo-grafica"), graficaImputado: q("#res-grafica-imputado"),
     vistaConjunto: q("#res-vista-conjunto"), tabla: q("#res-tabla"), grafica: q("#res-grafica"), detalle: q("#res-detalle"), tramos: q("#res-tramos"),
   };
   for (const [clave, nombre] of MEDIDAS_RESUMEN) resImp.ui.medida.append(new Option(nombre, clave));
   resImp.ui.medida.value = resImp.medida;
   resImp.ui.medida.addEventListener("change", () => { resImp.medida = resImp.ui.medida.value; pintarResultados(objetivoDeExplicada()); });
+  resImp.ui.metodoGrafica.addEventListener("change", () => { resImp.metodoGrafica = resImp.ui.metodoGrafica.value; pintarResultados(objetivoDeExplicada()); });
   resImp.ui.detalle.open = resImp.detalleAbierto;
   resImp.ui.detalle.addEventListener("toggle", () => { resImp.detalleAbierto = resImp.ui.detalle.open; });
   q("#res-todos").addEventListener("click", () => cambiarMetodosVisibles(true));
@@ -441,7 +448,7 @@ function pintarResultados(obj) {
   u.vistaResumen.hidden = !(esResumen && listo);
   u.vistaConjunto.hidden = !(!esResumen && listo);
   if (!listo) {
-    for (const g of [u.grafica, u.graficaResumen]) { try { Plotly.purge(g); } catch { /* aún no había gráfica */ } }
+    for (const g of [u.grafica, u.graficaResumen, u.graficaImputado]) { try { Plotly.purge(g); } catch { /* aún no había gráfica */ } }
     if (!resImp.error && obj && obj.aImputar && !hayMetodos && !resImp.cargando) {
       u.estado.textContent = sub.id === "sin" ? "Marca algún método a la izquierda para ver cómo imputa y cuánto se equivoca."
         : "Marca hot deck, regresión o EM a la izquierda para ver cómo imputan con estas explicativas.";
@@ -579,8 +586,7 @@ function alPulsarTabla(e) {
   }
 }
 
-function pintarGraficaResultados(filas, obj) {
-  const grafica = resImp.ui.grafica;
+function pintarGraficaResultados(filas, obj, grafica = resImp.ui.grafica) {
   if (!grafica || !grafica.isConnected || !obj) return;
   const c = colores();
   const { y, n, quitado, objetivo, serie } = obj;
@@ -607,7 +613,7 @@ function pintarGraficaResultados(filas, obj) {
     const comoReferencia = f.metodo === REFERENCIA_IMPUTACION && resImp.sub !== "sin";
     trazas.push({
       x, y: trazo, type: "scatter", mode: "lines+markers", name: f.nombre, opacity: atenuado ? 0.25 : comoReferencia ? 0.4 : 1,
-      line: { color: colorDeMetodo(f.metodo, c), width: resImp.destacado === f.metodo ? 3.5 : 1.8 }, marker: { size: 4 },
+      line: { color: f.color || colorDeMetodo(f.metodo, c), width: resImp.destacado === f.metodo ? 3.5 : 1.8 }, marker: { size: 4 },
       hovertemplate: "<b>%{y:.2f}</b>  ·  punto %{x}<extra>" + f.nombre + "</extra>",
     });
   }
@@ -725,6 +731,19 @@ function pintarResumenImputacion() {
   ids.forEach((id) => filaDe(id, false));
   filaDe(REFERENCIA_IMPUTACION, true);
   pintarGraficaResumen(conjuntos, ids, clave, nombreMedida, valorDe, etiqueta);
+  pintarImputadoResumen(conjuntos, ids);
+}
+
+// La serie con lo imputado por un método usando todas las explicativas, junto a lo original (lo conocido y el valor real de lo quitado)
+function pintarImputadoResumen(conjuntos, ids) {
+  const u = resImp.ui;
+  u.metodoGrafica.replaceChildren();
+  for (const id of ids) u.metodoGrafica.append(new Option(metodoDeImputacion(id).nombre, id));
+  if (!ids.includes(resImp.metodoGrafica)) resImp.metodoGrafica = ids[0];
+  u.metodoGrafica.value = resImp.metodoGrafica;
+  const todas = conjuntos.find((cj) => cj.spec.sub.id === "todas") || conjuntos[0];
+  const fila = (todas.datos.resultados || []).find((x) => x.metodo === resImp.metodoGrafica);
+  pintarGraficaResultados(fila ? [fila] : [], objetivoDeExplicada(), u.graficaImputado);
 }
 
 function pintarGraficaResumen(conjuntos, ids, clave, nombreMedida, valorDe, etiqueta) {

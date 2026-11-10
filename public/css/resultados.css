@@ -43,3 +43,4 @@
 .res-controles select { width: auto; height: 32px; margin: 0; padding: 0 8px; font-size: 0.88rem; }
 #res-grafica-resumen { width: 100%; height: 340px; margin: 16px 0; }
 .res-tabla > div.tenue { opacity: 0.5; }
+#res-grafica-imputado { width: 100%; height: 340px; margin: 16px 0; }
