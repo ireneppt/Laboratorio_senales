@@ -111,3 +111,12 @@ def test_cada_metodo_tiene_nombre_grupo_y_funcion():
 def test_sin_valor_real_no_hay_metricas():
     r = imputar([1, 2, None, 4, 5], [], [], [{"metodo": "interpolacion"}])["resultados"][0]
     assert r["metricas"]["n"] == 0 and r["metricas"]["mae"] is None and r["imputado"][2] == 3
+
+
+def test_rmse_estandarizado_divide_entre_la_desviacion_de_lo_conocido():
+    conocidos = np.array([10.0, 14.0])                    # desviación típica 2
+    assert metricas.rmse_estandarizado(3.0, conocidos) == pytest.approx(1.5)
+    assert metricas.rmse_estandarizado(0.0, conocidos) == 0
+    assert metricas.rmse_estandarizado(3.0, np.array([5.0, 5.0])) is None     # lo conocido no varía
+    # no depende de las unidades: con todo multiplicado por 10, sale lo mismo
+    assert metricas.rmse_estandarizado(30.0, conocidos * 10) == pytest.approx(1.5)

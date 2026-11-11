@@ -32,7 +32,8 @@ const REFERENCIA_IMPUTACION = "interpolacion";
 const MEDIDAS_RESUMEN = [
   ["rmse", "RMSE", false],
   ["mae", "Error absoluto medio (MAE)", false],
-  ["r2", "R² frente al real", true],
+  ["rmse_est", "RMSE estandarizado", false],
+  ["r2", "R²", true],
   ["mejora", "Mejora sobre la interpolación", true],
 ];
 
@@ -127,7 +128,7 @@ const porcentajeResultado = (v) => (v === null || v === undefined ? "—" : `${v
 const decimalesResultado = (v) => (v === null || v === undefined ? "—" : v.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 function formatoMedida(clave, v) {
   if (clave === "mejora") return porcentajeResultado(v);
-  if (clave === "r2") return decimalesResultado(v);
+  if (clave === "r2" || clave === "rmse_est") return decimalesResultado(v);
   return numeroResultado(v);
 }
 
@@ -639,14 +640,17 @@ function filasDeResultados(vista) {
   return ids.map(metodoDeImputacion).filter(Boolean).map((m) => delServidor[m.id] || { metodo: m.id, nombre: m.nombre, grupo: m.grupo, error: "Sin resultado" });
 }
 
+const AYUDA_RESULTADOS = {};   // se rellena justo debajo: la explicación de cada columna, también para sus celdas
 const COLUMNAS_RESULTADOS = [
   ["nombre", "Método", "El método de imputación. Pulsa una fila para resaltarlo en la gráfica."],
   ["mae", "Error absoluto medio (MAE)", "La media de las distancias entre lo imputado y el valor real, en las unidades de la serie. Menos es mejor."],
   ["rmse", "RMSE", "Como el MAE, pero castiga más los fallos grandes. Menos es mejor."],
-  ["r2", "R² frente al real", "Qué parte de lo quitado recupera el método. 1 = perfecto; 0 = igual que imputar la media de lo conocido; negativo = peor que eso. Más es mejor."],
+  ["rmse_est", "RMSE estandarizado", "RMSE / desviación típica de los datos conocidos. Es el error sin unidades, para comparar series distintas: 0 = perfecto; 1 = un error tan grande como lo que varía la serie. Menos es mejor."],
+  ["r2", "R²", "R² = 1 − Σ(real − imputado)² / Σ(real − media de lo conocido)², sobre los puntos que quitaste. 1 = perfecto; 0 = igual que rellenar con la media; negativo = peor que eso. No es la correlación al cuadrado. Más es mejor."],
   ["mejora", "Mejora sobre la interpolación", "1 − RMSE del método / RMSE de la interpolación lineal. Positivo = mejor que la interpolación (35 % = un 35 % menos de error); negativo = peor."],
   ["n", "Puntos medidos", "Puntos quitados por ti, con valor real, que el método ha conseguido imputar."],
 ];
+for (const [clave, , ayuda] of COLUMNAS_RESULTADOS) AYUDA_RESULTADOS[clave] = ayuda;
 
 function pintarTablaResultados(filas, obj) {
   const tabla = resImp.ui.tabla;
@@ -665,7 +669,7 @@ function pintarTablaResultados(filas, obj) {
   }
   // el mejor de cada columna
   const mejor = {};
-  for (const [c, mayorEsMejor] of [["mae", false], ["rmse", false], ["r2", true], ["mejora", true]]) {
+  for (const [c, mayorEsMejor] of [["mae", false], ["rmse", false], ["rmse_est", false], ["r2", true], ["mejora", true]]) {
     const valores = filas.map((f) => valor(f, c)).filter((v) => v !== null);
     if (valores.length > 1 || (valores.length === 1 && filas.length === 1)) mejor[c] = mayorEsMejor ? Math.max(...valores) : Math.min(...valores);
   }
@@ -719,10 +723,12 @@ function pintarTablaResultados(filas, obj) {
     const poner = (clave, texto) => {
       const d = celda("valor" + (mejor[clave] !== undefined && m[clave] === mejor[clave] ? " mejor" : ""));
       d.textContent = texto;
+      d.title = AYUDA_RESULTADOS[clave] || "";
       tabla.append(d);
     };
     poner("mae", numeroResultado(m.mae));
     poner("rmse", numeroResultado(m.rmse));
+    poner("rmse_est", decimalesResultado(m.rmse_est));
     poner("r2", decimalesResultado(m.r2));
     poner("mejora", f.metodo === REFERENCIA_IMPUTACION ? "—" : porcentajeResultado(m.mejora));
     const n = celda("n");
@@ -740,7 +746,7 @@ function alPulsarTabla(e) {
   const boton = e.target.closest("[data-orden]");
   if (boton) {
     const columna = boton.dataset.orden;
-    resImp.orden = resImp.orden.columna === columna ? { columna, sentido: -resImp.orden.sentido } : { columna, sentido: ["mae", "rmse", "nombre"].includes(columna) ? 1 : -1 };
+    resImp.orden = resImp.orden.columna === columna ? { columna, sentido: -resImp.orden.sentido } : { columna, sentido: ["mae", "rmse", "rmse_est", "nombre", "conjunto"].includes(columna) ? 1 : -1 };
     pintarResultados(objetivoDeExplicada());
     return;
   }
@@ -911,7 +917,7 @@ function pintarTablaComparacion(filas, dibujadas) {
     });
   }
   const mejor = {};
-  for (const [c, mayorEsMejor] of [["mae", false], ["rmse", false], ["r2", true], ["mejora", true]]) {
+  for (const [c, mayorEsMejor] of [["mae", false], ["rmse", false], ["rmse_est", false], ["r2", true], ["mejora", true]]) {
     const valores = filas.map((f) => valor(f, c)).filter((v) => v !== null);
     if (valores.length > 1 || (valores.length === 1 && filas.length === 1)) mejor[c] = mayorEsMejor ? Math.max(...valores) : Math.min(...valores);
   }
@@ -981,10 +987,12 @@ function pintarTablaComparacion(filas, dibujadas) {
     const poner = (clave, texto) => {
       const d = celda("valor" + (mejor[clave] !== undefined && m[clave] === mejor[clave] ? " mejor" : ""));
       d.textContent = texto;
+      d.title = AYUDA_RESULTADOS[clave] || "";
       tabla.append(d);
     };
     poner("mae", numeroResultado(m.mae));
     poner("rmse", numeroResultado(m.rmse));
+    poner("rmse_est", decimalesResultado(m.rmse_est));
     poner("r2", decimalesResultado(m.r2));
     poner("mejora", f.esReferencia ? "—" : porcentajeResultado(m.mejora));
     const n = celda("n");

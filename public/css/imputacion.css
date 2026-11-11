@@ -160,6 +160,8 @@
 .cor-matriz-rejilla .celda.alta { outline: 2px solid var(--ink); outline-offset: -2px; }
 .cor-matriz-rejilla .celda.resaltada { box-shadow: 0 0 0 2px var(--series-1); }
 .cor-matriz-rejilla .cab-col.resaltada, .cor-matriz-rejilla .cab-fila.resaltada { color: var(--ink); }
+.cor-matriz-rejilla .explicada { color: var(--ink); font-weight: 750; }
+.cor-matriz-rejilla .cab-fila small { color: var(--muted); font-size: 0.72rem; font-weight: 400; }
 .cor-cruzada { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--axis); }
 .cor-cruzada h3 { margin: 0 0 12px; font-size: 1.05rem; }
 .cor-controles { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 20px; margin-bottom: 8px; }

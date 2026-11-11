@@ -71,6 +71,7 @@ function montarExplicativas() {
               <option value="real">Tal cual (valores originales)</option>
               <option value="base100">Empezar todas en 100</option>
               <option value="z">Misma escala (media 0)</option>
+              <option value="minmax">Min-max (de 0 a 1)</option>
             </select>
           </label>
           <small class="ayuda" style="margin:0">Arrastra sobre la gráfica para acercar; doble clic para verla entera. Lo naranja es lo que hay que imputar.</small>
@@ -289,6 +290,11 @@ function escalarValores(valores, modo) {
   if (modo === "base100") {
     const base = conocidos.find((v) => v !== 0);
     return base === undefined ? valores : valores.map((v) => (v === null ? null : (v / Math.abs(base)) * 100));
+  }
+  if (modo === "minmax") {
+    const minimo = Math.min(...conocidos), maximo = Math.max(...conocidos);
+    const rango = maximo - minimo || 1;                       // una serie constante se queda en 0
+    return valores.map((v) => (v === null ? null : (v - minimo) / rango));
   }
   const media = conocidos.reduce((a, b) => a + b, 0) / conocidos.length;
   const desviacion = Math.sqrt(conocidos.reduce((a, b) => a + (b - media) ** 2, 0) / conocidos.length) || 1;

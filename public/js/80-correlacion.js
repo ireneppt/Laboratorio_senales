@@ -361,7 +361,10 @@ function matrizDeCorrelaciones(elegidas, medida) {
 function pintarMatrizCorrelacion() {
   const u = cor.ui;
   if (!u.matriz || !u.matriz.isConnected) return;
-  const elegidas = explicativasElegidas().filter((x) => x.datos);
+  // la explicada va la primera (sin lo quitado: en la práctica no se conocería); detrás, las explicativas
+  const obj = objetivoDeExplicada();
+  const explicada = obj ? { ...obj.serie, datos: { y: obj.y.map((v, i) => (obj.quitado[i] ? null : v)) }, esExplicada: true } : null;
+  const elegidas = [...(explicada ? [explicada] : []), ...explicativasElegidas().filter((x) => x.datos)];
   const rejilla = u.matriz;
   rejilla.replaceChildren();
   u.matrizNota.hidden = true;
@@ -371,7 +374,7 @@ function pintarMatrizCorrelacion() {
     const aviso = document.createElement("p");
     aviso.className = "ayuda";
     aviso.style.margin = "0";
-    aviso.textContent = "Elige al menos dos variables explicativas para ver cómo se relacionan entre sí.";
+    aviso.textContent = "Elige al menos una variable explicativa para ver cómo se relacionan entre sí.";
     rejilla.append(aviso);
     return;
   }
@@ -388,6 +391,8 @@ function pintarMatrizCorrelacion() {
     cab.title = nombreDe(s);
     cab.setAttribute("role", "columnheader");
     cab.textContent = nombreDe(s);
+    cab.classList.toggle("explicada", Boolean(s.esExplicada));
+    if (s.esExplicada) cab.title = `${nombreDe(s)} (variable explicada)`;
     rejilla.append(cab);
   });
 
@@ -398,6 +403,12 @@ function pintarMatrizCorrelacion() {
     cab.dataset.fila = i;
     cab.setAttribute("role", "rowheader");
     cab.append(crearPunto(fila.color), nombreDe(fila));
+    if (fila.esExplicada) {
+      cab.classList.add("explicada");
+      const marca = document.createElement("small");
+      marca.textContent = "explicada";
+      cab.append(marca);
+    }
     rejilla.append(cab);
     elegidas.forEach((_, j) => {
       const { r, n } = celdas[i][j];
@@ -416,7 +427,7 @@ function pintarMatrizCorrelacion() {
           const intensidad = Math.round(Math.abs(r) * 85);
           celda.style.background = `color-mix(in srgb, var(${r < 0 ? "--series-4" : "--series-1"}) ${intensidad}%, var(--surface))`;
           celda.title = `${nombreDe(fila)} y ${nombreDe(elegidas[j])}: ${formatoCor.format(r)} (${n} puntos)`;
-          if (Math.abs(r) >= UMBRAL_PARECIDAS) {
+          if (Math.abs(r) >= UMBRAL_PARECIDAS && !fila.esExplicada && !elegidas[j].esExplicada) {   // con la explicada, alta es lo bueno
             celda.classList.add("alta");
             if (j > i) parecidas.push([nombreDe(fila), nombreDe(elegidas[j]), r]);
           }
