@@ -116,7 +116,7 @@ def media_estacional(p, parametros=None):
     _conocidos(p)
     periodo = (parametros or {}).get("periodo")
     if periodo is None:
-        raise ErrorDeEntrada("Indica el periodo de la estacionalidad")
+        raise ErrorDeEntrada("La serie no tiene periodo estacional: míralo en «Descomponer serie» (fase 1)")
     periodo = _entero(parametros, "periodo", None, 2, max(2, p.n // 2), "El periodo")
     quitar_tendencia = (parametros or {}).get("quitar_tendencia", True) is not False
     puntos = np.arange(p.n)

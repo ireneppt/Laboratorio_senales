@@ -44,3 +44,38 @@
 .pestanas .tab.activa button:hover:not(:disabled) { background: transparent; }
 .pestanas .tab.activa .cerrar:hover:not(:disabled) { background: var(--grid); }
 .pestanas .anadir-serie { border-color: var(--axis); color: var(--ink); }
+
+/* Animación de carga: un círculo que gira delante del texto ("Calculando…") */
+@keyframes girar { to { transform: rotate(360deg); } }
+.cargando { display: flex; align-items: center; gap: 10px; }
+.cargando::before {
+  content: ""; flex: none; width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid var(--axis); border-top-color: var(--series-1); animation: girar 0.8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) { .cargando::before { animation-duration: 2.4s; } }
+
+/* El "?" en la esquina del botón "Descomponer serie": cómo se ha calculado, paso a paso */
+.boton-con-ayuda { position: relative; flex: 1; display: flex; }
+.boton-con-ayuda > #boton-descomponer { flex: 1; }
+.acciones .boton-como {
+  position: absolute; top: -9px; right: -9px; flex: none; width: 24px; height: 24px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center; border-radius: 50%;
+  border: 1px solid var(--axis); background: var(--surface); color: var(--ink-2); font-size: 0.8rem; font-weight: 700;
+}
+.acciones .boton-como:hover, .acciones .boton-como.activo { background: var(--series-1); border-color: var(--series-1); color: #fff; }
+
+/* Componentes estimados de una serie manual */
+.cp { margin-top: 16px; }
+.cp-periodo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.cp-periodo label { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; white-space: nowrap; }
+.cp-periodo input[type=number] { flex: none; width: 90px; height: 32px; margin: 0; padding: 0 8px; }
+.cp-periodo button { width: auto; height: 32px; padding: 0 12px; font-size: 0.85rem; }
+.cp-estado { padding: 3px 10px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); font-size: 0.8rem; }
+.cp-estado.confirmado { background: color-mix(in srgb, var(--series-3) 22%, var(--surface)); color: var(--ink); }
+.cp-resumen { margin: 12px 0 6px; font-weight: 650; }
+.cp-aviso { margin: 6px 0; padding: 8px 12px; border-radius: 8px; background: color-mix(in srgb, var(--series-4) 18%, var(--surface)); font-size: 0.88rem; }
+.cp-aviso.error { background: color-mix(in srgb, var(--error) 14%, var(--surface)); }
+.cp-casillas { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 8px; }
+.cp-explicacion { margin-top: 16px; padding: 14px 18px; border: 1px solid var(--axis); border-radius: 10px; background: var(--surface-2); }
+.cp-explicacion h3 { margin: 0 0 8px; font-size: 0.95rem; }
+.cp-explicacion ol { margin: 0; padding-left: 20px; display: grid; gap: 8px; font-size: 0.9rem; line-height: 1.5; }

@@ -11,7 +11,6 @@
 .res-metodo > label.toggle { margin: 0; font-weight: 650; color: var(--ink); }
 .res-param { display: flex; align-items: center; gap: 8px; margin: 8px 0 0; font-size: 0.85rem; }
 .res-param input[type=number] { width: 80px; height: 32px; margin: 0; padding: 0 8px; font-size: 0.9rem; }
-.res-param .res-detectar { width: auto; height: 32px; margin: 0; padding: 0 10px; font-size: 0.82rem; }
 .res-param small { color: var(--muted); font-size: 0.76rem; }
 .res-param.toggle { margin-top: 8px; font-weight: 400; }
 .res-metodo small { display: block; margin-top: 4px; color: var(--muted); font-size: 0.76rem; }

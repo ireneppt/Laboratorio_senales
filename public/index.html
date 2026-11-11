@@ -373,7 +373,11 @@
         <div id="chart"></div>
         <!-- Solo en la vista de una serie: sus componentes por separado -->
         <div class="acciones">
-          <button type="button" id="boton-descomponer" hidden>Descomponer serie</button>
+          <span class="boton-con-ayuda">
+            <button type="button" id="boton-descomponer" hidden>Descomponer serie</button>
+            <button type="button" class="boton-como" id="boton-como" hidden aria-expanded="false"
+              aria-label="Cómo se han calculado los componentes, paso a paso" title="Cómo se ha calculado, paso a paso">?</button>
+          </span>
         </div>
         <div id="descomposicion" hidden></div>
       </section>
@@ -404,6 +408,7 @@
   <script src="js/20-series.js"></script>
   <script src="js/30-grafica.js"></script>
   <script src="js/40-series-manuales.js"></script>
+  <script src="js/45-componentes.js"></script>
   <script src="js/50-fases.js"></script>
   <script src="js/60-explicada.js"></script>
   <script src="js/70-explicativas.js"></script>

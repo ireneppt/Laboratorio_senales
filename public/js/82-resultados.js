@@ -34,7 +34,7 @@ const METODOS_IMPUTACION = [
   { id: "media_movil_pond_atras", nombre: "Media móvil ponderada (solo anteriores)", grupo: "referencia", explicativas: false,
     ayuda: "Como la media móvil solo con anteriores, pero cada dato pesa 1 / su distancia en el tiempo al punto. Al principio de la serie no imputa. Tú eliges k." },
   { id: "media_estacional", nombre: "Media estacional", grupo: "referencia", explicativas: false,
-    ayuda: "Media de los datos conocidos que están en el mismo momento del ciclo (un periodo antes, dos antes… y después). Con «Quitar la tendencia», antes se quita una recta y luego se vuelve a sumar. «Detectar» busca el periodo con la autocorrelación." },
+    ayuda: "Media de los datos conocidos que están en el mismo momento del ciclo (un periodo antes, dos antes… y después). Con «Quitar la tendencia», antes se quita una recta y luego se vuelve a sumar. El periodo es el de la serie: el de «Descomponer serie» en la fase 1 (o el de su estacionalidad, si es generada)." },
   { id: "interpolacion", nombre: "Interpolación lineal", grupo: "referencia", explicativas: false,
     ayuda: "Une los datos conocidos con rectas. Es la referencia con la que se compara la mejora de cada método." },
   { id: "polinomica", nombre: "Interpolación polinómica (spline cúbica)", grupo: "referencia", explicativas: false,
@@ -209,62 +209,29 @@ function maximoKMovil() {
   const obj = objetivoDeExplicada();
   return obj ? Math.max(1, obj.y.filter((v, i) => v !== null && !obj.quitado[i]).length) : 10000;
 }
-// el periodo llega como mucho a la mitad de la serie (hace falta ver el ciclo al menos dos veces)
-function maximoPeriodo() {
-  const obj = objetivoDeExplicada();
-  return obj ? Math.max(2, Math.floor(obj.n / 2)) : 5000;
-}
-
 // Parámetros de cada método: dónde se guardan en el proyecto (clave), cómo se llaman en la API, su texto y sus límites.
-// Los enteros se escriben en una casilla de número; "casilla" es un sí/no. Con "detectar", vacío = automático.
+// Los enteros se escriben en una casilla de número; "casilla" es un sí/no. El periodo de la media estacional no se
+// elige aquí: es el de la serie (el de «Descomponer serie» en la fase 1, o el de su estacionalidad si es generada).
 const PARAMETROS_DE_METODO = {
   media_movil: [{ clave: "k_movil", api: "k", texto: "Datos a cada lado (k)", min: 1, max: maximoKMovil }],
   media_movil_atras: [{ clave: "k_movil_atras", api: "k", texto: "Datos anteriores (k)", min: 1, max: maximoKMovil }],
   media_movil_pond: [{ clave: "k_movil_pond", api: "k", texto: "Datos a cada lado (k)", min: 1, max: maximoKMovil }],
   media_movil_pond_atras: [{ clave: "k_movil_pond_atras", api: "k", texto: "Datos anteriores (k)", min: 1, max: maximoKMovil }],
-  media_estacional: [
-    { clave: "periodo_estacional", api: "periodo", texto: "Periodo", min: 2, max: maximoPeriodo, detectar: true },
-    { clave: "quitar_tendencia", api: "quitar_tendencia", texto: "Quitar la tendencia antes", tipo: "casilla" },
-  ],
+  media_estacional: [{ clave: "quitar_tendencia", api: "quitar_tendencia", texto: "Quitar la tendencia antes", tipo: "casilla" }],
   polinomica_local: [{ clave: "grado_polinomica", api: "grado", texto: "Grado", min: 1, max: () => 5 }],
 };
 const definicionDeParametro = (clave) => Object.values(PARAMETROS_DE_METODO).flat().find((d) => d.clave === clave);
-
-// El periodo más probable de la estacionalidad de la explicada: el primer máximo claro de la autocorrelación de lo
-// conocido (sin lo quitado y sin la tendencia). null si no hay ningún ciclo claro.
-function detectarPeriodo() {
-  const obj = objetivoDeExplicada();
-  if (!obj) return null;
-  const y = obj.y.map((v, i) => (obj.quitado[i] ? null : v));
-  const puntos = y.map((v, i) => (v === null ? null : i)).filter((i) => i !== null);
-  if (puntos.length < 8) return null;
-  const mx = puntos.reduce((a, i) => a + i, 0) / puntos.length;
-  const my = puntos.reduce((a, i) => a + y[i], 0) / puntos.length;
-  const pendiente = puntos.reduce((a, i) => a + (i - mx) * (y[i] - my), 0) / puntos.reduce((a, i) => a + (i - mx) ** 2, 0);
-  const resto = y.map((v, i) => (v === null ? null : v - my - pendiente * (i - mx)));
-  const tope = Math.min(maximoPeriodo(), 400);
-  const acf = [null];
-  for (let k = 1; k <= tope + 1; k++) {
-    const xs = [], ys = [];
-    for (let t = 0; t + k < resto.length; t++) if (resto[t] !== null && resto[t + k] !== null) { xs.push(resto[t]); ys.push(resto[t + k]); }
-    acf.push(xs.length >= 6 ? correlacionPearson(xs, ys) : null);
-  }
-  let mejor = null;
-  for (let k = 2; k <= tope; k++) {
-    const a = acf[k];
-    if (a === null || a < 0.3 || !(a > (acf[k - 1] ?? -2) && a >= (acf[k + 1] ?? -2))) continue;   // un pico claro
-    if (!mejor || a > mejor.a + 0.05) mejor = { k, a };       // ante picos parecidos, el primero (los demás son sus múltiplos)
-  }
-  return mejor ? mejor.k : null;
-}
 
 function pedidosDe(ids) {
   return ids.map((id) => {
     const parametros = {};
     for (const d of PARAMETROS_DE_METODO[id] || []) {
-      let valor = imputacion.parametros[d.clave];
-      if (d.detectar && (valor === null || valor === undefined)) valor = detectarPeriodo();
+      const valor = imputacion.parametros[d.clave];
       if (valor !== null && valor !== undefined) parametros[d.api] = valor;
+    }
+    if (id === "media_estacional") {
+      const periodo = periodoDeSerie(serieExplicada());
+      if (periodo) parametros.periodo = periodo;
     }
     return { metodo: id, parametros };
   });
@@ -345,7 +312,6 @@ function montarResultados() {
   q("#res-todos").addEventListener("click", () => cambiarMetodosVisibles(true));
   q("#res-ninguno").addEventListener("click", () => cambiarMetodosVisibles(false));
   resImp.ui.metodos.addEventListener("change", alCambiarMetodo);
-  resImp.ui.metodos.addEventListener("click", alPulsarEnMetodos);
   resImp.ui.tabla.addEventListener("click", alPulsarTabla);
   resImp.ui.subpestanas.addEventListener("click", alPulsarVentana);
   resImp.ui.combinaciones.addEventListener("click", alPulsarVentana);
@@ -539,29 +505,8 @@ function campoDeParametro(d, m) {
     return campo;
   }
   entrada.type = "number"; entrada.min = d.min; entrada.max = d.max(); entrada.step = 1;
-  const guardado = imputacion.parametros[d.clave];
+  entrada.value = imputacion.parametros[d.clave];
   campo.append(`${d.texto} `, entrada);
-  if (d.detectar) {
-    const automatico = guardado === null || guardado === undefined;
-    const detectado = automatico ? detectarPeriodo() : null;
-    entrada.value = automatico ? (detectado ?? "") : guardado;
-    entrada.title = automatico ? (detectado ? "Detectado con la autocorrelación. Escribe otro si quieres." : "No se ha encontrado un ciclo claro: escribe el periodo.") : "";
-    const boton = document.createElement("button");
-    boton.type = "button";
-    boton.className = "res-detectar";
-    boton.dataset.accion = "detectar";
-    boton.dataset.param = d.clave;
-    boton.textContent = "Detectar";
-    boton.title = "Calcula el periodo con la autocorrelación de los datos conocidos";
-    campo.append(boton);
-    if (automatico) {
-      const nota = document.createElement("small");
-      nota.textContent = detectado ? "detectado" : "sin ciclo claro";
-      campo.append(nota);
-    }
-  } else {
-    entrada.value = guardado;
-  }
   return campo;
 }
 
@@ -593,8 +538,6 @@ function alCambiarMetodo(e) {
   let valor;
   if (d.tipo === "casilla") {
     valor = objetivo.checked;
-  } else if (d.detectar && objetivo.value.trim() === "") {
-    valor = null;                                              // vacío: vuelve a automático
   } else {
     valor = Math.min(Math.max(parseInt(objetivo.value) || d.min, d.min), d.max());
     objetivo.value = valor;
@@ -602,17 +545,6 @@ function alCambiarMetodo(e) {
   if (valor === imputacion.parametros[d.clave]) return;
   imputacion.parametros[d.clave] = valor;
   cambioImputacion();
-  if (d.detectar) pintarMetodosImputacion();                   // para quitar o poner el "detectado"
-  ejecutarImputacion();
-}
-
-// "Detectar": el periodo vuelve a ser automático (el que sale de la autocorrelación)
-function alPulsarEnMetodos(e) {
-  const boton = e.target.closest('button[data-accion="detectar"]');
-  if (!boton) return;
-  imputacion.parametros[boton.dataset.param] = null;
-  cambioImputacion();
-  pintarMetodosImputacion();
   ejecutarImputacion();
 }
 
@@ -718,6 +650,7 @@ function pintarEstadoResultados() {
   const estado = resImp.ui.estado;
   estado.textContent = resImp.cargando ? "Calculando…" : resImp.error;
   estado.classList.toggle("error", Boolean(resImp.error));
+  estado.classList.toggle("cargando", resImp.cargando);
   estado.hidden = !estado.textContent;
 }
 

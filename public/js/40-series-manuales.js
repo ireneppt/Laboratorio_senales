@@ -134,6 +134,7 @@ function cambioManual(s, escribirTexto = true) {
   recalcularManual(s);
   pintarPanelManual(s, escribirTexto);
   pintar();
+  programarPeriodo(s);   // el periodo estacional sugerido, en segundo plano
 }
 
 // Toma los valores de un texto (escrito, pegado o leído de un archivo).
@@ -366,6 +367,7 @@ function anadirSerieManual(origen) {
   s.origen = origen;
   s.nombre = `Serie ${NOMBRE_ORIGEN[origen]} ${s.id}`.slice(0, 30);
   s.manual = { y: Array(100).fill(null), yMin: 0, yMax: 100, col: 0, tabla: null, archivo: "", avisoCorte: false };
+  s.periodo = periodoVacio();
   recalcularManual(s);
   series.push(s);
   activa = s;

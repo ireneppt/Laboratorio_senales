@@ -159,7 +159,12 @@ function pintarDescomposicion() {
   contDescomposicion.replaceChildren();
 
   const s = vista === "todas" ? null : series.find((x) => x.id === vista);
-  botonDescomponer.hidden = !s || esManual(s); // en "Todas" y en las manuales no hay descomposición
+  botonDescomponer.hidden = !s;                  // en "Todas" no hay descomposición
+  botonComo.hidden = !s || !esManual(s);         // el "?" explica lo que se estima: solo en las manuales
+  if (s && esManual(s)) {                        // las manuales no se generan por bloques: sus componentes se estiman
+    pintarComponentesManual(s);
+    return;
+  }
   if (!s || !s.datos || !s.descomponer) {
     contDescomposicion.hidden = true;
     botonDescomponer.textContent = "Descomponer serie";

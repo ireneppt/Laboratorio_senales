@@ -5,6 +5,7 @@ from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from senales import Anomalias, Ciclos, ErrorDeEntrada, Estacionalidad, Huecos, Ruido, Tendencia, generar_serie
+from senales.componentes import analizar
 from senales.imputacion import imputar
 from senales.constantes import (
     MAGNITUD_ALEATORIA, MAX_ANOMALIAS, MAX_CICLOS, MAX_ESTACIONALIDADES, MAX_HUECOS, PHI_AUTOCORRELACION,
@@ -127,6 +128,20 @@ class PeticionImputar(BaseModel):
     quitados: list[tuple[int, int]] = Field(default=[], max_length=1000)  # tramos [desde, hasta] que se le han quitado para probar
     explicativas: list[list[float | None]] = Field(default=[], max_length=20)
     metodos: list[MetodoPedido] = Field(min_length=1, max_length=30)   # holgado: hay más de 10 métodos y vendrán más
+
+
+class PeticionComponentes(BaseModel):
+    y: list[float | None] = Field(min_length=3, max_length=10_000)         # la serie, con None donde le falta
+    periodo: int | None = Field(default=None, ge=2, le=5000)              # el del usuario; sin él, se sugiere
+
+
+@app.post("/api/componentes")
+def post_componentes(peticion: PeticionComponentes):
+    """Periodo estacional, descomposición (tendencia, estacionalidad y resto), fuerzas, pendiente y anomalías de una serie."""
+    try:
+        return analizar(peticion.y, peticion.periodo)
+    except ErrorDeEntrada as error:
+        raise HTTPException(422, str(error))
 
 
 @app.post("/api/imputar")

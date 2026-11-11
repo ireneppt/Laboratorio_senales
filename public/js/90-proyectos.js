@@ -4,7 +4,7 @@
 // (con las semillas, así que sale idéntica); de las manuales, sus valores. Nada de lo que es solo de pantalla
 // (pestaña abierta, zoom, secciones plegadas) forma parte del proyecto.
 const FORMATO = "laboratorio-senales";
-const VERSION_FORMATO = 6;          // sube cuando cambie el formato; MIGRACIONES[n] pasa de la versión n a la n+1
+const VERSION_FORMATO = 7;          // sube cuando cambie el formato; MIGRACIONES[n] pasa de la versión n a la n+1
 const MIGRACIONES = {
   1: (doc) => ({ ...doc, version: 2, imputacion: estadoImputacionVacio() }), // v2 añade la fase de imputación
   2: (doc) => ({ ...doc, version: 3, imputacion: { ...doc.imputacion, explicativas: [] } }), // v3 añade las variables explicativas
@@ -21,6 +21,7 @@ const MIGRACIONES = {
     if (metodos.todas) { metodos["multi:1"] = metodos.todas; delete metodos.todas; }
     return { ...doc, version: 6, imputacion: { ...doc.imputacion, metodos, combinaciones: [{ id: 1, explicativas: null }] } };
   },
+  6: (doc) => ({ ...doc, version: 7 }), // v7: las series manuales guardan su periodo estacional (las anteriores lo calculan al abrirse)
 };
 const ID_BORRADOR = "__borrador__"; // copia automática del trabajo sin guardar, por si se cierra la página
 const NOMBRE_SIN_TITULO = "Proyecto sin título";
@@ -74,12 +75,14 @@ const almacen = (() => {
 let proyecto = { id: null, creado: null }; // id null = todavía no se ha guardado
 let ultimaGuardada = "";                   // cómo estaba el trabajo al guardarlo o abrirlo (para saber si hay cambios)
 
-function serializarSeries() {
+// "paraComparar": sin el periodo sugerido, que se calcula solo (si no, abrir un proyecto ya lo daría por modificado)
+function serializarSeries(paraComparar = false) {
   guardarActiva();
   return series.map((s) => {
     const comun = { id: s.id, nombre: s.nombre, slot: s.slot, color: s.color };
+    const periodo = paraComparar && s.periodo && s.periodo.estado !== "confirmado" ? undefined : s.periodo;
     return esManual(s)
-      ? { ...comun, tipo: "manual", origen: s.origen, manual: { y: s.manual.y, yMin: s.manual.yMin, yMax: s.manual.yMax, col: s.manual.col, archivo: s.manual.archivo } }
+      ? { ...comun, tipo: "manual", origen: s.origen, manual: { y: s.manual.y, yMin: s.manual.yMin, yMax: s.manual.yMax, col: s.manual.col, archivo: s.manual.archivo, periodo } }
       : { ...comun, tipo: "generada", estado: s.estado };
   });
 }
@@ -91,7 +94,7 @@ function construirDoc() {
 // Claves ordenadas: el mismo contenido da siempre el mismo texto, aunque los campos estén en otro orden
 const ordenarClaves = (_, valor) => valor && typeof valor === "object" && !Array.isArray(valor)
   ? Object.fromEntries(Object.entries(valor).sort(([a], [b]) => a.localeCompare(b))) : valor;
-const instantanea = () => JSON.stringify({ nombre: nombreProyecto(), series: serializarSeries(), imputacion }, ordenarClaves);
+const instantanea = () => JSON.stringify({ nombre: nombreProyecto(), series: serializarSeries(true), imputacion }, ordenarClaves);
 
 // Un proyecto guardado con menos campos (de una versión anterior) se completa con los valores por defecto.
 function estadoDesdeGuardado(guardado) {
@@ -122,7 +125,11 @@ function serieDesdeGuardada(g) {
       y: y.length >= 2 ? y : Array(100).fill(null), yMin: Number.isFinite(m.yMin) ? m.yMin : 0, yMax: Number.isFinite(m.yMax) ? m.yMax : 100,
       col: Number.isInteger(m.col) ? m.col : 0, tabla: null, archivo: String(m.archivo ?? ""), avisoCorte: false,
     };
+    const pg = m.periodo;
+    const valido = pg && ["sugerido", "confirmado", "ninguno"].includes(pg.estado) && (pg.valor === null || (Number.isInteger(pg.valor) && pg.valor >= 2));
+    s.periodo = valido ? { valor: pg.valor, estado: pg.estado } : periodoVacio();
     recalcularManual(s);
+    if (s.periodo.estado === null) programarPeriodo(s);   // de una versión anterior: se calcula al abrir
   }
   return s;
 }
