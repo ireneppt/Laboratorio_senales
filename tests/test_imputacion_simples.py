@@ -141,3 +141,77 @@ def test_media_movil_solo_anteriores_en_un_hueco_repite_la_media_de_antes_y_al_p
     completa = simples.media_movil_anteriores(problema([None, 10, 20, None, None, 40]), {"k": 2})
     assert np.isnan(completa[0])                                              # al principio no hay nada antes
     assert completa[3:5].tolist() == [15, 15]
+
+
+# ---------------------------------------------------------------- medias móviles ponderadas
+def test_media_movil_ponderada_pesa_1_entre_la_distancia():
+    p = problema([10, None, None, 40])
+    # punto 1: el 10 está a 1 (peso 1) y el 40 a 2 (peso 1/2) -> (10 + 20) / 1,5 = 20
+    completa = simples.media_movil_ponderada(p, {"k": 1})
+    assert completa[1] == pytest.approx(20) and completa[2] == pytest.approx(30)
+    assert simples.media_movil(p, {"k": 1})[1] == pytest.approx(25)          # la simple no pondera
+
+
+def test_media_movil_ponderada_solo_anteriores():
+    p = problema([2, 4, None, 8])
+    # punto 2: el 4 está a 1 (peso 1) y el 2 a 2 (peso 1/2) -> (4 + 1) / 1,5
+    assert simples.media_movil_ponderada_anteriores(p, {"k": 2})[2] == pytest.approx(5 / 1.5)
+    assert np.isnan(simples.media_movil_ponderada_anteriores(problema([None, 1, 2]), {"k": 2})[0])
+
+
+# ---------------------------------------------------------------- media estacional
+def test_media_estacional_sin_tendencia_media_del_mismo_momento_del_ciclo():
+    y = [1, 5, 9, 2, 6, 10, None, 7, 11]                  # periodo 3: momentos 0 -> 1, 2, ?
+    completa = simples.media_estacional(problema(y), {"periodo": 3, "quitar_tendencia": False})
+    assert completa[6] == pytest.approx(1.5)
+
+
+def test_media_estacional_quitando_la_tendencia_recupera_tendencia_mas_ciclo():
+    puntos = np.arange(48)
+    real = 0.5 * puntos + np.tile([3.0, -1.0, 0.0, -2.0], 12)  # recta + ciclo de periodo 4 (de media 0)
+    p = problema(list(real), quitados=[(40, 43)])           # cerca del final: casi todos los ciclos conocidos van antes
+    con = simples.media_estacional(p, {"periodo": 4})
+    sin = simples.media_estacional(p, {"periodo": 4, "quitar_tendencia": False})
+    assert np.abs(con[40:44] - real[40:44]).max() < 0.2
+    assert np.abs(sin[40:44] - real[40:44]).max() > 5               # sin quitar la tendencia se queda por debajo
+
+
+def test_media_estacional_necesita_un_periodo_valido():
+    for parametros in ({}, {"periodo": 1}, {"periodo": 3.5}, {"periodo": "4"}, {"periodo": 100}):
+        with pytest.raises(ErrorDeEntrada, match="periodo"):
+            simples.media_estacional(problema([1, None, 3, 4, 5, 6]), parametros)
+
+
+def test_media_estacional_sin_datos_en_ese_momento_del_ciclo_no_imputa():
+    completa = simples.media_estacional(problema([1, None, 3, 4, None, 6]), {"periodo": 3, "quitar_tendencia": False})
+    assert np.isnan(completa[1]) and np.isnan(completa[4])       # el momento 1 del ciclo no tiene ningún dato
+
+
+# ---------------------------------------------------------------- polinómica local
+def test_polinomica_local_de_grado_1_es_la_lineal():
+    p = problema([0, None, 4, None, None, 10, 3])
+    assert simples.polinomica_local(p, {"grado": 1}).tolist() == pytest.approx(simples.interpolacion(p).tolist())
+
+
+def test_polinomica_local_de_grado_2_recupera_una_parabola():
+    y = [float((i - 5) ** 2) for i in range(12)]
+    con_huecos = [None if i in (4, 5, 6) else v for i, v in enumerate(y)]
+    assert simples.polinomica_local(problema(con_huecos), {"grado": 2})[4:7].tolist() == pytest.approx([1, 0, 1])
+
+
+def test_polinomica_local_usa_al_menos_un_dato_a_cada_lado():
+    # el punto 1 tiene a la izquierda solo el 0; con grado 2 usa el 0 y los dos más cercanos de la derecha
+    p = problema([0, None, 4, 9, 16, 25])                 # y = x², exacta con grado 2
+    assert simples.polinomica_local(p, {"grado": 2})[1] == pytest.approx(1)
+
+
+def test_polinomica_local_grado_mal_da_error_y_por_defecto_es_2():
+    for grado in (0, 6, 2.0, True):
+        with pytest.raises(ErrorDeEntrada, match="grado"):
+            simples.polinomica_local(problema([1, None, 3, 4]), {"grado": grado})
+    y = [float(i * i) for i in range(8)]
+    assert simples.polinomica_local(problema([None if i == 3 else v for i, v in enumerate(y)]))[3] == pytest.approx(9)
+
+
+def test_polinomica_local_en_los_extremos_y_con_pocos_datos():
+    assert simples.polinomica_local(problema([None, 1, None, 3, None]), {"grado": 4}).tolist() == [1, 1, 2, 3, 3]

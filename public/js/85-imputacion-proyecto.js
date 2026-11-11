@@ -47,6 +47,9 @@ function imputacionDesdeGuardada(guardada, mapa) {
   // parámetros de métodos (los de hot deck y serie donante, que ya no existen, se descartan)
   const p = (guardada && guardada.parametros) || {};
   e.parametros = PARAMETROS_IMPUTACION_INICIALES();
-  for (const clave of ["k_movil", "k_movil_atras"]) if (Number.isInteger(p[clave]) && p[clave] >= 1) e.parametros[clave] = p[clave];
+  for (const clave of ["k_movil", "k_movil_atras", "k_movil_pond", "k_movil_pond_atras"]) if (Number.isInteger(p[clave]) && p[clave] >= 1) e.parametros[clave] = p[clave];
+  if (Number.isInteger(p.periodo_estacional) && p.periodo_estacional >= 2) e.parametros.periodo_estacional = p.periodo_estacional;
+  if (typeof p.quitar_tendencia === "boolean") e.parametros.quitar_tendencia = p.quitar_tendencia;
+  if (Number.isInteger(p.grado_polinomica) && p.grado_polinomica >= 1 && p.grado_polinomica <= 5) e.parametros.grado_polinomica = p.grado_polinomica;
   return e;
 }

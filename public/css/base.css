@@ -27,6 +27,9 @@
   --extra-3: #7cb342;
   --extra-4: #8e6cc9;
   --extra-5: #b5179e;
+  --extra-6: #3f51b5;
+  --extra-7: #afb42b;
+  --extra-8: #d84315;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -54,6 +57,9 @@
     --extra-3: #5f9a2c;
     --extra-4: #8e6cc9;
     --extra-5: #b5179e;
+    --extra-6: #6f7fe0;
+    --extra-7: #8f9420;
+    --extra-8: #d84315;
   }
 }
 

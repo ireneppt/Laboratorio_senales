@@ -104,7 +104,7 @@ def test_un_metodo_desconocido_da_error():
 
 
 def test_cada_metodo_tiene_nombre_grupo_y_funcion():
-    assert set(METODOS) == {"media", "mediana", "regresion", "em", "ultimo_valor", "siguiente_valor", "media_movil", "media_movil_atras", "interpolacion", "polinomica"}
+    assert set(METODOS) == {"media", "mediana", "regresion", "em", "ultimo_valor", "siguiente_valor", "media_movil", "media_movil_atras", "media_movil_pond", "media_movil_pond_atras", "media_estacional", "interpolacion", "polinomica", "polinomica_local"}
     assert {grupo for _, grupo, _, _ in METODOS.values()} == {"explicito", "referencia"}
 
 

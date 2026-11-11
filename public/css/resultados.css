@@ -11,6 +11,9 @@
 .res-metodo > label.toggle { margin: 0; font-weight: 650; color: var(--ink); }
 .res-param { display: flex; align-items: center; gap: 8px; margin: 8px 0 0; font-size: 0.85rem; }
 .res-param input[type=number] { width: 80px; height: 32px; margin: 0; padding: 0 8px; font-size: 0.9rem; }
+.res-param .res-detectar { width: auto; height: 32px; margin: 0; padding: 0 10px; font-size: 0.82rem; }
+.res-param small { color: var(--muted); font-size: 0.76rem; }
+.res-param.toggle { margin-top: 8px; font-weight: 400; }
 .res-metodo small { display: block; margin-top: 4px; color: var(--muted); font-size: 0.76rem; }
 .res-estado { margin-bottom: 12px; padding: 10px 14px; border-radius: 10px; background: var(--surface-2); font-size: 0.9rem; }
 .res-estado.error { background: color-mix(in srgb, var(--error) 14%, var(--surface)); }
@@ -59,3 +62,17 @@
 .res-combinaciones .tab.activa { background: var(--surface); }
 .res-combinaciones .tab:not(.activa) button:hover:not(:disabled) { background: var(--grid); }
 .res-aviso { margin: -6px 0 12px; color: var(--error); font-size: 0.9rem; font-weight: 650; }
+/* familias de métodos: un desplegable cada una; dentro, los métodos separados por una raya */
+.res-familia { margin-top: 10px; border: 1px solid var(--axis); border-radius: 10px; background: var(--surface); overflow: hidden; }
+.res-familia > summary {
+  display: flex; align-items: center; gap: 8px; padding: 10px 12px; cursor: pointer; font-weight: 650; color: var(--ink);
+}
+.res-familia > summary small { margin-left: auto; color: var(--muted); font-size: 0.8rem; font-weight: 400; }
+.res-familia > summary small.con-marcados { color: var(--ink); font-weight: 650; }
+.res-familia[open] > summary { border-bottom: 1px solid var(--grid); }
+.res-familia .res-metodo { margin: 0; border: 0; border-radius: 0; }
+.res-familia .res-metodo + .res-metodo { border-top: 1px solid var(--grid); }
+.res-familia > summary { list-style: none; }
+.res-familia > summary::-webkit-details-marker { display: none; }
+.res-familia > summary::before { content: "▶"; flex: none; font-size: 0.7rem; color: var(--ink-2); transition: transform 0.15s; }
+.res-familia[open] > summary::before { transform: rotate(90deg); }

@@ -126,7 +126,7 @@ class PeticionImputar(BaseModel):
     y: list[float | None] = Field(min_length=3, max_length=10_000)         # la explicada, con None donde le falta
     quitados: list[tuple[int, int]] = Field(default=[], max_length=1000)  # tramos [desde, hasta] que se le han quitado para probar
     explicativas: list[list[float | None]] = Field(default=[], max_length=20)
-    metodos: list[MetodoPedido] = Field(min_length=1, max_length=10)
+    metodos: list[MetodoPedido] = Field(min_length=1, max_length=30)   # holgado: hay más de 10 métodos y vendrán más
 
 
 @app.post("/api/imputar")

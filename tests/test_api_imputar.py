@@ -59,3 +59,12 @@ def test_la_k_de_la_media_movil_viaja_en_los_parametros():
     y = [1, 2, None, 4, 8]
     r = cliente.post("/api/imputar", json={"y": y, "metodos": [{"metodo": "media_movil", "parametros": {"k": 1}}, {"metodo": "media_movil", "parametros": {"k": 2}}]})
     assert [f["imputado"][2] for f in r.json()["resultados"]] == [3, 3.75]
+
+
+def test_se_pueden_pedir_todos_los_metodos_sin_explicativas_a_la_vez():
+    from senales.imputacion.ejecutar import METODOS
+    parametros = {"media_estacional": {"periodo": 4}}
+    sin_explicativas = [{"metodo": m, "parametros": parametros.get(m, {})} for m, (_, _, necesita, _) in METODOS.items() if not necesita]
+    assert len(sin_explicativas) > 10
+    r = pedir(metodos=sin_explicativas)
+    assert r.status_code == 200 and all(f["error"] is None for f in r.json()["resultados"])

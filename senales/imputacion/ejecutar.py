@@ -16,8 +16,12 @@ METODOS = {
     "siguiente_valor": ("Siguiente valor conocido", "referencia", False, simples.siguiente_valor),
     "media_movil": ("Media móvil centrada", "referencia", False, simples.media_movil),
     "media_movil_atras": ("Media móvil (solo anteriores)", "referencia", False, simples.media_movil_anteriores),
+    "media_movil_pond": ("Media móvil ponderada centrada", "referencia", False, simples.media_movil_ponderada),
+    "media_movil_pond_atras": ("Media móvil ponderada (solo anteriores)", "referencia", False, simples.media_movil_ponderada_anteriores),
+    "media_estacional": ("Media estacional", "referencia", False, simples.media_estacional),
     "interpolacion": ("Interpolación lineal", "referencia", False, simples.interpolacion),
     "polinomica": ("Interpolación polinómica (spline cúbica)", "referencia", False, simples.polinomica),
+    "polinomica_local": ("Interpolación polinómica local", "referencia", False, simples.polinomica_local),
 }
 REFERENCIA = "interpolacion"  # con qué se compara la mejora de cada método
 

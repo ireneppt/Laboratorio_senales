@@ -1,5 +1,5 @@
-"""Métodos que solo usan la propia serie: media, mediana, último y siguiente valor, media móvil e interpolación
-(lineal y polinómica)."""
+"""Métodos que solo usan la propia serie: media, mediana, último y siguiente valor, medias móviles (simples y
+ponderadas), media estacional e interpolación (lineal, spline cúbica y polinómica local)."""
 import numpy as np
 
 from ..errores import ErrorDeEntrada
@@ -60,11 +60,18 @@ def siguiente_valor(p, parametros=None):
     return completa
 
 
-def _media_movil(p, parametros, solo_anteriores):
+def _entero(parametros, clave, defecto, minimo, maximo, nombre):
+    """Un parámetro entero de un método, comprobado (los booleanos no valen como enteros)."""
+    valor = (parametros or {}).get(clave, defecto)
+    if not isinstance(valor, int) or isinstance(valor, bool) or not minimo <= valor <= maximo:
+        tope = "o más" if maximo == float("inf") else f"y {maximo}"
+        raise ErrorDeEntrada(f"{nombre} tiene que ser un número entero entre {minimo} {tope}")
+    return valor
+
+
+def _media_movil(p, parametros, solo_anteriores, ponderada=False):
     _conocidos(p)
-    k = (parametros or {}).get("k", 3)
-    if not isinstance(k, int) or isinstance(k, bool) or k < 1:
-        raise ErrorDeEntrada("El número de datos de la media móvil (k) tiene que ser un entero de 1 o más")
+    k = _entero(parametros, "k", 3, 1, float("inf"), "El número de datos de la media móvil (k)")
     conocidos = np.flatnonzero(~np.isnan(p.y))
     completa = p.y.copy()
     for i in np.flatnonzero(p.objetivo):
@@ -73,7 +80,8 @@ def _media_movil(p, parametros, solo_anteriores):
         if not solo_anteriores:
             vecinos = np.concatenate([vecinos, conocidos[posicion:posicion + k]])
         if len(vecinos):                                       # sin ninguno (al principio, solo con anteriores): sin imputar
-            completa[i] = p.y[vecinos].mean()
+            pesos = 1 / np.abs(vecinos - i) if ponderada else np.ones(len(vecinos))   # ponderada: 1 / distancia en el tiempo
+            completa[i] = np.average(p.y[vecinos], weights=pesos)
     return completa
 
 
@@ -87,6 +95,76 @@ def media_movil_anteriores(p, parametros=None):
     """Media móvil hacia atrás: la media de los últimos k datos conocidos antes del punto (solo el pasado). Al
     principio, donde no hay ninguno antes, se queda sin imputar."""
     return _media_movil(p, parametros, solo_anteriores=True)
+
+
+def media_movil_ponderada(p, parametros=None):
+    """Como la media móvil centrada, pero cada dato pesa 1 / su distancia en el tiempo al punto: uno a 1 punto pesa el
+    doble que uno a 2."""
+    return _media_movil(p, parametros, solo_anteriores=False, ponderada=True)
+
+
+def media_movil_ponderada_anteriores(p, parametros=None):
+    """Como la media móvil solo con anteriores, pero cada dato pesa 1 / su distancia en el tiempo al punto."""
+    return _media_movil(p, parametros, solo_anteriores=True, ponderada=True)
+
+
+def media_estacional(p, parametros=None):
+    """Rellena cada punto con la media de los datos conocidos que están en el mismo momento del ciclo (a 1, 2, 3...
+    periodos antes o después). Con "quitar_tendencia" (por defecto), antes se quita una recta ajustada a lo conocido y
+    luego se vuelve a sumar: si no, en una serie con tendencia la media mezcla ciclos que estaban más arriba o más abajo.
+    Un punto sin ningún dato conocido en su momento del ciclo se queda sin imputar."""
+    _conocidos(p)
+    periodo = (parametros or {}).get("periodo")
+    if periodo is None:
+        raise ErrorDeEntrada("Indica el periodo de la estacionalidad")
+    periodo = _entero(parametros, "periodo", None, 2, max(2, p.n // 2), "El periodo")
+    quitar_tendencia = (parametros or {}).get("quitar_tendencia", True) is not False
+    puntos = np.arange(p.n)
+    conocidos = ~np.isnan(p.y)
+    tendencia = np.zeros(p.n)
+    if quitar_tendencia and conocidos.sum() >= 2:
+        pendiente, ordenada = np.polyfit(puntos[conocidos], p.y[conocidos], 1)
+        tendencia = ordenada + pendiente * puntos
+    resto = p.y - tendencia
+    fase = puntos % periodo
+    completa = p.y.copy()
+    for f in np.unique(fase[p.objetivo]):
+        del_ciclo = (fase == f) & conocidos
+        if del_ciclo.any():
+            huecos = (fase == f) & p.objetivo
+            completa[huecos] = tendencia[huecos] + resto[del_ciclo].mean()
+    return completa
+
+
+def polinomica_local(p, parametros=None):
+    """Para cada punto, el polinomio de grado d que pasa por los d + 1 datos conocidos más cercanos (al menos uno a
+    cada lado, para interpolar y no extrapolar). Grado 1 es la interpolación lineal; con grados altos oscila más.
+    Fuera del primer y último dato se mantiene el valor más cercano, como en la interpolación lineal."""
+    _conocidos(p)
+    grado = _entero(parametros, "grado", 2, 1, 5, "El grado del polinomio")
+    conocidos = np.flatnonzero(~np.isnan(p.y))
+    completa = interpolacion(p)                                # los extremos, como la lineal
+    grado = min(grado, len(conocidos) - 1)
+    if grado < 1:
+        return completa
+    for i in np.flatnonzero(p.objetivo):
+        posicion = np.searchsorted(conocidos, i)
+        if posicion == 0 or posicion == len(conocidos):
+            continue                                           # fuera de los datos: ya está como la lineal
+        izquierda, derecha = posicion - 1, posicion            # uno a cada lado y, después, los más cercanos
+        elegidos = [conocidos[izquierda], conocidos[derecha]]
+        while len(elegidos) < grado + 1:
+            puede_izq, puede_der = izquierda > 0, derecha < len(conocidos) - 1
+            if puede_izq and (not puede_der or i - conocidos[izquierda - 1] <= conocidos[derecha + 1] - i):
+                izquierda -= 1
+                elegidos.append(conocidos[izquierda])
+            else:
+                derecha += 1
+                elegidos.append(conocidos[derecha])
+        x = np.array(elegidos, dtype=float) - i                # centrado en el punto: más estable
+        coeficientes = np.polyfit(x, p.y[elegidos], grado)
+        completa[i] = coeficientes[-1]                         # el valor en x = 0, que es el punto
+    return completa
 
 
 def _spline_natural(x, y):
