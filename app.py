@@ -119,7 +119,7 @@ def get_series(
 
 class MetodoPedido(BaseModel):
     metodo: str
-    parametros: dict = {}  # los de cada método: k (hot deck), donante y escalar (serie donante)
+    parametros: dict = {}  # los propios de cada método (ahora ninguno los usa)
 
 
 class PeticionImputar(BaseModel):

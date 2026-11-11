@@ -104,8 +104,8 @@ def test_un_metodo_desconocido_da_error():
 
 
 def test_cada_metodo_tiene_nombre_grupo_y_funcion():
-    assert set(METODOS) == {"hot_deck", "donante", "media", "mediana", "regresion", "em", "ultimo_valor", "interpolacion"}
-    assert {grupo for _, grupo, _, _ in METODOS.values()} == {"implicito", "explicito", "referencia"}
+    assert set(METODOS) == {"media", "mediana", "regresion", "em", "ultimo_valor", "interpolacion"}
+    assert {grupo for _, grupo, _, _ in METODOS.values()} == {"explicito", "referencia"}
 
 
 def test_sin_valor_real_no_hay_metricas():

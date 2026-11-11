@@ -1,4 +1,4 @@
-"""Métodos que usan las variables explicativas: hot deck, regresión y EM, y la serie donante.
+"""Métodos que usan las variables explicativas: regresión y EM.
 
 Si a una explicativa le falta el dato justo en un punto a imputar, el método usa las demás; si no hay
 ninguna con dato en ese punto, ese punto se queda sin imputar (NaN), salvo en el EM, que usa la media.
@@ -6,7 +6,6 @@ ninguna con dato en ese punto, ese punto se queda sin imputar (NaN), salvo en el
 import numpy as np
 
 from ..errores import ErrorDeEntrada
-from .preparar import alinear
 
 
 def _necesita_explicativas(p):
@@ -14,30 +13,6 @@ def _necesita_explicativas(p):
         raise ErrorDeEntrada("Este método necesita al menos una variable explicativa")
     if np.all(np.isnan(p.y)):
         raise ErrorDeEntrada("No queda ningún dato conocido de la variable explicada")
-
-
-def hot_deck(p, parametros=None):
-    """Para cada punto, copia el dato de los k puntos conocidos con explicativas más parecidas (los donantes).
-    Con k = 1 es el hot deck clásico (copiar un solo donante); con más, se hace la media de los donantes."""
-    _necesita_explicativas(p)
-    k = max(int((parametros or {}).get("k", 1)), 1)
-    media = np.nanmean(p.X, axis=0)
-    desviacion = np.nanstd(p.X, axis=0)
-    desviacion = np.where(np.isnan(desviacion) | (desviacion == 0), 1.0, desviacion)
-    Z = (p.X - media) / desviacion                        # todas en la misma escala para poder compararlas
-    conocidos = np.flatnonzero(~np.isnan(p.y))
-    completa = p.y.copy()
-    for i in np.flatnonzero(p.objetivo):
-        disponibles = ~np.isnan(Z[i])
-        if not disponibles.any():
-            continue                                       # ninguna explicativa con dato aquí: no hay con qué comparar
-        candidatos = conocidos[~np.isnan(Z[conocidos][:, disponibles]).any(axis=1)]
-        if len(candidatos) == 0:
-            continue
-        distancia = ((Z[candidatos][:, disponibles] - Z[i, disponibles]) ** 2).mean(axis=1)
-        elegidos = candidatos[np.argsort(distancia, kind="stable")[:k]]
-        completa[i] = p.y[elegidos].mean()
-    return completa
 
 
 def regresion(p, parametros=None):
@@ -131,25 +106,4 @@ def em(p, parametros=None, iteraciones=300, tolerancia=1e-7):
         completa[filas[falta_y]] = esperado[falta_y, 0] * desviacion0[0] + media0[0]
     sin_datos = np.flatnonzero(~con_datos & p.objetivo)
     completa[sin_datos] = mu[0] * desviacion0[0] + media0[0]
-    return completa
-
-
-def donante(p, parametros=None):
-    """Copia los valores de otra serie (la donante) en los puntos que faltan: cold deck y sustitución.
-    Con "escalar", antes se ajusta la donante a la escala de la explicada con una recta."""
-    parametros = parametros or {}
-    if not parametros.get("donante"):
-        raise ErrorDeEntrada("Elige la serie donante")
-    if np.all(np.isnan(p.y)):
-        raise ErrorDeEntrada("No queda ningún dato conocido de la variable explicada")
-    otra = alinear(parametros["donante"], p.n)
-    if parametros.get("escalar"):
-        filas = ~np.isnan(p.y) & ~np.isnan(otra)
-        if filas.sum() < 3:
-            raise ErrorDeEntrada("La serie donante y la explicada tienen muy pocos puntos en común para ajustar la escala")
-        A = np.column_stack([np.ones(filas.sum()), otra[filas]])
-        ordenada, pendiente = np.linalg.lstsq(A, p.y[filas], rcond=None)[0]
-        otra = ordenada + pendiente * otra
-    completa = p.y.copy()
-    completa[p.objetivo] = otra[p.objetivo]
     return completa

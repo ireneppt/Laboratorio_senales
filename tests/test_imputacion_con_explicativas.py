@@ -10,27 +10,6 @@ def problema(y, explicativas=(), quitados=()):
     return preparar(y, list(quitados), list(explicativas))
 
 
-# ---------------------------------------------------------------- hot deck
-def test_hot_deck_copia_el_dato_del_punto_con_explicativa_mas_parecida():
-    p = problema([10, 20, 30, 40, None], explicativas=[[1, 2, 3, 4, 3.1]])
-    assert con_explicativas.hot_deck(p, {"k": 1})[4] == 30          # el donante es el punto con x = 3
-
-
-def test_hot_deck_con_varios_donantes_hace_la_media():
-    p = problema([10, 20, 30, 40, None], explicativas=[[1, 2, 3, 4, 3.1]])
-    assert con_explicativas.hot_deck(p, {"k": 2})[4] == pytest.approx(35)   # los dos más cercanos: x = 3 y x = 4
-
-
-def test_hot_deck_compara_con_las_explicativas_que_si_hay():
-    p = problema([10, 20, 30, 40, None], explicativas=[[1, 2, 3, 4, 2.1], [9, 9, 9, 9, None]])
-    assert con_explicativas.hot_deck(p, {"k": 1})[4] == 20           # solo mira la primera: la segunda no tiene dato ahí
-
-
-def test_hot_deck_no_imputa_si_ninguna_explicativa_tiene_dato():
-    p = problema([10, 20, 30, None], explicativas=[[1, 2, 3, None]])
-    assert np.isnan(con_explicativas.hot_deck(p)[3])
-
-
 # ---------------------------------------------------------------- regresión
 def test_la_regresion_recupera_una_relacion_exacta():
     x = np.arange(20, dtype=float)
@@ -116,34 +95,8 @@ def test_em_con_dos_explicativas_casi_iguales_no_falla():
     assert not np.isnan(con_explicativas.em(p)).any()
 
 
-# ---------------------------------------------------------------- serie donante
-def test_la_serie_donante_se_copia_en_los_huecos():
-    p = problema([1, 2, None, 4], explicativas=[])
-    assert con_explicativas.donante(p, {"donante": [9, 9, 3, 9]}).tolist() == [1, 2, 3, 4]
-
-
-def test_la_serie_donante_se_puede_ajustar_a_la_escala():
-    y = np.arange(30, dtype=float)
-    donante = list(2 * y + 5)                      # otra escala
-    y_con_hueco = list(y)
-    y_con_hueco[10] = None
-    p = problema(y_con_hueco)
-    assert con_explicativas.donante(p, {"donante": donante, "escalar": True})[10] == pytest.approx(10)
-    assert con_explicativas.donante(p, {"donante": donante})[10] == pytest.approx(25)  # sin ajustar, copia tal cual
-
-
-def test_donante_mas_corta_deja_sin_imputar_lo_que_no_alcanza():
-    p = problema([1, None, 3, None])
-    assert np.isnan(con_explicativas.donante(p, {"donante": [0, 2]})[3])
-
-
-def test_sin_donante_da_error():
-    with pytest.raises(ErrorDeEntrada, match="donante"):
-        con_explicativas.donante(problema([1, None, 3]), {})
-
-
 # ---------------------------------------------------------------- necesitan explicativas
-@pytest.mark.parametrize("metodo", [con_explicativas.hot_deck, con_explicativas.regresion, con_explicativas.em])
+@pytest.mark.parametrize("metodo", [con_explicativas.regresion, con_explicativas.em])
 def test_sin_explicativas_dan_error(metodo):
     with pytest.raises(ErrorDeEntrada, match="explicativa"):
         metodo(problema([1, None, 3, 4]))

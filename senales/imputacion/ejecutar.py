@@ -8,8 +8,6 @@ from .preparar import preparar
 
 # id -> (nombre, grupo, necesita explicativas, función)
 METODOS = {
-    "hot_deck": ("Hot deck (vecinos más cercanos)", "implicito", True, con_explicativas.hot_deck),
-    "donante": ("Serie donante (cold deck y sustitución)", "implicito", False, con_explicativas.donante),
     "media": ("Media", "explicito", False, simples.media),
     "mediana": ("Mediana", "explicito", False, simples.mediana),
     "regresion": ("Regresión", "explicito", True, con_explicativas.regresion),

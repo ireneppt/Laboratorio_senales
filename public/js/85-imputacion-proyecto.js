@@ -44,12 +44,7 @@ function imputacionDesdeGuardada(guardada, mapa) {
     const ids = METODOS_IMPUTACION.filter((m) => m.explicativas === (clave !== "sin") && lista.includes(m.id)).map((m) => m.id);
     if (ids.length) e.metodos[esSolo ? `solo:${idSolo}` : esMulti ? `multi:${idCombinacion}` : clave] = ids;
   }
-  const p = (guardada && guardada.parametros) || {};
-  const donante = p.donante === null || p.donante === undefined ? undefined : mapa[p.donante];
-  e.parametros = {
-    k: Number.isInteger(p.k) ? Math.min(Math.max(p.k, 1), 50) : 1,
-    donante: donante !== undefined && donante !== e.explicada.serieId ? donante : null,
-    escalar: p.escalar === true,
-  };
+  // parámetros de métodos: ahora ninguno tiene (los de hot deck y serie donante, que ya no existen, se descartan)
+  e.parametros = PARAMETROS_IMPUTACION_INICIALES();
   return e;
 }

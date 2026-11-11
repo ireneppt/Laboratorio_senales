@@ -24,16 +24,11 @@ def test_imputar_devuelve_lo_imputado_y_sus_errores():
 
 def test_con_explicativas_y_parametros():
     x = [2 * v for v in Y]
-    r = pedir(explicativas=[x], metodos=[{"metodo": "regresion"}, {"metodo": "hot_deck", "parametros": {"k": 2}}, {"metodo": "em"}])
+    r = pedir(explicativas=[x], metodos=[{"metodo": "regresion"}, {"metodo": "em", "parametros": {"no_se_usa": 1}}])
     assert r.status_code == 200
     por = {f["metodo"]: f for f in r.json()["resultados"]}
     assert por["regresion"]["metricas"]["rmse"] < 1e-3          # relación exacta
-    assert por["hot_deck"]["error"] is None and por["em"]["error"] is None
-
-
-def test_la_serie_donante_viaja_en_los_parametros():
-    r = pedir(metodos=[{"metodo": "donante", "parametros": {"donante": Y, "escalar": True}}])
-    assert r.json()["resultados"][0]["metricas"]["rmse"] < 1e-3
+    assert por["em"]["error"] is None
 
 
 def test_los_huecos_viajan_como_null():

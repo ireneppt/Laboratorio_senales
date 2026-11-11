@@ -10,9 +10,6 @@
 .res-metodo.no-disponible { opacity: 0.55; }
 .res-metodo > label.toggle { margin: 0; font-weight: 650; color: var(--ink); }
 .res-metodo small { display: block; margin-top: 4px; color: var(--muted); font-size: 0.76rem; }
-.res-param { display: flex; align-items: center; gap: 8px; margin: 8px 0 0; font-size: 0.85rem; }
-.res-param input[type=number] { width: 80px; height: 32px; margin: 0; padding: 0 8px; font-size: 0.9rem; }
-.res-param select { flex: 1; min-width: 0; width: auto; height: 32px; margin: 0; padding: 0 8px; font-size: 0.88rem; }
 .res-estado { margin-bottom: 12px; padding: 10px 14px; border-radius: 10px; background: var(--surface-2); font-size: 0.9rem; }
 .res-estado.error { background: color-mix(in srgb, var(--error) 14%, var(--surface)); }
 .res-tabla { display: grid; grid-template-columns: minmax(210px, 1.7fr) repeat(5, minmax(100px, 1fr)) minmax(110px, 0.8fr); overflow-x: auto; }

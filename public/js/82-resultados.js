@@ -5,17 +5,12 @@
 // la vez, las que se elijan) y, al final, una "Comparación" que junta lo marcado en todas. En el proyecto se guarda qué métodos se eligieron y sus parámetros; los resultados se recalculan al abrir.
 
 const GRUPOS_IMPUTACION = [
-  ["implicito", "Implícitos"],
   ["explicito", "Explícitos"],
   ["referencia", "De referencia temporal"],
 ];
 
 // id (el mismo que usa la API), nombre, grupo, si necesita explicativas, y qué hace (texto al pasar el ratón)
 const METODOS_IMPUTACION = [
-  { id: "hot_deck", nombre: "Hot deck (vecinos más cercanos)", grupo: "implicito", explicativas: true,
-    ayuda: "Copia el dato del punto conocido con explicativas más parecidas (con 1 vecino, un solo donante; con más, la media de los más cercanos)." },
-  { id: "donante", nombre: "Serie donante", grupo: "implicito", explicativas: false,
-    ayuda: "Copia los valores de otra serie del proyecto en los puntos que faltan (cold deck y sustitución)." },
   { id: "media", nombre: "Media", grupo: "explicito", explicativas: false, ayuda: "Rellena con la media de los datos conocidos." },
   { id: "mediana", nombre: "Mediana", grupo: "explicito", explicativas: false, ayuda: "Rellena con la mediana de los datos conocidos." },
   { id: "regresion", nombre: "Regresión", grupo: "explicito", explicativas: true,
@@ -48,7 +43,13 @@ const resImp = {
 const metodoDeImputacion = (id) => METODOS_IMPUTACION.find((m) => m.id === id);
 const idsConExplicativas = () => METODOS_IMPUTACION.filter((m) => m.explicativas).map((m) => m.id);
 const idsSinExplicativas = () => METODOS_IMPUTACION.filter((m) => !m.explicativas).map((m) => m.id);
-const colorDeMetodo = (id, c) => c.series[METODOS_IMPUTACION.findIndex((m) => m.id === id) % c.series.length];
+// el color de cada método sale de la paleta, saltándose el de la explicada (para no confundirlo con su línea)
+function colorDeMetodo(id, c) {
+  const explicada = serieExplicada();
+  const ocupado = explicada ? colorDe(explicada, c) : null;
+  const paleta = c.series.filter((color) => color !== ocupado);
+  return paleta[METODOS_IMPUTACION.findIndex((m) => m.id === id) % paleta.length];
+}
 const explicativasConDatos = () => explicativasElegidas().filter((x) => x.datos);
 // las explicativas de una combinación: las que tiene elegidas (al menos 2) o, si no hay elección, todas
 function explicativasDe(combinacion) {
@@ -136,7 +137,7 @@ function formatoMedida(clave, v) {
 function subpestanasImputacion() {
   const elegidas = explicativasConDatos();
   const lista = [];
-  lista.push({ id: "sin", titulo: "Sin explicativas", series: [], ayuda: "Métodos que solo usan la propia serie (o la serie donante)." });
+  lista.push({ id: "sin", titulo: "Sin explicativas", series: [], ayuda: "Métodos que solo usan la propia serie." });
   for (const s of elegidas) {
     lista.push({
       id: `solo:${s.id}`, titulo: elegidas.length >= 2 ? `Solo ${nombreDe(s)}` : `Con ${nombreDe(s)}`, series: [s], serie: s,
@@ -177,17 +178,7 @@ function especificacion(sub) {
   return { sub, series: sub.series || [], ids: elegidos, referencia: elegidos.length > 0 ? REFERENCIA_IMPUTACION : null };
 }
 
-function pedidosDe(ids) {
-  const p = imputacion.parametros;
-  return ids.map((id) => {
-    if (id === "hot_deck") return { metodo: id, parametros: { k: p.k } };
-    if (id === "donante") {
-      const otra = series.find((x) => x.id === p.donante);
-      return { metodo: id, parametros: otra && otra.datos ? { donante: otra.datos.y, escalar: p.escalar } : {} };
-    }
-    return { metodo: id, parametros: {} };
-  });
-}
+const pedidosDe = (ids) => ids.map((id) => ({ metodo: id, parametros: {} }));
 
 // Huella corta de un texto, para reconocer una petición ya calculada
 function huellaTexto(texto) {
@@ -295,8 +286,6 @@ async function actualizarResultados() {
   if (token !== resImp.token || !resImp.ui.metodos.isConnected) return;
   // lo elegido que ya no existe, o que ahora es la explicada, se quita
   imputacion.explicativas = imputacion.explicativas.filter((id) => id !== imputacion.explicada.serieId && series.some((x) => x.id === id));
-  const donante = imputacion.parametros.donante;
-  if (donante !== null && (donante === imputacion.explicada.serieId || !series.some((x) => x.id === donante))) imputacion.parametros.donante = null;
   // lo elegido en ventanas que ya no existen (explicativas quitadas) se olvida
   const validas = new Set(["sin", ...imputacion.combinaciones.map((c) => `multi:${c.id}`), ...imputacion.explicativas.map((id) => `solo:${id}`)]);
   for (const clave of Object.keys(imputacion.metodos)) if (!validas.has(clave)) delete imputacion.metodos[clave];
@@ -376,7 +365,6 @@ function pintarMetodosImputacion() {
   const sub = subActual();
   if (sub.id === "comparacion") return;
   const visibles = metodosDeSub(sub);
-  const p = imputacion.parametros;
   const sinExplicativas = sub.id === "sin";
   resImp.ui.ayudaLateral.textContent = sinExplicativas
     ? "Marca los que quieras comparar: todos se calculan sobre los mismos huecos."
@@ -419,40 +407,13 @@ function pintarMetodosImputacion() {
       casilla.checked = elegidosDe(sub.id).includes(m.id);
       etiqueta.append(casilla, ` ${m.nombre}`);
       tarjeta.append(etiqueta);
-      if (m.id === "hot_deck") {
-        const campo = document.createElement("label");
-        campo.className = "res-param";
-        campo.append("Vecinos ");
-        const k = document.createElement("input");
-        k.type = "number"; k.min = 1; k.max = 50; k.step = 1; k.value = p.k; k.dataset.param = "k";
-        k.setAttribute("aria-label", "Número de vecinos");
-        campo.append(k);
-        tarjeta.append(campo);
-      } else if (m.id === "donante") {
-        const campo = document.createElement("label");
-        campo.className = "res-param";
-        campo.append("Serie ");
-        const selector = document.createElement("select");
-        selector.dataset.param = "donante";
-        selector.setAttribute("aria-label", "Serie donante");
-        selector.append(new Option("Elige una…", ""));
-        for (const s of series.filter((x) => x.id !== imputacion.explicada.serieId)) selector.append(new Option(nombreDe(s), s.id));
-        selector.value = p.donante === null ? "" : String(p.donante);
-        campo.append(selector);
-        const escala = document.createElement("label");
-        escala.className = "toggle opcion res-param";
-        const ajustar = document.createElement("input");
-        ajustar.type = "checkbox"; ajustar.className = "alea"; ajustar.dataset.param = "escalar"; ajustar.checked = p.escalar;
-        escala.append(ajustar, " Ajustar a la escala de la explicada");
-        tarjeta.append(campo, escala);
-      }
       cont.append(tarjeta);
     }
   }
   if (sinExplicativas && !explicativasConDatos().length) {
     const nota = document.createElement("p");
     nota.className = "ayuda";
-    nota.textContent = "Elige variables explicativas en la pestaña 2 para probar también hot deck, regresión y EM.";
+    nota.textContent = "Elige variables explicativas en la pestaña 2 para probar también la regresión y el EM.";
     cont.append(nota);
   }
 }
@@ -480,21 +441,6 @@ function alCambiarMetodo(e) {
     cambiarMetodosImputacion(METODOS_IMPUTACION.map((m) => m.id).filter((id) => elegidos.has(id)));
     return;
   }
-  const parametro = objetivo.dataset.param;
-  if (!parametro) return;
-  const p = imputacion.parametros;
-  if (parametro === "k") {
-    const k = Math.min(Math.max(parseInt(objetivo.value) || 1, 1), 50);
-    objetivo.value = k;
-    if (k === p.k) return;
-    p.k = k;
-  } else if (parametro === "donante") {
-    p.donante = objetivo.value === "" ? null : Number(objetivo.value);
-  } else if (parametro === "escalar") {
-    p.escalar = objetivo.checked;
-  }
-  cambioImputacion();
-  ejecutarImputacion();
 }
 
 function cambiarMetodosImputacion(ids) {
@@ -617,7 +563,7 @@ function pintarResultados(obj) {
     for (const g of [u.grafica, u.graficaRanking, u.graficaComp]) { try { Plotly.purge(g); } catch { /* aún no había gráfica */ } }
     if (!resImp.error && obj && obj.aImputar && !hayMetodos && !resImp.cargando) {
       u.estado.textContent = esComp ? "Todavía no has marcado ningún método en las otras ventanas." : sub.id === "sin" ? "Marca algún método a la izquierda para ver cómo imputa y cuánto se equivoca."
-        : "Marca hot deck, regresión o EM a la izquierda para ver cómo imputan con estas explicativas.";
+        : "Marca la regresión o el EM a la izquierda para ver cómo imputan con estas explicativas.";
       u.estado.classList.remove("error");
       u.estado.hidden = false;
     }
