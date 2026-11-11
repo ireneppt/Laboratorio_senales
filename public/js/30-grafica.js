@@ -14,6 +14,7 @@ function colores() {
     ink: c("--ink"), ink2: c("--ink-2"), muted: c("--muted"), grid: c("--grid"), axis: c("--axis"),
     surface: c("--surface"),
     series: Array.from({ length: N_COLORES }, (_, i) => c(`--series-${i + 1}`)),
+    extra: Array.from({ length: 5 }, (_, i) => c(`--extra-${i + 1}`)),
     fuente: getComputedStyle(document.body).fontFamily,
   };
 }

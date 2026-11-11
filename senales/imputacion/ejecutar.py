@@ -13,7 +13,11 @@ METODOS = {
     "regresion": ("Regresión", "explicito", True, con_explicativas.regresion),
     "em": ("EM (esperanza-maximización)", "explicito", True, con_explicativas.em),
     "ultimo_valor": ("Último valor conocido", "referencia", False, simples.ultimo_valor),
+    "siguiente_valor": ("Siguiente valor conocido", "referencia", False, simples.siguiente_valor),
+    "media_movil": ("Media móvil centrada", "referencia", False, simples.media_movil),
+    "media_movil_atras": ("Media móvil (solo anteriores)", "referencia", False, simples.media_movil_anteriores),
     "interpolacion": ("Interpolación lineal", "referencia", False, simples.interpolacion),
+    "polinomica": ("Interpolación polinómica (spline cúbica)", "referencia", False, simples.polinomica),
 }
 REFERENCIA = "interpolacion"  # con qué se compara la mejora de cada método
 

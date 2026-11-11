@@ -17,9 +17,17 @@ const METODOS_IMPUTACION = [
     ayuda: "Ajusta una recta de la explicada sobre las explicativas con los datos conocidos y predice los huecos." },
   { id: "em", nombre: "EM (esperanza-maximización)", grupo: "explicito", explicativas: true,
     ayuda: "Estima las medias y correlaciones de todas las series, rellena lo que falta y repite hasta estabilizarse. Admite huecos en las explicativas." },
-  { id: "ultimo_valor", nombre: "Último valor conocido", grupo: "referencia", explicativas: false, ayuda: "Repite el último dato conocido." },
+  { id: "ultimo_valor", nombre: "Último valor conocido", grupo: "referencia", explicativas: false, ayuda: "Repite el último dato conocido (forward fill). Al principio de la serie, donde no hay ninguno antes, no imputa." },
+  { id: "siguiente_valor", nombre: "Siguiente valor conocido", grupo: "referencia", explicativas: false,
+    ayuda: "Repite el siguiente dato conocido (backward fill). Al final de la serie, donde no hay ninguno después, no imputa." },
+  { id: "media_movil", nombre: "Media móvil centrada", grupo: "referencia", explicativas: false,
+    ayuda: "Media de los k datos conocidos más cercanos antes del hueco y los k más cercanos después. Tú eliges k (como mucho, los datos conocidos que hay)." },
+  { id: "media_movil_atras", nombre: "Media móvil (solo anteriores)", grupo: "referencia", explicativas: false,
+    ayuda: "Media de los últimos k datos conocidos antes del punto: solo usa el pasado. Al principio de la serie, donde no hay ninguno antes, no imputa. Tú eliges k." },
   { id: "interpolacion", nombre: "Interpolación lineal", grupo: "referencia", explicativas: false,
     ayuda: "Une los datos conocidos con rectas. Es la referencia con la que se compara la mejora de cada método." },
+  { id: "polinomica", nombre: "Interpolación polinómica (spline cúbica)", grupo: "referencia", explicativas: false,
+    ayuda: "Une los datos conocidos con curvas: un polinomio de grado 3 entre cada dos datos, empalmados de forma suave. En huecos largos puede pasarse de largo." },
 ];
 const REFERENCIA_IMPUTACION = "interpolacion";
 
@@ -43,13 +51,18 @@ const resImp = {
 const metodoDeImputacion = (id) => METODOS_IMPUTACION.find((m) => m.id === id);
 const idsConExplicativas = () => METODOS_IMPUTACION.filter((m) => m.explicativas).map((m) => m.id);
 const idsSinExplicativas = () => METODOS_IMPUTACION.filter((m) => !m.explicativas).map((m) => m.id);
-// el color de cada método sale de la paleta, saltándose el de la explicada (para no confundirlo con su línea)
-function colorDeMetodo(id, c) {
+// Cada método tiene un color fijo (sigue al método, no a su fila), de una paleta de 13: los 8 de las series y 5 más.
+// El orden está elegido con el validador de paletas para que dos métodos seguidos se distingan también con
+// daltonismo. Se salta el color de la explicada, para no confundir un método con su línea.
+const ORDEN_COLORES_METODOS = [["series", 1], ["extra", 4], ["series", 7], ["series", 0], ["series", 5], ["series", 6], ["series", 4],
+  ["series", 3], ["extra", 0], ["extra", 1], ["extra", 2], ["extra", 3], ["series", 2]];
+function paletaDeMetodos(c) {
   const explicada = serieExplicada();
   const ocupado = explicada ? colorDe(explicada, c) : null;
-  const paleta = c.series.filter((color) => color !== ocupado);
-  return paleta[METODOS_IMPUTACION.findIndex((m) => m.id === id) % paleta.length];
+  return ORDEN_COLORES_METODOS.map(([grupo, i]) => c[grupo][i]).filter((color) => color !== ocupado);
 }
+const indiceDeMetodo = (id) => Math.max(0, METODOS_IMPUTACION.findIndex((m) => m.id === id));
+const colorDeMetodo = (id, c) => { const paleta = paletaDeMetodos(c); return paleta[indiceDeMetodo(id) % paleta.length]; };
 const explicativasConDatos = () => explicativasElegidas().filter((x) => x.datos);
 // las explicativas de una combinación: las que tiene elegidas (al menos 2) o, si no hay elección, todas
 function explicativasDe(combinacion) {
@@ -178,7 +191,14 @@ function especificacion(sub) {
   return { sub, series: sub.series || [], ids: elegidos, referencia: elegidos.length > 0 ? REFERENCIA_IMPUTACION : null };
 }
 
-const pedidosDe = (ids) => ids.map((id) => ({ metodo: id, parametros: {} }));
+// la k de la media móvil llega como mucho a los datos conocidos de la explicada (con más ya no cambia nada)
+function maximoKMovil() {
+  const obj = objetivoDeExplicada();
+  return obj ? Math.max(1, obj.y.filter((v, i) => v !== null && !obj.quitado[i]).length) : 10000;
+}
+// métodos con k (los datos que entran en la media), y dónde se guarda la de cada uno
+const K_DE_METODO = { media_movil: ["k_movil", "Datos a cada lado (k)"], media_movil_atras: ["k_movil_atras", "Datos anteriores (k)"] };
+const pedidosDe = (ids) => ids.map((id) => ({ metodo: id, parametros: K_DE_METODO[id] ? { k: imputacion.parametros[K_DE_METODO[id][0]] } : {} }));
 
 // Huella corta de un texto, para reconocer una petición ya calculada
 function huellaTexto(texto) {
@@ -407,6 +427,17 @@ function pintarMetodosImputacion() {
       casilla.checked = elegidosDe(sub.id).includes(m.id);
       etiqueta.append(casilla, ` ${m.nombre}`);
       tarjeta.append(etiqueta);
+      if (K_DE_METODO[m.id]) {
+        const [parametro, texto] = K_DE_METODO[m.id];
+        const campo = document.createElement("label");
+        campo.className = "res-param";
+        campo.append(`${texto} `);
+        const k = document.createElement("input");
+        k.type = "number"; k.min = 1; k.max = maximoKMovil(); k.step = 1; k.value = imputacion.parametros[parametro]; k.dataset.param = parametro;
+        k.setAttribute("aria-label", `${texto}: ${m.nombre}`);
+        campo.append(k);
+        tarjeta.append(campo);
+      }
       cont.append(tarjeta);
     }
   }
@@ -440,6 +471,15 @@ function alCambiarMetodo(e) {
     if (objetivo.checked) elegidos.add(objetivo.dataset.metodo); else elegidos.delete(objetivo.dataset.metodo);
     cambiarMetodosImputacion(METODOS_IMPUTACION.map((m) => m.id).filter((id) => elegidos.has(id)));
     return;
+  }
+  const parametro = objetivo.dataset.param;
+  if (Object.values(K_DE_METODO).some(([p]) => p === parametro)) {
+    const k = Math.min(Math.max(parseInt(objetivo.value) || 1, 1), maximoKMovil());
+    objetivo.value = k;
+    if (k === imputacion.parametros[parametro]) return;
+    imputacion.parametros[parametro] = k;
+    cambioImputacion();
+    ejecutarImputacion();
   }
 }
 
@@ -730,7 +770,8 @@ function pintarGraficaResultados(filas, obj, grafica = resImp.ui.grafica) {
     const comoReferencia = f.metodo === REFERENCIA_IMPUTACION && resImp.sub !== "sin";
     trazas.push({
       x, y: trazo, type: "scatter", mode: "lines+markers", name: f.nombre, opacity: atenuado ? 0.25 : comoReferencia ? 0.4 : 1,
-      line: { color: f.color || colorDeMetodo(f.metodo, c), width: resImp.destacado === f.metodo ? 3.5 : 1.8 }, marker: { size: 4 },
+      line: { color: f.color || colorDeMetodo(f.metodo, c), width: resImp.destacado === f.metodo ? 3.5 : 1.8 },
+      marker: { size: 4 },
       hovertemplate: "<b>%{y:.2f}</b>  ·  punto %{x}<extra>" + f.nombre + "</extra>",
     });
   }
@@ -837,13 +878,16 @@ function alMarcarDibujo(e) {
 }
 
 function pintarComparacionImputacion(obj) {
-  const filas = filasComparacion();
+  const c = colores();
+  // en la comparación el color es de la fila (un mismo método puede salir con varias explicativas): el mismo en la
+  // tabla, el ranking y la gráfica, y fijo aunque se marquen o desmarquen otras filas para dibujar
+  const paleta = paletaDeMetodos(c);
+  const filas = filasComparacion().map((f, i) => ({ ...f, colorFila: paleta[i % paleta.length] }));
   const dibujadas = dibujadasComparacion(filas);
   pintarTablaComparacion(filas, dibujadas);
   pintarRankingComparacion(filas);
-  const c = colores();
   const paraDibujar = filas.filter((f) => dibujadas.has(f.clave) && !f.error)
-    .map((f, i) => ({ ...f, metodo: f.esReferencia ? REFERENCIA_IMPUTACION : f.clave, nombre: etiquetaFila(f), color: f.esReferencia ? undefined : c.series[i % c.series.length] }));
+    .map((f) => ({ ...f, metodo: f.esReferencia ? REFERENCIA_IMPUTACION : f.clave, nombre: etiquetaFila(f), color: f.colorFila }));
   pintarGraficaResultados(paraDibujar, obj, resImp.ui.graficaComp);
 }
 
@@ -909,7 +953,7 @@ function pintarTablaComparacion(filas, dibujadas) {
     const nombre = celda("nombre");
     const punto = document.createElement("span");
     punto.className = "punto-color";
-    punto.style.background = colorDeMetodo(f.metodo, c);
+    punto.style.background = f.colorFila || colorDeMetodo(f.metodo, c);
     const texto = document.createElement("span");
     texto.append(f.nombre);
     if (f.esReferencia) {
@@ -974,7 +1018,9 @@ function pintarRankingComparacion(filas) {
   });
   Plotly.react(grafica, [{
     type: "bar", orientation: "h", y: con.map(etiquetaFila), x: con.map((f) => valor(f) * factor),
-    marker: { color: con.map((f) => colorDeMetodo(f.metodo, c)), opacity: con.map((f) => (f.esReferencia ? 0.4 : 1)) },
+    marker: {
+      color: con.map((f) => f.colorFila || colorDeMetodo(f.metodo, c)), opacity: con.map((f) => (f.esReferencia ? 0.4 : 1)),
+    },
     hovertemplate: `<b>%{x:.3g}${clave === "mejora" ? " %" : ""}</b><extra>%{y}</extra>`,
   }], {
     paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", font: { family: c.fuente, color: c.ink2 },

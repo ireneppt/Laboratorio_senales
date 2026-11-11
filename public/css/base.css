@@ -21,6 +21,12 @@
   --series-6: #008300;
   --series-7: #6250d6;
   --series-8: #e34948;
+  /* más colores, para los métodos de imputación (hay más métodos que colores de serie) */
+  --extra-1: #a0522d;
+  --extra-2: #0097a7;
+  --extra-3: #7cb342;
+  --extra-4: #8e6cc9;
+  --extra-5: #b5179e;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -43,6 +49,11 @@
     --series-6: #008300;
     --series-7: #9085e9;
     --series-8: #e66767;
+    --extra-1: #a0522d;
+    --extra-2: #0097a7;
+    --extra-3: #5f9a2c;
+    --extra-4: #8e6cc9;
+    --extra-5: #b5179e;
   }
 }
 

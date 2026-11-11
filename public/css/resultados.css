@@ -9,6 +9,8 @@
 .res-metodo { margin-bottom: 8px; padding: 10px 12px; border: 1px solid var(--axis); border-radius: 10px; background: var(--surface); }
 .res-metodo.no-disponible { opacity: 0.55; }
 .res-metodo > label.toggle { margin: 0; font-weight: 650; color: var(--ink); }
+.res-param { display: flex; align-items: center; gap: 8px; margin: 8px 0 0; font-size: 0.85rem; }
+.res-param input[type=number] { width: 80px; height: 32px; margin: 0; padding: 0 8px; font-size: 0.9rem; }
 .res-metodo small { display: block; margin-top: 4px; color: var(--muted); font-size: 0.76rem; }
 .res-estado { margin-bottom: 12px; padding: 10px 14px; border-radius: 10px; background: var(--surface-2); font-size: 0.9rem; }
 .res-estado.error { background: color-mix(in srgb, var(--error) 14%, var(--surface)); }

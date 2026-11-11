@@ -44,7 +44,9 @@ function imputacionDesdeGuardada(guardada, mapa) {
     const ids = METODOS_IMPUTACION.filter((m) => m.explicativas === (clave !== "sin") && lista.includes(m.id)).map((m) => m.id);
     if (ids.length) e.metodos[esSolo ? `solo:${idSolo}` : esMulti ? `multi:${idCombinacion}` : clave] = ids;
   }
-  // parámetros de métodos: ahora ninguno tiene (los de hot deck y serie donante, que ya no existen, se descartan)
+  // parámetros de métodos (los de hot deck y serie donante, que ya no existen, se descartan)
+  const p = (guardada && guardada.parametros) || {};
   e.parametros = PARAMETROS_IMPUTACION_INICIALES();
+  for (const clave of ["k_movil", "k_movil_atras"]) if (Number.isInteger(p[clave]) && p[clave] >= 1) e.parametros[clave] = p[clave];
   return e;
 }

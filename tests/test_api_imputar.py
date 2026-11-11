@@ -53,3 +53,9 @@ def test_los_errores_de_la_peticion_son_422():
 
 def test_la_misma_peticion_da_siempre_lo_mismo():
     assert pedir(metodos=[{"metodo": "em"}], explicativas=[Y]).json() == pedir(metodos=[{"metodo": "em"}], explicativas=[Y]).json()
+
+
+def test_la_k_de_la_media_movil_viaja_en_los_parametros():
+    y = [1, 2, None, 4, 8]
+    r = cliente.post("/api/imputar", json={"y": y, "metodos": [{"metodo": "media_movil", "parametros": {"k": 1}}, {"metodo": "media_movil", "parametros": {"k": 2}}]})
+    assert [f["imputado"][2] for f in r.json()["resultados"]] == [3, 3.75]

@@ -3,8 +3,8 @@
 // Se elige la serie que se quiere imputar (arrastrándola a un campo) y se le quitan tramos, además de los datos
 // que ya le falten. En el proyecto se guarda la serie elegida y los tramos quitados; lo demás (zoom, herramienta,
 // vista previa...) es solo de pantalla.
-// Parámetros propios de los métodos de imputación (ahora ninguno tiene; se guardan en el proyecto para los que vengan)
-const PARAMETROS_IMPUTACION_INICIALES = () => ({});
+// Parámetros propios de los métodos de imputación: la k de las dos medias móviles (centrada y solo anteriores)
+const PARAMETROS_IMPUTACION_INICIALES = () => ({ k_movil: 3, k_movil_atras: 3 });
 const estadoImputacionVacio = () => ({ explicada: { serieId: null, quitados: [] }, explicativas: [], combinaciones: [{ id: 1, explicativas: null }], metodos: {}, parametros: PARAMETROS_IMPUTACION_INICIALES() });
 let imputacion = estadoImputacionVacio();
 
