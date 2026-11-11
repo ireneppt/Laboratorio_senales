@@ -17,7 +17,7 @@ def test_la_regresion_recupera_una_relacion_exacta():
     y[7] = None
     y[15] = None
     p = problema(y, explicativas=[list(x)])
-    assert con_explicativas.regresion(p)[[7, 15]] == pytest.approx([2 + 3 * 7, 2 + 3 * 15])
+    assert con_explicativas.regresion(p)[0][[7, 15]] == pytest.approx([2 + 3 * 7, 2 + 3 * 15])
 
 
 def test_la_regresion_con_dos_explicativas():
@@ -26,7 +26,7 @@ def test_la_regresion_con_dos_explicativas():
     y = list(1 + 2 * a - 3 * b)
     y[10] = None
     p = problema(y, explicativas=[list(a), list(b)])
-    assert con_explicativas.regresion(p)[10] == pytest.approx(1 + 2 * a[10] - 3 * b[10])
+    assert con_explicativas.regresion(p)[0][10] == pytest.approx(1 + 2 * a[10] - 3 * b[10])
 
 
 def test_la_regresion_usa_las_explicativas_que_hay_en_cada_punto():
@@ -36,12 +36,12 @@ def test_la_regresion_usa_las_explicativas_que_hay_en_cada_punto():
     y = list(5 + 2 * x)
     y[12] = None
     p = problema(y, explicativas=[list(x), segunda])
-    assert con_explicativas.regresion(p)[12] == pytest.approx(5 + 2 * 12)
+    assert con_explicativas.regresion(p)[0][12] == pytest.approx(5 + 2 * 12)
 
 
 def test_la_regresion_no_imputa_con_muy_pocos_datos():
     p = problema([1, None, None, None], explicativas=[[1, 2, 3, 4]])
-    assert np.isnan(con_explicativas.regresion(p)[1:]).all()
+    assert np.isnan(con_explicativas.regresion(p)[0][1:]).all()
 
 
 # ---------------------------------------------------------------- EM
@@ -66,7 +66,7 @@ def test_em_mejora_mucho_a_la_media_cuando_hay_buena_relacion():
 def test_em_con_explicativas_completas_se_parece_a_la_regresion():
     x, y = datos_correlados()
     p = problema(list(y), explicativas=[list(x)], quitados=tramos_quitados(len(y)))
-    assert np.allclose(con_explicativas.em(p), con_explicativas.regresion(p), atol=0.05)
+    assert np.allclose(con_explicativas.em(p)[0], con_explicativas.regresion(p)[0], atol=0.05)
 
 
 def test_em_admite_que_las_explicativas_tengan_huecos():
@@ -75,7 +75,7 @@ def test_em_admite_que_las_explicativas_tengan_huecos():
     for i in range(0, 400, 7):
         x[i] = None
     p = problema(list(y), explicativas=[x], quitados=tramos_quitados(len(y)))
-    completa = con_explicativas.em(p)
+    completa = con_explicativas.em(p)[0]
     assert not np.isnan(completa).any()
 
 
@@ -86,13 +86,13 @@ def test_em_imputa_con_la_media_donde_no_hay_ningun_dato():
     x = list(x)
     x[50] = None
     p = problema(y, explicativas=[x])
-    assert con_explicativas.em(p)[50] == pytest.approx(np.nanmean(p.y), abs=0.05)
+    assert con_explicativas.em(p)[0][50] == pytest.approx(np.nanmean(p.y), abs=0.05)
 
 
 def test_em_con_dos_explicativas_casi_iguales_no_falla():
     x, y = datos_correlados(n=200)
     p = problema(list(y), explicativas=[list(x), list(x + 1e-9)], quitados=[(10, 15)])
-    assert not np.isnan(con_explicativas.em(p)).any()
+    assert not np.isnan(con_explicativas.em(p)[0]).any()
 
 
 # ---------------------------------------------------------------- necesitan explicativas

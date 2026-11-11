@@ -42,7 +42,7 @@ def test_evaluar_mide_global_y_por_tramo():
     completa = p.y.copy()
     completa[[5, 6, 12, 13, 14]] = [5 + 1, 6 + 1, 12 + 2, 13 + 2, 14 + 2]            # errores 1, 1, 2, 2, 2
     referencia = np.where(p.objetivo, p.verdad + 4, p.y)                              # la referencia se equivoca siempre en 4
-    resultado, por_tramo = metricas.evaluar(p, completa, referencia)
+    resultado, por_tramo, _ = metricas.evaluar(p, completa, referencia)
     assert resultado["n"] == 5
     assert resultado["mae"] == pytest.approx(8 / 5)
     assert resultado["rmse"] == pytest.approx(np.sqrt(14 / 5))
@@ -55,7 +55,7 @@ def test_lo_que_el_metodo_no_imputa_no_se_mide():
     p = prueba()
     completa = p.y.copy()
     completa[[5, 6]] = [5, 6]                      # solo el primer tramo
-    resultado, por_tramo = metricas.evaluar(p, completa, np.where(p.objetivo, 0.0, p.y))
+    resultado, por_tramo, _ = metricas.evaluar(p, completa, np.where(p.objetivo, 0.0, p.y))
     assert resultado["n"] == 2 and por_tramo[1]["n"] == 0 and por_tramo[1]["mae"] is None
 
 

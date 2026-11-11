@@ -1,5 +1,8 @@
 """Métodos que usan las variables explicativas: regresión y EM.
 
+Además de la serie completada devuelven, para cada punto imputado, la desviación típica de su predicción: con ella
+se construye el intervalo del 95 % (lo imputado ± 1,96 desviaciones). Donde no hay imputación, NaN.
+
 Si a una explicativa le falta el dato justo en un punto a imputar, el método usa las demás; si no hay
 ninguna con dato en ese punto, ese punto se queda sin imputar (NaN), salvo en el EM, que usa la media.
 """
@@ -20,6 +23,7 @@ def regresion(p, parametros=None):
     y predice los huecos. Si en un punto faltan algunas explicativas, se usa un modelo con las que sí hay."""
     _necesita_explicativas(p)
     completa = p.y.copy()
+    desviacion = np.full(p.n, np.nan)
     por_disponibles = {}
     for i in np.flatnonzero(p.objetivo):
         por_disponibles.setdefault(tuple(np.flatnonzero(~np.isnan(p.X[i]))), []).append(i)
@@ -32,8 +36,14 @@ def regresion(p, parametros=None):
             continue                                       # muy pocos datos para ajustar el modelo
         A = np.column_stack([np.ones(filas.sum()), p.X[filas][:, columnas]])
         coeficientes = np.linalg.lstsq(A, p.y[filas], rcond=None)[0]
-        completa[puntos] = np.column_stack([np.ones(len(puntos)), p.X[puntos][:, columnas]]) @ coeficientes
-    return completa
+        nuevos = np.column_stack([np.ones(len(puntos)), p.X[puntos][:, columnas]])
+        completa[puntos] = nuevos @ coeficientes
+        # intervalo de predicción clásico: s² · (1 + x0ᵀ (AᵀA)⁻¹ x0), con s² la varianza de los residuos
+        residuos = p.y[filas] - A @ coeficientes
+        s2 = float(residuos @ residuos) / (len(residuos) - A.shape[1])
+        inversa = np.linalg.pinv(A.T @ A)
+        desviacion[puntos] = np.sqrt(s2 * (1 + np.einsum("ij,jk,ik->i", nuevos, inversa, nuevos)))
+    return completa, desviacion
 
 
 def em(p, parametros=None, iteraciones=300, tolerancia=1e-7):
@@ -99,11 +109,16 @@ def em(p, parametros=None, iteraciones=300, tolerancia=1e-7):
         if cambio < tolerancia:
             break
 
+    # lo imputado es el valor esperado; su desviación, la de la normal condicionada a lo que se conoce de la fila
+    # (con los parámetros finales: no cuenta la incertidumbre de haberlos estimado, así que el intervalo sale algo estrecho)
     completa = p.y.copy()
+    desviacion = np.full(p.n, np.nan)
     for clave, filas in grupos:
-        esperado, _ = valor_esperado(clave, filas, mu, sigma)
+        esperado, covarianza = valor_esperado(clave, filas, mu, sigma)
         falta_y = p.objetivo[filas]
         completa[filas[falta_y]] = esperado[falta_y, 0] * desviacion0[0] + media0[0]
+        desviacion[filas[falta_y]] = np.sqrt(max(covarianza[0, 0], 0.0)) * desviacion0[0]
     sin_datos = np.flatnonzero(~con_datos & p.objetivo)
     completa[sin_datos] = mu[0] * desviacion0[0] + media0[0]
-    return completa
+    desviacion[sin_datos] = np.sqrt(max(sigma[0, 0], 0.0)) * desviacion0[0]
+    return completa, desviacion

@@ -3,8 +3,8 @@ import numpy as np
 
 from ..errores import ErrorDeEntrada
 from . import con_explicativas, simples
-from .metricas import evaluar
-from .preparar import preparar
+from .metricas import Z_95, evaluar
+from .preparar import alinear, preparar
 
 # id -> (nombre, grupo, necesita explicativas, función)
 METODOS = {
@@ -35,13 +35,17 @@ def redondear(valor):
     return None if valor is None else round(float(valor), 6)
 
 
-def imputar(y, quitados, explicativas, metodos):
+def imputar(y, quitados, explicativas, metodos, comparar_con=()):
     """Imputa la explicada con cada método pedido y mide sus errores.
 
     y: la explicada (None donde le falta). quitados: tramos [desde, hasta] que se le han quitado para probar.
-    explicativas: las series elegidas. metodos: lista de {"metodo": id, "parametros": {...}}.
+    explicativas: las series elegidas. metodos: lista de {"metodo": id, "parametros": {...}}. comparar_con: series
+    con las que se mide el sesgo de correlación (las mismas para todos los métodos, para poder compararlos).
+    Un método puede devolver la serie completada o (serie completada, desviación de cada predicción): con la
+    desviación se da su intervalo del 95 % y las métricas de incertidumbre.
     """
     problema = preparar(y, quitados, explicativas)
+    otras = [alinear(serie, problema.n) for serie in comparar_con]
     referencia = simples.interpolacion(problema) if not np.all(np.isnan(problema.y)) else None
     resultados = []
     for pedido in metodos:
@@ -51,13 +55,18 @@ def imputar(y, quitados, explicativas, metodos):
         nombre, grupo, _, funcion = METODOS[identificador]
         fila = {"metodo": identificador, "nombre": nombre, "grupo": grupo}
         try:
-            completa = funcion(problema, pedido.get("parametros") or {})
+            salida = funcion(problema, pedido.get("parametros") or {})
         except ErrorDeEntrada as error:
             resultados.append({**fila, "error": str(error)})
             continue
-        metricas, por_tramo = evaluar(problema, completa, referencia)
+        completa, desviacion = salida if isinstance(salida, tuple) else (salida, None)
+        metricas, por_tramo, sesgos = evaluar(problema, completa, referencia, desviacion, otras)
+        intervalo = None
+        if desviacion is not None:
+            intervalo = {"inferior": como_lista(completa - Z_95 * desviacion), "superior": como_lista(completa + Z_95 * desviacion)}
         resultados.append({
-            **fila, "error": None, "imputado": como_lista(completa),
+            **fila, "error": None, "imputado": como_lista(completa), "intervalo": intervalo,
+            "sesgo_correlacion": [redondear(s) for s in sesgos],
             "sin_imputar": int((problema.objetivo & np.isnan(completa)).sum()),
             "metricas": {clave: (valor if clave == "n" else redondear(valor)) for clave, valor in metricas.items()},
             "por_tramo": [{**t, "mae": redondear(t["mae"]), "rmse": redondear(t["rmse"])} for t in por_tramo],

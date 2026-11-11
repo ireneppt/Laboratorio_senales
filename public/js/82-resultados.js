@@ -44,18 +44,10 @@ const METODOS_IMPUTACION = [
 ];
 const REFERENCIA_IMPUTACION = "interpolacion";
 
-// Medidas que se pueden ver en el resumen: [clave, nombre, ¿más es mejor?]
-const MEDIDAS_RESUMEN = [
-  ["rmse", "RMSE", false],
-  ["mae", "Error absoluto medio (MAE)", false],
-  ["rmse_est", "RMSE estandarizado", false],
-  ["r2", "R²", true],
-  ["mejora", "Mejora sobre la interpolación", true],
-];
 
 const resImp = {
   ui: {}, token: 0, controlador: null, temporizador: 0, cargando: false, error: "",
-  sub: "sin", multiActiva: null, familiasAbiertas: new Set(), medida: "rmse", dibujar: null, orden: { columna: null, sentido: 1 }, destacado: null, detalleAbierto: true,
+  sub: "sin", multiActiva: null, familiasAbiertas: new Set(), bloque: "precision", medida: "rmse", dibujar: null, orden: { columna: null, sentido: 1 }, destacado: null, detalleAbierto: true,
   vista: null,      // lo calculado para la sub-pestaña que se ve
   comparacion: null, // lo calculado para la comparación: un resultado por cada ventana con métodos marcados
   cache: new Map(), // lo ya calculado, para no volver a pedirlo (la clave es una huella de la petición)
@@ -153,11 +145,6 @@ function numeroResultado(v) {
 }
 const porcentajeResultado = (v) => (v === null || v === undefined ? "—" : `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v * 100).toLocaleString("es-ES", { maximumFractionDigits: 0 })} %`);
 const decimalesResultado = (v) => (v === null || v === undefined ? "—" : v.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-function formatoMedida(clave, v) {
-  if (clave === "mejora") return porcentajeResultado(v);
-  if (clave === "r2" || clave === "rmse_est") return decimalesResultado(v);
-  return numeroResultado(v);
-}
 
 // ----- Sub-pestañas: con qué se imputa -----
 function subpestanasImputacion() {
@@ -274,8 +261,10 @@ function montarResultados() {
         <div class="pestanas res-combinaciones" id="res-combinaciones" role="tablist" aria-label="Combinaciones de explicativas" hidden></div>
         <p class="res-aviso" id="res-aviso-combinacion" role="alert" hidden>Ya has hecho esta combinación.</p>
         <p class="ayuda" id="res-info" style="margin:0 0 12px"></p>
+        <div class="pestanas res-bloques" id="res-bloques" role="tablist" aria-label="Qué métricas se ven"></div>
         <div class="res-estado" id="res-estado" role="status"></div>
         <div id="res-vista-comp" hidden>
+          <p class="res-nota">Las métricas de precisión premian acertar el valor esperado. Los métodos que añaden variabilidad aleatoria (como la imputación múltiple) salen igual o algo peor en ellas, pero conservan mejor la varianza y las correlaciones, que importan en la ponderación y en el análisis de sensibilidad.</p>
           <div class="res-tabla res-tabla-comp" id="res-tabla-comp" role="table" aria-label="Comparación de los métodos marcados"></div>
           <div class="res-controles">
             <label>Ranking por
@@ -298,12 +287,30 @@ function montarResultados() {
   const q = (sel) => raiz.querySelector(sel);
   resImp.ui = {
     raiz, metodos: q("#res-metodos"), ayudaLateral: q("#res-ayuda-lateral"), falta: q("#res-falta"), faltaTexto: q("#res-falta-texto"), faltaIr: q("#res-falta-ir"),
-    trabajo: q("#res-trabajo"), subpestanas: q("#res-subpestanas"), combinaciones: q("#res-combinaciones"), avisoCombinacion: q("#res-aviso-combinacion"), info: q("#res-info"), estado: q("#res-estado"),
+    trabajo: q("#res-trabajo"), subpestanas: q("#res-subpestanas"), combinaciones: q("#res-combinaciones"), avisoCombinacion: q("#res-aviso-combinacion"), info: q("#res-info"), bloques: q("#res-bloques"), estado: q("#res-estado"),
     vistaComp: q("#res-vista-comp"), medida: q("#res-medida"), tablaComp: q("#res-tabla-comp"), graficaRanking: q("#res-grafica-ranking"), graficaComp: q("#res-grafica-comp"),
     vistaConjunto: q("#res-vista-conjunto"), tabla: q("#res-tabla"), grafica: q("#res-grafica"), detalle: q("#res-detalle"), tramos: q("#res-tramos"),
   };
-  for (const [clave, nombre] of MEDIDAS_RESUMEN) resImp.ui.medida.append(new Option(nombre, clave));
+  // el ranking, por cualquier métrica que tenga un "mejor", agrupadas por bloque
+  for (const bloque of BLOQUES_METRICAS) {
+    const grupo = document.createElement("optgroup");
+    grupo.label = bloque.titulo;
+    for (const def of bloque.metricas.filter((m) => m.mejor)) grupo.append(new Option(textoRanking(def), def.clave));
+    resImp.ui.medida.append(grupo);
+  }
   resImp.ui.medida.value = resImp.medida;
+  pintarBloques();
+  resImp.ui.bloques.addEventListener("click", (e) => {
+    const boton = e.target.closest("button[data-bloque]");
+    if (!boton || boton.dataset.bloque === resImp.bloque) return;
+    const bloque = BLOQUES_METRICAS.find((b) => b.id === boton.dataset.bloque);
+    resImp.bloque = bloque.id;
+    resImp.medida = bloque.ranking;                            // el ranking sigue al objetivo elegido
+    resImp.ui.medida.value = resImp.medida;
+    resImp.orden = { columna: null, sentido: 1 };
+    pintarBloques();
+    pintarResultados(objetivoDeExplicada());
+  });
   resImp.ui.medida.addEventListener("change", () => { resImp.medida = resImp.ui.medida.value; pintarResultados(objetivoDeExplicada()); });
   resImp.ui.tablaComp.addEventListener("click", alPulsarTabla);
   resImp.ui.tablaComp.addEventListener("change", alMarcarDibujo);
@@ -576,7 +583,7 @@ function ejecutarImputacion() {
 async function pedirConjunto(spec, obj, signal) {
   if (!spec.ids.length) return { vacio: true };
   const ids = spec.referencia && !spec.ids.includes(spec.referencia) ? [...spec.ids, spec.referencia] : spec.ids;
-  const texto = JSON.stringify({ y: obj.y, quitados: tramosQuitados(), explicativas: spec.series.map((x) => x.datos.y), metodos: pedidosDe(ids) });
+  const texto = JSON.stringify({ y: obj.y, quitados: tramosQuitados(), explicativas: spec.series.map((x) => x.datos.y), metodos: pedidosDe(ids), comparar_con: explicativasConDatos().map((x) => x.datos.y) });
   const clave = huellaTexto(texto);
   if (resImp.cache.has(clave)) return resImp.cache.get(clave);
   const respuesta = await fetch("/api/imputar", { method: "POST", headers: { "Content-Type": "application/json" }, body: texto, signal });
@@ -692,25 +699,87 @@ function filasDeResultados(vista) {
   return ids.map(metodoDeImputacion).filter(Boolean).map((m) => delServidor[m.id] || { metodo: m.id, nombre: m.nombre, grupo: m.grupo, error: "Sin resultado" });
 }
 
-const AYUDA_RESULTADOS = {};   // se rellena justo debajo: la explicación de cada columna, también para sus celdas
-const COLUMNAS_RESULTADOS = [
-  ["nombre", "Método", "El método de imputación. Pulsa una fila para resaltarlo en la gráfica."],
-  ["mae", "Error absoluto medio (MAE)", "La media de las distancias entre lo imputado y el valor real, en las unidades de la serie. Menos es mejor."],
-  ["rmse", "RMSE", "Como el MAE, pero castiga más los fallos grandes. Menos es mejor."],
-  ["rmse_est", "RMSE estandarizado", "RMSE / desviación típica de los datos conocidos. Es el error sin unidades, para comparar series distintas: 0 = perfecto; 1 = un error tan grande como lo que varía la serie. Menos es mejor."],
-  ["r2", "R²", "R² = 1 − Σ(real − imputado)² / Σ(real − media de lo conocido)², sobre los puntos que quitaste. 1 = perfecto; 0 = igual que rellenar con la media; negativo = peor que eso. No es la correlación al cuadrado. Más es mejor."],
-  ["mejora", "Mejora sobre la interpolación", "1 − RMSE del método / RMSE de la interpolación lineal. Positivo = mejor que la interpolación (35 % = un 35 % menos de error); negativo = peor."],
-  ["n", "Puntos medidos", "Puntos quitados por ti, con valor real, que el método ha conseguido imputar."],
+// ----- Métricas, en tres bloques: la tabla enseña el bloque elegido -----
+// mejor: "menor", "mayor", "uno" (cuanto más cerca de 1) o "noventa_y_cinco" (cuanto más cerca del 95 %); sin "mejor" no
+// se resalta ni sirve para el ranking. soloConIntervalo: los métodos sin intervalo dicen "no aplica".
+const porcentajeEntero = (v) => (v === null || v === undefined ? "—" : `${Math.round(v * 100)} %`);
+const BLOQUES_METRICAS = [
+  { id: "precision", titulo: "Precisión", ranking: "rmse", metricas: [
+    { clave: "mae", texto: "Error absoluto medio (MAE)", formato: numeroResultado, mejor: "menor",
+      ayuda: "La media de las distancias entre lo imputado y el valor real, en las unidades de la serie. Menos es mejor." },
+    { clave: "rmse", texto: "RMSE", formato: numeroResultado, mejor: "menor", ayuda: "Como el MAE, pero castiga más los fallos grandes. Menos es mejor." },
+    { clave: "rmse_est", texto: "RMSE estandarizado", formato: decimalesResultado, mejor: "menor",
+      ayuda: "RMSE / desviación típica de los datos conocidos. Es el error sin unidades, para comparar series distintas: 0 = perfecto; 1 = un error tan grande como lo que varía la serie. Menos es mejor." },
+    { clave: "r2", texto: "R²", formato: decimalesResultado, mejor: "mayor",
+      ayuda: "R² = 1 − Σ(real − imputado)² / Σ(real − media de lo conocido)², sobre los puntos que quitaste. 1 = perfecto; 0 = igual que rellenar con la media; negativo = peor que eso. No es la correlación al cuadrado. Más es mejor." },
+    { clave: "mejora", texto: "Mejora sobre la interpolación", formato: porcentajeResultado, mejor: "mayor",
+      ayuda: "1 − RMSE del método / RMSE de la interpolación lineal. Positivo = mejor que la interpolación (35 % = un 35 % menos de error); negativo = peor." },
+  ] },
+  { id: "estructura", titulo: "Estructura", ranking: "razon_var", metricas: [
+    { clave: "razon_var", texto: "Razón de varianzas", formato: decimalesResultado, mejor: "uno",
+      ayuda: "Varianza de lo imputado / varianza de lo real, en los puntos quitados. 1 = conserva la variación; por debajo de 1, la aplana (es lo que pasa al rellenar con la media o con rectas); por encima, la exagera. Lo mejor, cerca de 1." },
+    { clave: "sesgo_corr", texto: "Sesgo de correlación", formato: decimalesResultado, mejor: "menor",
+      ayuda: "Para cada explicativa elegida: corr(serie con lo imputado, explicativa) − corr(serie real, explicativa), sobre la serie entera. Aquí, la media de esos valores en valor absoluto. 0 = la imputación no cambia la relación con las explicativas. Pasa el ratón por un valor para ver el de cada una. Menos es mejor." },
+  ] },
+  { id: "incertidumbre", titulo: "Incertidumbre", ranking: "interval_score", metricas: [
+    { clave: "cobertura", texto: "Cobertura del 95 %", formato: porcentajeEntero, mejor: "noventa_y_cinco", soloConIntervalo: true,
+      ayuda: "Porcentaje de valores reales que caen dentro del intervalo del 95 % del método. Debería salir cerca del 95 %: por debajo, el intervalo es demasiado estrecho (el método se fía demasiado de sí mismo); por encima, demasiado ancho. Con pocos puntos quitados varía mucho. Solo para los métodos que dan intervalo." },
+    { clave: "anchura", texto: "Anchura media", formato: numeroResultado, soloConIntervalo: true,
+      ayuda: "Anchura media del intervalo del 95 % (superior − inferior), en unidades de la serie. Más estrecho es mejor solo si la cobertura sigue cerca del 95 %." },
+    { clave: "anchura_est", texto: "Anchura estandarizada", formato: decimalesResultado, soloConIntervalo: true,
+      ayuda: "Anchura media / desviación típica de los datos conocidos: sin unidades, como el RMSE estandarizado." },
+    { clave: "interval_score", texto: "Interval score", formato: numeroResultado, mejor: "menor", soloConIntervalo: true,
+      ayuda: "IS = (u − l) + (2/α)·(l − y) si y < l + (2/α)·(y − u) si y > u, con α = 0,05 y [l, u] el intervalo del 95 %; promediado (Gneiting y Raftery, 2007). Premia los intervalos estrechos y castiga mucho los que dejan fuera el valor real. Menos es mejor." },
+  ] },
 ];
-for (const [clave, , ayuda] of COLUMNAS_RESULTADOS) AYUDA_RESULTADOS[clave] = ayuda;
+const METRICAS = BLOQUES_METRICAS.flatMap((b) => b.metricas.map((m) => ({ ...m, bloque: b.id })));
+const metricaPorClave = (clave) => METRICAS.find((m) => m.clave === clave);
+const bloqueActual = () => BLOQUES_METRICAS.find((b) => b.id === resImp.bloque) || BLOQUES_METRICAS[0];
+const COLUMNA_NOMBRE = { clave: "nombre", texto: "Método", ayuda: "El método de imputación. Pulsa una fila para resaltarlo en la gráfica (con su intervalo, si lo tiene)." };
+const COLUMNA_CONJUNTO = { clave: "conjunto", texto: "Explicativas", ayuda: "Con qué explicativas se ha calculado: todas, algunas (X1 + X3), solo una o ninguna (—)." };
+const COLUMNA_N = { clave: "n", texto: "Puntos medidos", ayuda: "Puntos quitados por ti, con valor real, que el método ha conseguido imputar." };
+const textoRanking = (def) => def.texto + (def.mejor === "uno" ? " (distancia a 1)" : def.mejor === "noventa_y_cinco" ? " (distancia al 95 %)" : "");
 
-function pintarTablaResultados(filas, obj) {
-  const tabla = resImp.ui.tabla;
+// Lo que cuenta para ordenar, resaltar el mejor y el ranking: el valor o, si lo ideal es 1 o el 95 %, la distancia a eso
+function puntuacion(def, v) {
+  if (v === null || v === undefined) return null;
+  if (def.mejor === "uno") return Math.abs(v - 1);
+  if (def.mejor === "noventa_y_cinco") return Math.abs(v - 0.95);
+  return v;
+}
+const menorEsMejor = (def) => def.mejor !== "mayor";
+
+function pintarBloques() {
+  const barra = resImp.ui.bloques;
+  barra.replaceChildren();
+  for (const b of BLOQUES_METRICAS) {
+    const boton = document.createElement("button");
+    boton.type = "button";
+    boton.dataset.bloque = b.id;
+    boton.className = b.id === resImp.bloque ? "activa" : "";
+    boton.setAttribute("role", "tab");
+    boton.setAttribute("aria-selected", b.id === resImp.bloque);
+    boton.textContent = b.titulo;
+    barra.append(boton);
+  }
+}
+
+// La tabla de métricas del bloque elegido. En la comparación lleva además la casilla de dibujar y las explicativas.
+function pintarTablaMetricas(tabla, filas, { comparacion = false, dibujadas = new Set() } = {}) {
   tabla.replaceChildren();
+  const metricas = bloqueActual().metricas;
+  const columnas = [COLUMNA_NOMBRE, ...(comparacion ? [COLUMNA_CONJUNTO] : []), ...metricas, COLUMNA_N];
+  tabla.style.gridTemplateColumns = (comparacion ? "76px minmax(190px, 1.7fr) minmax(110px, 0.9fr) " : "minmax(200px, 1.7fr) ")
+    + `repeat(${metricas.length}, minmax(100px, 1fr)) minmax(100px, 0.8fr)`;
+  const esReferencia = (f) => (comparacion ? Boolean(f.esReferencia) : f.metodo === REFERENCIA_IMPUTACION);
+  const valor = (f, clave) => {
+    if (clave === "nombre" || clave === "conjunto") return String(f[clave]).toLowerCase();
+    if (f.error || !f.metricas) return null;
+    return clave === "n" ? f.metricas.n : puntuacion(metricaPorClave(clave), f.metricas[clave]);
+  };
   const { columna, sentido } = resImp.orden;
-  const valor = (f, c) => (c === "nombre" ? f.nombre.toLowerCase() : f.error || !f.metricas || f.metricas[c] === null ? null : f.metricas[c]);
   let ordenadas = filas;
-  if (columna) {
+  if (columna && columnas.some((c) => c.clave === columna)) {
     ordenadas = [...filas].sort((a, b) => {
       const x = valor(a, columna), y = valor(b, columna);
       if (x === null && y === null) return 0;
@@ -719,24 +788,31 @@ function pintarTablaResultados(filas, obj) {
       return (x < y ? -1 : x > y ? 1 : 0) * sentido;
     });
   }
-  // el mejor de cada columna
+  // el mejor de cada columna (si hay con qué comparar)
   const mejor = {};
-  for (const [c, mayorEsMejor] of [["mae", false], ["rmse", false], ["rmse_est", false], ["r2", true], ["mejora", true]]) {
-    const valores = filas.map((f) => valor(f, c)).filter((v) => v !== null);
-    if (valores.length > 1 || (valores.length === 1 && filas.length === 1)) mejor[c] = mayorEsMejor ? Math.max(...valores) : Math.min(...valores);
+  for (const def of metricas.filter((m) => m.mejor)) {
+    const valores = filas.map((f) => valor(f, def.clave)).filter((v) => v !== null);
+    if (valores.length > 1 || (valores.length === 1 && filas.length === 1)) mejor[def.clave] = menorEsMejor(def) ? Math.min(...valores) : Math.max(...valores);
   }
 
-  for (const [id, texto, ayuda] of COLUMNAS_RESULTADOS) {
+  if (comparacion) {
+    const cabeceraFija = document.createElement("div");
+    cabeceraFija.className = "cab";
+    cabeceraFija.title = "Marca las filas que quieras ver en la gráfica de la serie.";
+    cabeceraFija.textContent = "Dibujar";
+    tabla.append(cabeceraFija);
+  }
+  for (const { clave, texto, ayuda } of columnas) {
     const cab = document.createElement("div");
     cab.className = "cab";
     cab.setAttribute("role", "columnheader");
-    cab.setAttribute("aria-sort", columna === id ? (sentido === 1 ? "ascending" : "descending") : "none");
+    cab.setAttribute("aria-sort", columna === clave ? (sentido === 1 ? "ascending" : "descending") : "none");
     const boton = document.createElement("button");
     boton.type = "button";
-    boton.dataset.orden = id;
+    boton.dataset.orden = clave;
     boton.title = ayuda + " Pulsa para ordenar.";
     boton.append(texto);
-    if (columna === id) {
+    if (columna === clave) {
       const flecha = document.createElement("span");
       flecha.className = "flecha";
       flecha.textContent = sentido === 1 ? "↑" : "↓";
@@ -747,42 +823,65 @@ function pintarTablaResultados(filas, obj) {
   }
 
   const c = colores();
+  const nombresComparar = explicativasConDatos().map(nombreDe);
   for (const f of ordenadas) {
-    const tenue = f.metodo === REFERENCIA_IMPUTACION && resImp.sub !== "sin" ? " tenue" : "";   // la referencia añadida sale atenuada
-    const resaltada = (resImp.destacado === f.metodo ? " resaltada" : "") + tenue;
-    const celda = (clase = "") => { const d = document.createElement("div"); d.setAttribute("role", "cell"); d.dataset.metodo = f.metodo; d.className = (clase + resaltada).trim(); return d; };
+    const tenue = esReferencia(f) && (comparacion || resImp.sub !== "sin") ? " tenue" : "";   // la referencia añadida sale atenuada
+    const extra = (!comparacion && resImp.destacado === f.metodo ? " resaltada" : "") + tenue;
+    const celda = (clase = "") => {
+      const d = document.createElement("div");
+      d.setAttribute("role", "cell");
+      if (comparacion) d.dataset.clave = f.clave; else d.dataset.metodo = f.metodo;
+      d.className = (clase + extra).trim();
+      return d;
+    };
+    if (comparacion) {
+      const marca = celda("marca");
+      const casilla = document.createElement("input");
+      casilla.type = "checkbox";
+      casilla.dataset.dibujar = f.clave;
+      casilla.checked = dibujadas.has(f.clave) && !f.error;
+      casilla.disabled = Boolean(f.error);
+      casilla.setAttribute("aria-label", `Dibujar ${etiquetaFila(f)}`);
+      marca.append(casilla);
+      tabla.append(marca);
+    }
     const nombre = celda("nombre");
     const punto = document.createElement("span");
     punto.className = "punto-color";
-    punto.style.background = colorDeMetodo(f.metodo, c);
+    punto.style.background = f.colorFila || colorDeMetodo(f.metodo, c);
     const texto = document.createElement("span");
     texto.append(f.nombre);
-    if (f.metodo === REFERENCIA_IMPUTACION) {
+    if (esReferencia(f)) {
       const referencia = document.createElement("small");
       referencia.textContent = "la referencia";
       texto.append(referencia);
     }
     nombre.append(punto, texto);
     tabla.append(nombre);
+    if (comparacion) {
+      const conjunto = celda("conjunto");
+      conjunto.textContent = f.conjunto;
+      tabla.append(conjunto);
+    }
     if (f.error) {
       const aviso = celda("sin-calculo");
       aviso.textContent = f.error;
-      aviso.style.gridColumn = "2 / -1";
+      aviso.style.gridColumn = `${comparacion ? 4 : 2} / -1`;
       tabla.append(aviso);
       continue;
     }
     const m = f.metricas;
-    const poner = (clave, texto) => {
-      const d = celda("valor" + (mejor[clave] !== undefined && m[clave] === mejor[clave] ? " mejor" : ""));
-      d.textContent = texto;
-      d.title = AYUDA_RESULTADOS[clave] || "";
+    for (const def of metricas) {
+      const noAplica = def.soloConIntervalo && !f.intervalo;
+      const esMejor = !noAplica && mejor[def.clave] !== undefined && valor(f, def.clave) === mejor[def.clave];
+      const d = celda("valor" + (esMejor ? " mejor" : "") + (noAplica ? " no-aplica" : ""));
+      d.textContent = noAplica ? "no aplica" : def.clave === "mejora" && esReferencia(f) ? "—" : def.formato(m[def.clave]);
+      d.title = noAplica ? "Este método no da intervalo, así que no tiene métricas de incertidumbre." : def.ayuda;
+      if (def.clave === "sesgo_corr" && (f.sesgo_correlacion || []).length) {
+        d.title = f.sesgo_correlacion.map((v, i) => `${nombresComparar[i] ?? `Serie ${i + 1}`}: ${decimalesResultado(v)}`).join(" · ") + "\n\n" + def.ayuda;
+      }
       tabla.append(d);
-    };
-    poner("mae", numeroResultado(m.mae));
-    poner("rmse", numeroResultado(m.rmse));
-    poner("rmse_est", decimalesResultado(m.rmse_est));
-    poner("r2", decimalesResultado(m.r2));
-    poner("mejora", f.metodo === REFERENCIA_IMPUTACION ? "—" : porcentajeResultado(m.mejora));
+    }
     const n = celda("n");
     n.textContent = String(m.n);
     if (f.sin_imputar > 0) {
@@ -794,11 +893,15 @@ function pintarTablaResultados(filas, obj) {
   }
 }
 
+const pintarTablaResultados = (filas) => pintarTablaMetricas(resImp.ui.tabla, filas);
+
 function alPulsarTabla(e) {
   const boton = e.target.closest("[data-orden]");
   if (boton) {
     const columna = boton.dataset.orden;
-    resImp.orden = resImp.orden.columna === columna ? { columna, sentido: -resImp.orden.sentido } : { columna, sentido: ["mae", "rmse", "rmse_est", "nombre", "conjunto"].includes(columna) ? 1 : -1 };
+    const def = metricaPorClave(columna);
+    const ascendente = columna === "nombre" || columna === "conjunto" || (def && menorEsMejor(def));   // primero, lo mejor
+    resImp.orden = resImp.orden.columna === columna ? { columna, sentido: -resImp.orden.sentido } : { columna, sentido: ascendente ? 1 : -1 };
     pintarResultados(objetivoDeExplicada());
     return;
   }
@@ -833,11 +936,18 @@ function pintarGraficaResultados(filas, obj, grafica = resImp.ui.grafica) {
       for (const j of [i - 1, i, i + 1]) if (j >= 0 && j < n && f.imputado[j] !== null) trazo[j] = f.imputado[j];
     }
     const atenuado = resImp.destacado !== null && resImp.destacado !== f.metodo;
+    // el método resaltado enseña su intervalo del 95 % en cada punto imputado (si lo tiene)
+    const conIntervalo = resImp.destacado === f.metodo && f.intervalo;
+    const errores = conIntervalo ? {
+      type: "data", symmetric: false, thickness: 1.2, width: 3, color: colorDeMetodo(f.metodo, c),
+      array: trazo.map((v, i) => (v === null || !objetivo[i] || f.intervalo.superior[i] === null ? null : f.intervalo.superior[i] - v)),
+      arrayminus: trazo.map((v, i) => (v === null || !objetivo[i] || f.intervalo.inferior[i] === null ? null : v - f.intervalo.inferior[i])),
+    } : undefined;
     const comoReferencia = f.metodo === REFERENCIA_IMPUTACION && resImp.sub !== "sin";
     trazas.push({
       x, y: trazo, type: "scatter", mode: "lines+markers", name: f.nombre, opacity: atenuado ? 0.25 : comoReferencia ? 0.4 : 1,
       line: { color: f.color || colorDeMetodo(f.metodo, c), width: resImp.destacado === f.metodo ? 3.5 : 1.8 },
-      marker: { size: 4 },
+      marker: { size: 4 }, error_y: errores,
       hovertemplate: "<b>%{y:.2f}</b>  ·  punto %{x}<extra>" + f.nombre + "</extra>",
     });
   }
@@ -904,11 +1014,6 @@ function pintarTramosResultados(filas) {
 // ----- Comparación: lo marcado en todas las ventanas, en una sola tabla -----
 const etiquetaConjunto = (sub) => (sub.id === "sin" ? "—" : sub.combinacion ? (sub.series.length === explicativasConDatos().length ? "Todas" : sub.series.map(nombreDe).join(" + ")) : nombreDe(sub.serie));
 const etiquetaFila = (f) => (f.conjunto === "—" ? f.nombre : `${f.nombre} · ${f.conjunto}`);
-const COLUMNAS_COMPARACION = [
-  COLUMNAS_RESULTADOS[0],
-  ["conjunto", "Explicativas", "Con qué explicativas se ha calculado: todas, algunas (X1 + X3), solo una o ninguna (—)."],
-  ...COLUMNAS_RESULTADOS.slice(1),
-];
 
 // Una fila por método marcado y ventana, ordenadas por método; la interpolación va una sola vez, al final, como referencia
 function filasComparacion() {
@@ -958,118 +1063,19 @@ function pintarComparacionImputacion(obj) {
 }
 
 function pintarTablaComparacion(filas, dibujadas) {
-  const tabla = resImp.ui.tablaComp;
-  tabla.replaceChildren();
-  const { columna, sentido } = resImp.orden;
-  const valor = (f, c) => (c === "nombre" || c === "conjunto" ? String(f[c]).toLowerCase() : f.error || !f.metricas || f.metricas[c] === null ? null : f.metricas[c]);
-  let ordenadas = filas;
-  if (columna) {
-    ordenadas = [...filas].sort((a, b) => {
-      const x = valor(a, columna), y = valor(b, columna);
-      if (x === null && y === null) return 0;
-      if (x === null) return 1;
-      if (y === null) return -1;
-      return (x < y ? -1 : x > y ? 1 : 0) * sentido;
-    });
-  }
-  const mejor = {};
-  for (const [c, mayorEsMejor] of [["mae", false], ["rmse", false], ["rmse_est", false], ["r2", true], ["mejora", true]]) {
-    const valores = filas.map((f) => valor(f, c)).filter((v) => v !== null);
-    if (valores.length > 1 || (valores.length === 1 && filas.length === 1)) mejor[c] = mayorEsMejor ? Math.max(...valores) : Math.min(...valores);
-  }
-
-  const cabeceraFija = document.createElement("div");
-  cabeceraFija.className = "cab";
-  cabeceraFija.title = "Marca las filas que quieras ver en la gráfica de la serie.";
-  cabeceraFija.textContent = "Dibujar";
-  tabla.append(cabeceraFija);
-  for (const [id, texto, ayuda] of COLUMNAS_COMPARACION) {
-    const cab = document.createElement("div");
-    cab.className = "cab";
-    cab.setAttribute("role", "columnheader");
-    cab.setAttribute("aria-sort", columna === id ? (sentido === 1 ? "ascending" : "descending") : "none");
-    const boton = document.createElement("button");
-    boton.type = "button";
-    boton.dataset.orden = id;
-    boton.title = ayuda + " Pulsa para ordenar.";
-    boton.append(texto);
-    if (columna === id) {
-      const flecha = document.createElement("span");
-      flecha.className = "flecha";
-      flecha.textContent = sentido === 1 ? "↑" : "↓";
-      boton.append(flecha);
-    }
-    cab.append(boton);
-    tabla.append(cab);
-  }
-
-  const c = colores();
-  for (const f of ordenadas) {
-    const tenue = f.esReferencia ? " tenue" : "";
-    const celda = (clase = "") => { const d = document.createElement("div"); d.setAttribute("role", "cell"); d.dataset.clave = f.clave; d.className = (clase + tenue).trim(); return d; };
-    const marca = celda("marca");
-    const casilla = document.createElement("input");
-    casilla.type = "checkbox";
-    casilla.dataset.dibujar = f.clave;
-    casilla.checked = dibujadas.has(f.clave) && !f.error;
-    casilla.disabled = Boolean(f.error);
-    casilla.setAttribute("aria-label", `Dibujar ${etiquetaFila(f)}`);
-    marca.append(casilla);
-    tabla.append(marca);
-    const nombre = celda("nombre");
-    const punto = document.createElement("span");
-    punto.className = "punto-color";
-    punto.style.background = f.colorFila || colorDeMetodo(f.metodo, c);
-    const texto = document.createElement("span");
-    texto.append(f.nombre);
-    if (f.esReferencia) {
-      const referencia = document.createElement("small");
-      referencia.textContent = "la referencia";
-      texto.append(referencia);
-    }
-    nombre.append(punto, texto);
-    tabla.append(nombre);
-    const conjunto = celda("conjunto");
-    conjunto.textContent = f.conjunto;
-    tabla.append(conjunto);
-    if (f.error) {
-      const aviso = celda("sin-calculo");
-      aviso.textContent = f.error;
-      aviso.style.gridColumn = "4 / -1";
-      tabla.append(aviso);
-      continue;
-    }
-    const m = f.metricas;
-    const poner = (clave, texto) => {
-      const d = celda("valor" + (mejor[clave] !== undefined && m[clave] === mejor[clave] ? " mejor" : ""));
-      d.textContent = texto;
-      d.title = AYUDA_RESULTADOS[clave] || "";
-      tabla.append(d);
-    };
-    poner("mae", numeroResultado(m.mae));
-    poner("rmse", numeroResultado(m.rmse));
-    poner("rmse_est", decimalesResultado(m.rmse_est));
-    poner("r2", decimalesResultado(m.r2));
-    poner("mejora", f.esReferencia ? "—" : porcentajeResultado(m.mejora));
-    const n = celda("n");
-    n.textContent = String(m.n);
-    if (f.sin_imputar > 0) {
-      const sin = document.createElement("small");
-      sin.textContent = `${f.sin_imputar} sin imputar`;
-      n.append(sin);
-    }
-    tabla.append(n);
-  }
+  pintarTablaMetricas(resImp.ui.tablaComp, filas, { comparacion: true, dibujadas });
 }
 
 // Barras horizontales: todas las filas, de la mejor a la peor según la medida elegida
 function pintarRankingComparacion(filas) {
   const grafica = resImp.ui.graficaRanking;
-  const [clave, nombreMedida, mayorEsMejor] = MEDIDAS_RESUMEN.find((m) => m[0] === resImp.medida) || MEDIDAS_RESUMEN[0];
+  const def = metricaPorClave(resImp.medida) || metricaPorClave("rmse");
+  const clave = def.clave;
+  const nombreMedida = textoRanking(def);
   // La interpolación es la referencia de la mejora: su mejora sobre sí misma es 0 %, y así sigue saliendo en el ranking
-  const valor = (f) => (f.esReferencia && clave === "mejora" ? 0 : f.metricas[clave]);
-  const con = filas.filter((f) => !f.error && f.metricas && (f.esReferencia && clave === "mejora" ? true : f.metricas[clave] !== null && f.metricas[clave] !== undefined))
-    .sort((a, b) => (mayorEsMejor ? valor(b) - valor(a) : valor(a) - valor(b)));
+  const valor = (f) => (f.esReferencia && clave === "mejora" ? 0 : puntuacion(def, f.metricas[clave]));
+  const con = filas.filter((f) => !f.error && f.metricas && valor(f) !== null && valor(f) !== undefined)
+    .sort((a, b) => (menorEsMejor(def) ? valor(a) - valor(b) : valor(b) - valor(a)));
   if (!con.length) {
     try { Plotly.purge(grafica); } catch { /* aún no había gráfica */ }
     grafica.style.height = "0";
@@ -1077,7 +1083,8 @@ function pintarRankingComparacion(filas) {
   }
   grafica.style.height = `${90 + 34 * con.length}px`;
   const c = colores();
-  const factor = clave === "mejora" ? 100 : 1;
+  const enPorcentaje = clave === "mejora" || clave === "cobertura";
+  const factor = enPorcentaje ? 100 : 1;
   const eje = (texto) => ({
     title: texto ? { text: texto, font: { color: c.muted, size: 12 }, standoff: 8 } : undefined,
     gridcolor: c.grid, gridwidth: 1, zeroline: false, linecolor: c.axis, tickfont: { color: c.muted, size: 11 }, ticks: "",
@@ -1087,11 +1094,11 @@ function pintarRankingComparacion(filas) {
     marker: {
       color: con.map((f) => f.colorFila || colorDeMetodo(f.metodo, c)), opacity: con.map((f) => (f.esReferencia ? 0.4 : 1)),
     },
-    hovertemplate: `<b>%{x:.3g}${clave === "mejora" ? " %" : ""}</b><extra>%{y}</extra>`,
+    hovertemplate: `<b>%{x:.3g}${enPorcentaje ? (clave === "cobertura" ? " puntos" : " %") : ""}</b><extra>%{y}</extra>`,
   }], {
     paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", font: { family: c.fuente, color: c.ink2 },
     margin: { t: 8, r: 16, b: 48, l: 250 }, showlegend: false, hovermode: "closest",
-    xaxis: { ...eje(clave === "mejora" ? `${nombreMedida} (%)` : nombreMedida), showline: false },
+    xaxis: { ...eje(clave === "mejora" ? `${nombreMedida} (%)` : clave === "cobertura" ? `${nombreMedida}, en puntos porcentuales` : nombreMedida), showline: false },
     yaxis: { ...eje(""), autorange: "reversed", showgrid: false, showline: true },
     hoverlabel: { bgcolor: c.surface, bordercolor: c.axis, font: { color: c.ink, family: c.fuente, size: 13 } },
   }, { responsive: true, displaylogo: false, displayModeBar: false });

@@ -128,6 +128,7 @@ class PeticionImputar(BaseModel):
     quitados: list[tuple[int, int]] = Field(default=[], max_length=1000)  # tramos [desde, hasta] que se le han quitado para probar
     explicativas: list[list[float | None]] = Field(default=[], max_length=20)
     metodos: list[MetodoPedido] = Field(min_length=1, max_length=30)   # holgado: hay más de 10 métodos y vendrán más
+    comparar_con: list[list[float | None]] = Field(default=[], max_length=20)  # series con las que se mide el sesgo de correlación
 
 
 class PeticionComponentes(BaseModel):
@@ -148,6 +149,6 @@ def post_componentes(peticion: PeticionComponentes):
 def post_imputar(peticion: PeticionImputar):
     """Imputa la explicada con cada método pedido y devuelve lo imputado y sus errores (sobre lo que se quitó)."""
     try:
-        return imputar(peticion.y, peticion.quitados, peticion.explicativas, [m.model_dump() for m in peticion.metodos])
+        return imputar(peticion.y, peticion.quitados, peticion.explicativas, [m.model_dump() for m in peticion.metodos], peticion.comparar_con)
     except ErrorDeEntrada as error:
         raise HTTPException(422, str(error))
