@@ -1,4 +1,4 @@
-"""Métodos que usan las variables explicativas: regresión y EM.
+"""Métodos que usan las variables explicativas: regresión, regresión estocástica y EM.
 
 Además de la serie completada devuelven, para cada punto imputado, la desviación típica de su predicción: con ella
 se construye el intervalo del 95 % (lo imputado ± 1,96 desviaciones). Donde no hay imputación, NaN.
@@ -9,6 +9,7 @@ ninguna con dato en ese punto, ese punto se queda sin imputar (NaN), salvo en el
 import numpy as np
 
 from ..errores import ErrorDeEntrada
+from .simples import _entero
 
 
 def _necesita_explicativas(p):
@@ -18,15 +19,15 @@ def _necesita_explicativas(p):
         raise ErrorDeEntrada("No queda ningún dato conocido de la variable explicada")
 
 
-def regresion(p, parametros=None):
-    """Ajusta una recta (mínimos cuadrados) de la explicada sobre las explicativas con los puntos conocidos
-    y predice los huecos. Si en un punto faltan algunas explicativas, se usa un modelo con las que sí hay."""
-    _necesita_explicativas(p)
-    completa = p.y.copy()
-    desviacion = np.full(p.n, np.nan)
+def _ajustar_regresion(p):
+    """Ajusta la recta de la explicada sobre las explicativas (mínimos cuadrados) con los puntos conocidos y predice los
+    huecos. Si en un punto faltan algunas explicativas, se usa un modelo con las que sí hay. Devuelve una lista con un
+    elemento por cada conjunto de puntos que comparten modelo: (puntos, predicción, varianza residual s², desviación de la
+    predicción). La desviación incluye la incertidumbre de la recta; s² es solo la varianza de los residuos."""
     por_disponibles = {}
     for i in np.flatnonzero(p.objetivo):
         por_disponibles.setdefault(tuple(np.flatnonzero(~np.isnan(p.X[i]))), []).append(i)
+    grupos = []
     for columnas, puntos in por_disponibles.items():
         if not columnas:
             continue
@@ -37,13 +38,43 @@ def regresion(p, parametros=None):
         A = np.column_stack([np.ones(filas.sum()), p.X[filas][:, columnas]])
         coeficientes = np.linalg.lstsq(A, p.y[filas], rcond=None)[0]
         nuevos = np.column_stack([np.ones(len(puntos)), p.X[puntos][:, columnas]])
-        completa[puntos] = nuevos @ coeficientes
         # intervalo de predicción clásico: s² · (1 + x0ᵀ (AᵀA)⁻¹ x0), con s² la varianza de los residuos
         residuos = p.y[filas] - A @ coeficientes
         s2 = float(residuos @ residuos) / (len(residuos) - A.shape[1])
         inversa = np.linalg.pinv(A.T @ A)
-        desviacion[puntos] = np.sqrt(s2 * (1 + np.einsum("ij,jk,ik->i", nuevos, inversa, nuevos)))
+        desviacion = np.sqrt(s2 * (1 + np.einsum("ij,jk,ik->i", nuevos, inversa, nuevos)))
+        grupos.append((np.array(puntos), nuevos @ coeficientes, s2, desviacion))
+    return grupos
+
+
+def regresion(p, parametros=None):
+    """Ajusta una recta (mínimos cuadrados) de la explicada sobre las explicativas con los puntos conocidos
+    y predice los huecos: la media condicional. Si en un punto faltan algunas explicativas, se usa un modelo con las que sí hay."""
+    _necesita_explicativas(p)
+    completa = p.y.copy()
+    desviacion = np.full(p.n, np.nan)
+    for puntos, prediccion, _, sd in _ajustar_regresion(p):
+        completa[puntos] = prediccion
+        desviacion[puntos] = sd
     return completa, desviacion
+
+
+def regresion_estocastica(p, parametros=None):
+    """Regresión estocástica, como la describe el Handbook de la OCDE y el JRC (apartado 3.3, ecuación 3): en vez de la
+    media condicional, se imputa una extracción de la distribución condicional,
+        x̂ = β̂₀ + Σ β̂ⱼ xⱼ + ε,   ε ~ N(0, σ̂²),
+    con σ̂² la varianza residual de la regresión con los puntos conocidos. Los β̂ son los estimados (sin incertidumbre) y
+    el ruido de cada punto es independiente: una sola extracción por punto. Con la misma semilla sale siempre lo mismo.
+
+    No da intervalo: uno centrado en una extracción aleatoria no tiene sentido, y el manual avisa de que la imputación
+    única, aunque sea estocástica, sigue subestimando la incertidumbre (la imputación múltiple la recoge)."""
+    _necesita_explicativas(p)
+    semilla = _entero(parametros, "semilla", 42, 0, 1_000_000, "La semilla")
+    rng = np.random.default_rng(semilla)
+    completa = p.y.copy()
+    for puntos, prediccion, s2, _ in _ajustar_regresion(p):
+        completa[puntos] = prediccion + np.sqrt(s2) * rng.standard_normal(len(puntos))
+    return completa, None
 
 
 def em(p, parametros=None, iteraciones=300, tolerancia=1e-7):

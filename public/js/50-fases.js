@@ -47,7 +47,7 @@ const PESTANAS_IMPUTACION = [
   },
   {
     id: "explicativas", titulo: "Variables explicativas",
-    descripcion: "Las series que se usan como datos de entrada para imputar la variable explicada. Cada una dice si sirve para los huecos.",
+    descripcion: "Las series que se usan como datos de entrada para imputar la variable explicada.",
     contenido: [],
   },
   {
@@ -58,6 +58,11 @@ const PESTANAS_IMPUTACION = [
   {
     id: "resultados", titulo: "Imputación y resultados",
     descripcion: "Imputa los datos faltantes con distintos métodos y compáralos con el valor real de lo que quitaste.",
+    contenido: [],
+  },
+  {
+    id: "seleccion", titulo: "Selección",
+    descripcion: "Elige el método que deja la serie final: los datos reales con los huecos rellenados. Descárgala o añádela como serie del proyecto.",
     contenido: [],
   },
 ];
@@ -73,8 +78,10 @@ function renderImputacion() {
   if (expl.ui.grafica) { try { Plotly.purge(expl.ui.grafica); } catch { /* ya no está en pantalla */ } }
   if (cor.ui.grafica) { try { Plotly.purge(cor.ui.grafica); } catch { /* ya no está en pantalla */ } }
   if (resImp.ui.grafica) { try { Plotly.purge(resImp.ui.grafica); } catch { /* ya no está en pantalla */ } }
+  if (sel.ui.grafica) { try { Plotly.purge(sel.ui.grafica); } catch { /* ya no está en pantalla */ } }
   exp.ui = {};
   expl.ui = {};
+  sel.ui = {};
   const barra = document.getElementById("pestanas-imputacion");
   barra.replaceChildren();
   PESTANAS_IMPUTACION.forEach((pestana, i) => {
@@ -131,6 +138,10 @@ function renderImputacion() {
     contenedor.append(titulo, descripcion, montarResultados(), nav);
     panel.append(contenedor);
     actualizarResultados();
+  } else if (pestana.id === "seleccion") {
+    contenedor.append(titulo, descripcion, montarSeleccion(), nav);
+    panel.append(contenedor);
+    actualizarSeleccion();
   } else if (pestana.id === "correlacion") {
     contenedor.append(titulo, descripcion, montarCorrelacion(), nav);
     panel.append(contenedor);

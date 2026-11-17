@@ -11,6 +11,7 @@ METODOS = {
     "media": ("Media", "explicito", False, simples.media),
     "mediana": ("Mediana", "explicito", False, simples.mediana),
     "regresion": ("Regresión", "explicito", True, con_explicativas.regresion),
+    "regresion_estocastica": ("Regresión estocástica", "explicito", True, con_explicativas.regresion_estocastica),
     "em": ("EM (esperanza-maximización)", "explicito", True, con_explicativas.em),
     "imputacion_multiple": ("Imputación múltiple (MCMC)", "explicito", True, multiple.imputacion_multiple),
     "ultimo_valor": ("Último valor conocido", "referencia", False, simples.ultimo_valor),
@@ -22,6 +23,7 @@ METODOS = {
     "media_estacional": ("Media estacional", "referencia", False, simples.media_estacional),
     "interpolacion": ("Interpolación lineal", "referencia", False, simples.interpolacion),
     "polinomica": ("Interpolación polinómica (spline cúbica)", "referencia", False, simples.polinomica),
+    "pchip": ("Interpolación PCHIP", "referencia", False, simples.pchip),
 }
 REFERENCIA = "interpolacion"  # con qué se compara la mejora de cada método
 

@@ -10,8 +10,8 @@ const FAMILIAS_IMPUTACION = [
   { id: "cercano", titulo: "Valor más cercano", metodos: ["ultimo_valor", "siguiente_valor"] },
   { id: "moviles", titulo: "Medias móviles", metodos: ["media_movil", "media_movil_atras", "media_movil_pond", "media_movil_pond_atras"] },
   { id: "estacional", titulo: "Estacional", metodos: ["media_estacional"] },
-  { id: "interpolacion", titulo: "Interpolación", metodos: ["interpolacion", "polinomica"] },
-  { id: "modelos", titulo: "Modelos", metodos: ["regresion", "em", "imputacion_multiple"] },
+  { id: "interpolacion", titulo: "Interpolación", metodos: ["interpolacion", "polinomica", "pchip"] },
+  { id: "modelos", titulo: "Modelos", metodos: ["regresion", "regresion_estocastica", "em", "imputacion_multiple"] },
 ];
 
 // id (el mismo que usa la API), nombre, grupo, si necesita explicativas, y qué hace (texto al pasar el ratón)
@@ -20,6 +20,8 @@ const METODOS_IMPUTACION = [
   { id: "mediana", nombre: "Mediana", grupo: "explicito", explicativas: false, ayuda: "Rellena con la mediana de los datos conocidos." },
   { id: "regresion", nombre: "Regresión", grupo: "explicito", explicativas: true,
     ayuda: "Ajusta una recta de la explicada sobre las explicativas con los datos conocidos y predice los huecos." },
+  { id: "regresion_estocastica", nombre: "Regresión estocástica", grupo: "explicito", explicativas: true,
+    ayuda: "Como la regresión, pero en vez de la media condicional imputa una extracción al azar de la distribución condicional: la predicción de la recta más un ruido normal con la varianza de los residuos (Handbook de la OCDE y el JRC, apartado 3.3, ecuación 3). Es una sola imputación por punto, con una semilla para que salga siempre lo mismo. Falla más que la regresión en precisión (suma ruido), pero no aplana la serie: conserva mejor la varianza y las correlaciones. El ruido es independiente en cada punto, así que no reproduce la textura temporal de los residuos. No da intervalo: el manual avisa de que una imputación única sigue subestimando la incertidumbre; la imputación múltiple sí la recoge." },
   { id: "em", nombre: "EM (esperanza-maximización)", grupo: "explicito", explicativas: true,
     ayuda: "Estima las medias y correlaciones de todas las series, rellena lo que falta y repite hasta estabilizarse. Admite huecos en las explicativas." },
   { id: "imputacion_multiple", nombre: "Imputación múltiple (MCMC)", grupo: "explicito", explicativas: true,
@@ -41,6 +43,8 @@ const METODOS_IMPUTACION = [
     ayuda: "Une los datos conocidos con rectas. Es la referencia con la que se compara la mejora de cada método." },
   { id: "polinomica", nombre: "Interpolación polinómica (spline cúbica)", grupo: "referencia", explicativas: false,
     ayuda: "Une los datos conocidos con curvas: un polinomio de grado 3 entre cada dos datos, empalmados de forma suave. En huecos largos puede pasarse de largo." },
+  { id: "pchip", nombre: "Interpolación PCHIP", grupo: "referencia", explicativas: false,
+    ayuda: "Como la spline cúbica (una curva de grado 3 entre cada dos datos), pero eligiendo las pendientes para que la curva no se pase de largo: no sale del rango de sus dos datos vecinos y conserva si sube o baja entre ellos. Es lo que hace pchip en MATLAB. Donde hay un máximo o un mínimo en los datos, la curva se aplana. No recupera un pico escondido dentro de un hueco: solo ve los datos de los lados." },
 ];
 const REFERENCIA_IMPUTACION = "interpolacion";
 
@@ -318,6 +322,7 @@ const PARAMETROS_DE_METODO = {
   media_movil_pond: [{ clave: "k_movil_pond", api: "k", texto: "Datos a cada lado (k)", min: 1, max: maximoKMovil }],
   media_movil_pond_atras: [{ clave: "k_movil_pond_atras", api: "k", texto: "Datos anteriores (k)", min: 1, max: maximoKMovil }],
   media_estacional: [{ clave: "quitar_tendencia", api: "quitar_tendencia", texto: "Quitar la tendencia antes", tipo: "casilla" }],
+  regresion_estocastica: [{ clave: "re_semilla", api: "semilla", texto: "Semilla", min: 0, max: () => 1000000, nuevaSemilla: true }],
   imputacion_multiple: [
     { clave: "mi_n", api: "n", texto: "Imputaciones (N)", min: 2, max: () => 50 },
     { clave: "mi_iteraciones", api: "iteraciones", texto: "Iteraciones", min: 10, max: () => 500 },
@@ -355,38 +360,44 @@ function huellaTexto(texto) {
   return `${texto.length}-${(h2 >>> 0).toString(16)}${(h1 >>> 0).toString(16)}`;
 }
 
-// ----- Ayuda («?»): todas las explicaciones juntas, sacadas de las mismas constantes que los tooltips -----
-function abrirAyudaImputacion() {
-  const d = resImp.ui.ayudaDialogo;
-  const el = (etiqueta, texto, clase) => { const e = document.createElement(etiqueta); if (texto !== undefined) e.textContent = texto; if (clase) e.className = clase; return e; };
-  const entrada = (nombre, texto) => { const caja = el("div", undefined, "res-ayuda-entrada"); caja.append(el("strong", nombre), el("p", texto)); return caja; };
-  const cabecera = el("div", undefined, "dialogo-cab");
-  const titulo = el("h2", "Ayuda: imputación y resultados");
-  titulo.id = "res-ayuda-titulo";
-  const cerrar = el("button", "Cerrar");
-  cerrar.type = "button";
-  cerrar.addEventListener("click", () => d.close());
-  cabecera.append(titulo, cerrar);
-
-  const cuerpo = el("div", undefined, "res-ayuda-cuerpo");
-  cuerpo.append(el("h3", "Cómo se lee"));
-  cuerpo.append(el("p", "Se quitan tramos de la serie (pestaña 1), cada método los rellena y se compara lo imputado con el valor real que había. En las tablas, la mejor cifra de cada columna va en negrita: en unas es la menor (errores) y en otras la mayor (R², mejora) o la más cercana a 1 (razón de varianzas). Cada métrica lo indica en su explicación."));
-  cuerpo.append(el("h3", "Métricas"));
+// ----- Ayuda («?» de la barra de arriba): las secciones de la pestaña Imputación, sacadas de las mismas constantes que los tooltips -----
+function seccionesAyudaImputacion() {
+  const secciones = [{
+    id: "i-lectura", grupo: "Primeros pasos", titulo: "Cómo se lee",
+    intro: "Se quitan tramos de la serie (pestaña «Variable explicada»), cada método los rellena y se compara lo imputado con el valor real que había.",
+    entradas: [
+      ["Mejor valor", "En las tablas, la mejor cifra de cada columna va en negrita: en unas es la menor (los errores), en otras la mayor (R², mejora) y en otras la más cercana a 1 (razón de varianzas). Cada métrica lo dice en su explicación."],
+      ["Pestañas", "«Sin explicativas» usa solo la propia serie. «Solo X» usa una explicativa. «Multivariante» usa varias a la vez. «Comparación» junta en una tabla lo que hayas marcado en las demás."],
+    ],
+  }];
   for (const b of BLOQUES_METRICAS) {
-    cuerpo.append(el("h4", b.titulo), el("p", b.explicacion, "res-ayuda-nota"));
-    for (const m of b.metricas) cuerpo.append(entrada(m.texto, m.ayuda));
+    secciones.push({ id: `i-metricas-${b.id}`, grupo: "Métricas", titulo: b.titulo, intro: b.explicacion, entradas: b.metricas.map((m) => [m.texto, m.ayuda]) });
   }
-  cuerpo.append(el("h3", "Métodos"));
   for (const familia of FAMILIAS_IMPUTACION) {
-    cuerpo.append(el("h4", familia.titulo));
-    for (const id of familia.metodos) { const m = metodoDeImputacion(id); if (m) cuerpo.append(entrada(m.nombre, m.ayuda)); }
+    const entradas = familia.metodos.map(metodoDeImputacion).filter(Boolean).map((m) => [m.nombre, m.ayuda]);
+    secciones.push({ id: `i-metodos-${familia.id}`, grupo: "Métodos", titulo: familia.titulo, entradas });
   }
-  cuerpo.append(el("h3", "Mejor combinación (regresión)"));
-  cuerpo.append(entrada("Qué hace", "Prueba combinaciones de explicativas con el método Regresión, las ordena por su error de validación y crea una pestaña en Multivariante con la mejor. Con 8 explicativas o menos prueba todas las combinaciones; con más, va añadiendo la que más baja el error (paso a paso), que no garantiza la mejor de todas."));
-  cuerpo.append(entrada("Cómo valida", "Esconde bloques seguidos de los datos conocidos, los predice con un modelo ajustado con el resto y mide el error (RMSE y MAE). El R² ajustado se calcula sobre los mismos datos con los que se ajusta, por eso puede no coincidir con el orden."));
-  cuerpo.append(entrada("Ojo", "El orden es solo para la regresión: con EM o imputación múltiple puede ser otro."));
-  d.replaceChildren(cabecera, cuerpo);
-  d.showModal();
+  secciones.push({
+    id: "i-seleccion", grupo: "Elegir el resultado", titulo: "Selección",
+    intro: "La última pestaña de la fase: eliges el método que deja la serie final y la obtienes.",
+    entradas: [
+      ["Candidatos", "Los métodos que marcaste en «Imputación y resultados», cada uno con su error al validar. Está marcado por defecto el de menor error; la etiqueta «mejor estructura» señala el que mejor conserva cómo varía la serie."],
+      ["Serie final", "Los datos reales, con los huecos que ya tenía la serie rellenados con el método elegido. Los tramos que quitaste para probar vuelven a su valor real: solo se imputa lo que de verdad faltaba."],
+      ["Fiabilidad", "Si el método da intervalo (regresión y EM), se dibuja y va en el CSV. La regresión estocástica y la imputación múltiple no dan intervalo."],
+      ["Descargar CSV", "Los puntos, si cada uno está imputado y su intervalo del 95 % si lo hay."],
+      ["Guardar como serie nueva", "Añade la serie final como una serie más del proyecto (fase 1), para usarla en las fases siguientes."],
+    ],
+  });
+  secciones.push({
+    id: "i-combinacion", grupo: "Elegir explicativas", titulo: "Mejor combinación (regresión)",
+    intro: "Prueba combinaciones de explicativas con el método Regresión, las ordena por su error de validación y crea una pestaña en Multivariante con la mejor.",
+    entradas: [
+      ["Qué prueba", "Con 8 explicativas o menos, todas las combinaciones de 2 o más. Con más, va añadiendo la que más baja el error (paso a paso), que no garantiza la mejor de todas."],
+      ["Cómo valida", "Esconde bloques seguidos de los datos conocidos, los predice con un modelo ajustado con el resto y mide el error (RMSE y MAE). El R² ajustado se calcula sobre los mismos datos con los que se ajusta, por eso puede no coincidir con el orden."],
+      ["Ojo", "El orden vale solo para la regresión: con EM o imputación múltiple puede ser otro."],
+    ],
+  });
+  return secciones;
 }
 
 // ----- Montaje -----
@@ -394,8 +405,8 @@ function montarResultados() {
   const raiz = document.createElement("div");
   raiz.className = "res";
   raiz.innerHTML = `
-    <aside class="res-lateral">
-      <h3>Métodos</h3>
+    <aside class="res-lateral caja">
+      <h3 class="caja-titulo">Métodos</h3>
       <p class="ayuda" id="res-ayuda-lateral"></p>
       <div class="res-atajos">
         <button type="button" id="res-todos">Todos</button>
@@ -404,19 +415,21 @@ function montarResultados() {
       <div id="res-metodos"></div>
     </aside>
     <section class="res-principal">
-      <div class="res-cabecera">
-        <button type="button" class="res-ayuda-abrir" id="res-ayuda-abrir" title="Qué significa cada método y cada métrica" aria-label="Ayuda: qué significa cada método y cada métrica" aria-haspopup="dialog">?</button>
-      </div>
-      <dialog id="res-ayuda-dialogo" class="res-ayuda-dialogo" aria-labelledby="res-ayuda-titulo"></dialog>
       <div class="exp-aviso" id="res-falta" hidden>
         <span id="res-falta-texto"></span>
         <button type="button" id="res-falta-ir"></button>
       </div>
-      <div id="res-trabajo" hidden>
+      <div id="res-trabajo" class="res-cajas" hidden>
+       <section class="caja">
+        <h3 class="caja-titulo">Variables</h3>
         <div class="pestanas res-subpestanas" id="res-subpestanas" role="tablist" aria-label="Con qué explicativas se imputa"></div>
         <div class="pestanas res-combinaciones" id="res-combinaciones" role="tablist" aria-label="Combinaciones de explicativas" hidden></div>
         <p class="res-aviso" id="res-aviso-combinacion" role="alert" hidden>Ya has hecho esta combinación.</p>
         <div class="res-sugerencia" id="res-sugerencia" hidden></div>
+        <div class="res-explicativas" id="res-explicativas" hidden></div>
+       </section>
+       <section class="caja">
+        <h3 class="caja-titulo">Errores y gráfico</h3>
         <p class="ayuda" id="res-info" style="margin:0 0 12px"></p>
         <div class="pestanas res-bloques" id="res-bloques" role="tablist" aria-label="Qué métricas se ven"></div>
         <div class="res-estado" id="res-estado" role="status"></div>
@@ -439,12 +452,13 @@ function montarResultados() {
             <div class="exp-tramos-cuerpo" id="res-tramos"></div>
           </details>
         </div>
+       </section>
       </div>
     </section>`;
   const q = (sel) => raiz.querySelector(sel);
   resImp.ui = {
     raiz, metodos: q("#res-metodos"), ayudaLateral: q("#res-ayuda-lateral"), falta: q("#res-falta"), faltaTexto: q("#res-falta-texto"), faltaIr: q("#res-falta-ir"),
-    trabajo: q("#res-trabajo"), subpestanas: q("#res-subpestanas"), combinaciones: q("#res-combinaciones"), avisoCombinacion: q("#res-aviso-combinacion"), sugerencia: q("#res-sugerencia"), ayudaDialogo: q("#res-ayuda-dialogo"), info: q("#res-info"), bloques: q("#res-bloques"), estado: q("#res-estado"),
+    trabajo: q("#res-trabajo"), subpestanas: q("#res-subpestanas"), combinaciones: q("#res-combinaciones"), avisoCombinacion: q("#res-aviso-combinacion"), explicativas: q("#res-explicativas"), sugerencia: q("#res-sugerencia"), info: q("#res-info"), bloques: q("#res-bloques"), estado: q("#res-estado"),
     vistaComp: q("#res-vista-comp"), medida: q("#res-medida"), tablaComp: q("#res-tabla-comp"), graficaRanking: q("#res-grafica-ranking"), graficaComp: q("#res-grafica-comp"),
     vistaConjunto: q("#res-vista-conjunto"), tabla: q("#res-tabla"), grafica: q("#res-grafica"), detalle: q("#res-detalle"), tramos: q("#res-tramos"),
   };
@@ -476,6 +490,7 @@ function montarResultados() {
   q("#res-todos").addEventListener("click", () => cambiarMetodosVisibles(true));
   q("#res-ninguno").addEventListener("click", () => cambiarMetodosVisibles(false));
   resImp.ui.metodos.addEventListener("change", alCambiarMetodo);
+  resImp.ui.explicativas.addEventListener("change", alCambiarMetodo);   // las casillas de qué explicativas usa la combinación
   resImp.ui.metodos.addEventListener("click", (e) => {            // "Nueva semilla": otra tirada del azar
     const boton = e.target.closest('button[data-accion="nueva-semilla"]');
     if (!boton) return;
@@ -485,7 +500,6 @@ function montarResultados() {
     ejecutarImputacion();
   });
   resImp.ui.tabla.addEventListener("click", alPulsarTabla);
-  q("#res-ayuda-abrir").addEventListener("click", abrirAyudaImputacion);
   resImp.ui.subpestanas.addEventListener("click", alPulsarVentana);
   resImp.ui.combinaciones.addEventListener("click", alPulsarVentana);
   return raiz;
@@ -599,6 +613,9 @@ function pintarMetodosImputacion() {
   const cont = resImp.ui.metodos;
   cont.replaceChildren();
   const sub = subActual();
+  const cajaExplicativas = resImp.ui.explicativas;
+  cajaExplicativas.replaceChildren();
+  cajaExplicativas.hidden = !sub.combinacion;
   if (sub.id === "comparacion") return;
   if (sub.vacia) { resImp.ui.ayudaLateral.textContent = ""; return; }
   const visibles = metodosDeSub(sub);
@@ -607,9 +624,10 @@ function pintarMetodosImputacion() {
     ? "Marca los que quieras comparar: todos se calculan sobre los mismos huecos."
     : "Marca los que quieras comparar. La interpolación lineal se añade siempre como referencia.";
   if (sub.combinacion) {
-    const encabezado = document.createElement("h4");
-    encabezado.textContent = "Explicativas";
-    cont.append(encabezado);
+    const encabezado = document.createElement("span");
+    encabezado.className = "res-explicativas-titulo";
+    encabezado.textContent = "Explicativas que usa:";
+    cajaExplicativas.append(encabezado);
     const candidatas = explicativasConDatos();
     const usadas = sub.series;
     for (const s of candidatas) {
@@ -622,7 +640,7 @@ function pintarMetodosImputacion() {
       casilla.checked = usadas.includes(s);
       casilla.disabled = casilla.checked && usadas.length <= 2;      // una combinación necesita al menos 2 (para cambiar una, marca la nueva y quita la otra)
       etiqueta.append(casilla, crearPunto(s.color), ` ${nombreDe(s)}`);
-      cont.append(etiqueta);
+      cajaExplicativas.append(etiqueta);
     }
   }
   const familias = FAMILIAS_IMPUTACION.map((f) => ({ ...f, lista: METODOS_IMPUTACION.filter((m) => f.metodos.includes(m.id) && visibles.includes(m.id)) }))
@@ -665,7 +683,7 @@ function pintarMetodosImputacion() {
   if (sinExplicativas && !explicativasConDatos().length) {
     const nota = document.createElement("p");
     nota.className = "ayuda";
-    nota.textContent = "Elige variables explicativas en la pestaña 2 para probar también la regresión, el EM y la imputación múltiple.";
+    nota.textContent = "Elige variables explicativas en la pestaña 2 para probar también la regresión (simple o estocástica), el EM y la imputación múltiple.";
     cont.append(nota);
   }
 }
@@ -872,7 +890,7 @@ function pintarResultados(obj) {
     for (const g of [u.grafica, u.graficaRanking, u.graficaComp]) { try { Plotly.purge(g); } catch { /* aún no había gráfica */ } }
     if (!resImp.error && obj && obj.aImputar && !hayMetodos && !resImp.cargando) {
       u.estado.textContent = esComp ? "Todavía no has marcado ningún método en las otras ventanas." : sub.vacia ? "No hay ninguna combinación: crea una con «+ combinación» o «Mejor combinación (regresión)»." : sub.id === "sin" ? "Marca algún método a la izquierda para ver cómo imputa y cuánto se equivoca."
-        : "Marca la regresión, el EM o la imputación múltiple a la izquierda para ver cómo imputan con estas explicativas.";
+        : "Marca la regresión (simple o estocástica), el EM o la imputación múltiple a la izquierda para ver cómo imputan con estas explicativas.";
       u.estado.classList.remove("error");
       u.estado.hidden = false;
     }
@@ -1283,3 +1301,4 @@ function pintarRankingComparacion(filas) {
     hoverlabel: { bgcolor: c.surface, bordercolor: c.axis, font: { color: c.ink, family: c.fuente, size: 13 } },
   }, { responsive: true, displaylogo: false, displayModeBar: false });
 }
+

@@ -1,7 +1,6 @@
 /* Pestaña "Imputación y resultados": lista de métodos, tabla de errores, gráfica y error por tramo. */
-.res { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 22px; align-items: start; }
+.res { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 22px; align-items: start; }
 @media (max-width: 900px) { .res { grid-template-columns: 1fr; } }
-.res-lateral h3 { margin: 0 0 4px; font-size: 1rem; }
 .res-lateral h4 { margin: 16px 0 8px; font-size: 0.8rem; color: var(--ink-2); text-transform: uppercase; letter-spacing: 0.04em; }
 .res-lateral .ayuda { margin-bottom: 10px; }
 .res-atajos { display: flex; gap: 8px; }
@@ -50,6 +49,12 @@
 #res-grafica-ranking { width: 100%; margin: 16px 0; }
 #res-grafica-comp { width: 100%; height: 340px; margin: 16px 0; }
 .res-multi { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 0.9rem; }
+.res-cajas { display: grid; gap: 22px; min-width: 0; }
+.res-principal [hidden] { display: none; }
+/* las casillas de las explicativas de la combinación, en fila dentro de la caja «Variables» */
+.res-explicativas { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; margin-top: 12px; }
+.res-explicativas-titulo { font-size: 0.85rem; color: var(--ink-2); }
+.res-explicativas .res-multi { margin: 0; }
 .res-anadir { border-style: dashed; color: var(--ink-2); }
 .res-reiniciar { margin-left: auto; color: var(--ink-2); }
 .res-reiniciar:disabled { opacity: 0.45; cursor: default; }
@@ -91,15 +96,26 @@
 /* bloques de métricas (precisión y estructura) */
 .res-bloques { margin: 0 0 12px; }
 .res-nota { margin: 0 0 12px; padding: 10px 14px; border-left: 3px solid var(--axis); color: var(--ink-2); font-size: 0.88rem; }
-/* el «?» con todas las explicaciones: arriba a la derecha de la zona de resultados */
-.res-cabecera { display: flex; justify-content: flex-end; margin: -4px 0 6px; }
-.res-ayuda-abrir { width: 30px; height: 30px; padding: 0; border-radius: 50%; font-weight: 700; }
-dialog.res-ayuda-dialogo { width: min(760px, 92vw); max-height: 86vh; padding: 22px; border: 1px solid var(--axis); border-radius: 14px; background: var(--surface); color: var(--ink); }
-dialog.res-ayuda-dialogo::backdrop { background: rgba(0, 0, 0, 0.4); }
-.res-ayuda-cuerpo { overflow: auto; max-height: calc(86vh - 110px); padding-right: 6px; }
-.res-ayuda-cuerpo h3 { margin: 18px 0 6px; font-size: 1.05rem; }
-.res-ayuda-cuerpo h3:first-child { margin-top: 0; }
-.res-ayuda-cuerpo h4 { margin: 12px 0 4px; font-size: 0.9rem; color: var(--ink-2); }
-.res-ayuda-nota { margin: 0 0 6px; padding-left: 10px; border-left: 3px solid var(--axis); color: var(--ink-2); font-size: 0.88rem; }
-.res-ayuda-entrada { margin: 0 0 8px; }
-.res-ayuda-entrada p { margin: 2px 0 0; font-size: 0.88rem; color: var(--ink-2); }
+
+/* pestaña Selección */
+.sel-bloque { margin: 0 0 26px; }
+.sel-bloque h3 { margin: 0 0 8px; font-size: 1.05rem; }
+.sel-tabla-caja { overflow-x: auto; border: 1px solid var(--axis); border-radius: 10px; }
+.sel-tabla { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+.sel-tabla th, .sel-tabla td { padding: 7px 12px; border-bottom: 1px solid var(--grid); text-align: right; }
+.sel-tabla th:nth-child(-n+3), .sel-tabla td:nth-child(-n+3) { text-align: left; }
+.sel-tabla th { color: var(--ink-2); font-weight: 650; background: var(--surface-2); }
+.sel-tabla th[title] { cursor: help; }
+.sel-tabla tbody tr:last-child td { border-bottom: 0; }
+.sel-tabla tr.elegida td { background: var(--surface-2); font-weight: 650; }
+.sel-tabla input[type=radio] { width: 18px; height: 18px; margin: 0; accent-color: var(--series-1); }
+.sel-marca { margin-left: 4px; padding: 1px 8px; border: 1px solid var(--ink-2); border-radius: 999px; font-size: 0.75rem; font-weight: 650; white-space: nowrap; }
+.sel-error { color: var(--error); }
+#sel-grafica { width: 100%; height: 340px; margin: 12px 0; }
+.sel-resumen { margin: 0 0 14px; }
+.sel-resumen > div { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 4px 18px; padding: 7px 0; border-top: 1px solid var(--grid); }
+.sel-resumen > div:first-child { border-top: 0; }
+.sel-resumen dt { font-weight: 650; font-size: 0.9rem; }
+.sel-resumen dd { margin: 0; color: var(--ink-2); font-size: 0.9rem; }
+.sel-acciones { display: flex; gap: 10px; }
+.sel-acciones button { width: auto; padding: 0 16px; }

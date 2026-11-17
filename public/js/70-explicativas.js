@@ -43,11 +43,15 @@ function evaluarCandidata(serie, obj) {
 // ----- Montaje -----
 function montarExplicativas() {
   const raiz = document.createElement("div");
-  raiz.className = "exp";
+  raiz.className = "exp exp-ancha";
   raiz.innerHTML = `
-    <aside class="exp-lateral">
-      <h3>Series disponibles</h3>
-      <p class="ayuda">Arrastra las series al campo de la derecha (o púlsalas) para usarlas como explicativas. Cada una indica si sirve para los huecos de la explicada.</p>
+    <aside class="exp-lateral caja">
+      <h3 class="caja-titulo">Series disponibles</h3>
+      <p class="ayuda">Arrastra las series al campo de la derecha (o púlsalas) para usarlas como explicativas.</p>
+      <div class="ev-sel ev-sel-lista">
+        <button type="button" id="ev-todas">Todas</button>
+        <button type="button" id="ev-ninguna">Ninguna</button>
+      </div>
       <ul class="exp-series" id="ev-lista"></ul>
     </aside>
     <section class="exp-principal">
@@ -55,28 +59,27 @@ function montarExplicativas() {
         <span>Primero elige la variable explicada: hace falta saber qué huecos hay que cubrir.</span>
         <button type="button" id="ev-ir-explicada">Elegir la variable explicada</button>
       </div>
-      <div id="ev-trabajo">
-        <div class="campo-soltar ev-campo" id="ev-campo" aria-live="polite"></div>
-        <div class="ev-sel">
-          <button type="button" id="ev-todas">Todas</button>
-          <button type="button" id="ev-ninguna">Ninguna</button>
+      <div id="ev-trabajo" class="exp-columna">
+        <div class="caja">
+          <h3 class="caja-titulo">Explicativas elegidas</h3>
+          <div class="campo-soltar ev-campo" id="ev-campo" aria-live="polite"></div>
+          <p class="ayuda" id="ev-resumen-texto" style="margin:10px 0 0" hidden></p>
         </div>
-        <div id="ev-resumen-caja" hidden>
-          <div class="exp-contadores" id="ev-resumen"></div>
-          <p class="ayuda" id="ev-resumen-texto" style="margin:10px 0 0"></p>
+        <div class="caja">
+          <h3 class="caja-titulo">Gráfica</h3>
+          <div class="ev-sel" style="margin-top:0">
+            <label>Ver como
+              <select id="ev-norm" aria-label="Escala de la vista previa">
+                <option value="real">Tal cual (valores originales)</option>
+                <option value="base100">Empezar todas en 100</option>
+                <option value="z">Misma escala (media 0)</option>
+                <option value="minmax">Min-max (de 0 a 1)</option>
+              </select>
+            </label>
+            <small class="ayuda" style="margin:0">Arrastra sobre la gráfica para acercar; doble clic para verla entera.</small>
+          </div>
+          <div id="ev-grafica"></div>
         </div>
-        <div class="ev-sel">
-          <label>Ver como
-            <select id="ev-norm" aria-label="Escala de la vista previa">
-              <option value="real">Tal cual (valores originales)</option>
-              <option value="base100">Empezar todas en 100</option>
-              <option value="z">Misma escala (media 0)</option>
-              <option value="minmax">Min-max (de 0 a 1)</option>
-            </select>
-          </label>
-          <small class="ayuda" style="margin:0">Arrastra sobre la gráfica para acercar; doble clic para verla entera. Lo naranja es lo que hay que imputar.</small>
-        </div>
-        <div id="ev-grafica"></div>
         <details class="exp-tramos" id="ev-detalle" open>
           <summary>Compatibilidad y cobertura de cada serie elegida</summary>
           <div class="exp-tramos-cuerpo" id="ev-tabla"></div>
@@ -86,18 +89,11 @@ function montarExplicativas() {
   const q = (sel) => raiz.querySelector(sel);
   expl.ui = {
     raiz, lista: q("#ev-lista"), campo: q("#ev-campo"), sinExplicada: q("#ev-sin-explicada"), trabajo: q("#ev-trabajo"),
-    resumenCaja: q("#ev-resumen-caja"), resumen: q("#ev-resumen"), resumenTexto: q("#ev-resumen-texto"),
+    resumenTexto: q("#ev-resumen-texto"),
     norm: q("#ev-norm"), grafica: q("#ev-grafica"), detalle: q("#ev-detalle"), tabla: q("#ev-tabla"),
   };
   expl.ui.norm.value = expl.normalizacion;
   expl.ui.detalle.open = expl.detalleAbierto;
-  for (const [clave, etiqueta, clase] of [["k", "Explicativas elegidas", ""], ["todas", "Cubiertos por todas", ""]]) {
-    const tarjeta = document.createElement("div");
-    tarjeta.className = "imp-dato " + clase;
-    tarjeta.innerHTML = `<span></span><strong data-dato="${clave}">0</strong><small data-nota="${clave}"></small>`;
-    tarjeta.querySelector("span").textContent = etiqueta;
-    expl.ui.resumen.append(tarjeta);
-  }
   enlazarExplicativas();
   return raiz;
 }
@@ -209,28 +205,19 @@ function pintarCampoExplicativas(obj) {
 
 function pintarResumenExplicativas(obj) {
   const elegidas = explicativasElegidas().filter((x) => x.datos);
-  expl.ui.resumenCaja.hidden = elegidas.length === 0;
-  if (!elegidas.length) return;
-  let union = 0, todas = 0;
-  for (let i = 0; i < obj.n; i++) {
-    if (!obj.objetivo[i]) continue;
-    const cuantas = elegidas.filter((x) => i < x.datos.y.length && x.datos.y[i] !== null).length;
-    if (cuantas > 0) union++;
-    if (cuantas === elegidas.length) todas++;
+  let aviso = "";
+  if (elegidas.length) {
+    let cubiertos = 0;
+    for (let i = 0; i < obj.n; i++) {
+      if (obj.objetivo[i] && elegidas.some((x) => i < x.datos.y.length && x.datos.y[i] !== null)) cubiertos++;
+    }
+    const sin = obj.aImputar - cubiertos;
+    if (!obj.aImputar) aviso = "Todavía no hay huecos: quita tramos a la explicada en la pestaña 1, o ya tiene datos faltantes propios.";
+    else if (sin > 0) aviso = `⚠ ${sin} ${sin === 1 ? "punto" : "puntos"} no ${sin === 1 ? "lo cubre" : "los cubre"} ninguna explicativa: ahí solo se podría imputar con la propia serie.`;
   }
-  const poner = (clave, valor, nota = "") => {
-    animarNumero(expl.ui.resumen.querySelector(`[data-dato="${clave}"]`), valor);
-    expl.ui.resumen.querySelector(`[data-nota="${clave}"]`).textContent = nota;
-  };
-  const pct = (v) => (obj.aImputar ? `${((v / obj.aImputar) * 100).toFixed(0)} %` : "");
-  poner("k", elegidas.length);
-  poner("todas", todas, pct(todas));
-  const sin = obj.aImputar - union;
-  const texto = expl.ui.resumenTexto;
-  if (!obj.aImputar) texto.textContent = "Todavía no hay huecos: quita tramos a la explicada en la pestaña 1, o ya tiene datos faltantes propios.";
-  else if (sin > 0) texto.textContent = `⚠ ${sin} ${sin === 1 ? "punto" : "puntos"} no ${sin === 1 ? "lo cubre" : "los cubre"} ninguna explicativa: ahí solo se podría imputar con la propia serie.`;
-  else if (todas === obj.aImputar) texto.textContent = "✓ Todas las explicativas tienen datos en todos los huecos.";
-  else texto.textContent = "✓ Cada hueco lo cubre al menos una explicativa.";
+  // solo se dice algo cuando hay un problema
+  expl.ui.resumenTexto.textContent = aviso;
+  expl.ui.resumenTexto.hidden = !aviso;
 }
 
 function pintarTablaExplicativas(obj) {

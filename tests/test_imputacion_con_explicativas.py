@@ -100,3 +100,86 @@ def test_em_con_dos_explicativas_casi_iguales_no_falla():
 def test_sin_explicativas_dan_error(metodo):
     with pytest.raises(ErrorDeEntrada, match="explicativa"):
         metodo(problema([1, None, 3, 4]))
+
+
+# ---------------------------------------------------------------- regresión estocástica
+def _con_ruido(n=200, hueco=(80, 119), semilla=0, sd=2.0):
+    rng = np.random.default_rng(semilla)
+    a, b = rng.normal(size=n), rng.normal(size=n)
+    y = 5 + 3 * a - 2 * b + sd * rng.normal(size=n)
+    return y, a, b, [hueco]
+
+
+def test_la_estocastica_con_la_misma_semilla_da_lo_mismo_y_con_otra_no():
+    y, a, b, quitados = _con_ruido()
+    p = problema(list(y), [list(a), list(b)], quitados)
+    uno = con_explicativas.regresion_estocastica(p, {"semilla": 7})[0]
+    otra_vez = con_explicativas.regresion_estocastica(p, {"semilla": 7})[0]
+    distinta = con_explicativas.regresion_estocastica(p, {"semilla": 8})[0]
+    assert np.array_equal(uno, otra_vez) and not np.allclose(uno, distinta)
+
+
+def test_la_estocastica_es_la_prediccion_de_la_recta_mas_un_ruido_de_la_varianza_de_los_residuos():
+    y, a, b, quitados = _con_ruido(sd=2.0)
+    p = problema(list(y), [list(a), list(b)], quitados)
+    media = con_explicativas.regresion(p)[0]
+    huecos = p.objetivo
+    ruidos = np.array([con_explicativas.regresion_estocastica(p, {"semilla": s})[0][huecos] - media[huecos] for s in range(300)])
+    assert abs(ruidos.mean()) < 0.05                             # sin sesgo: las extracciones se reparten alrededor de la recta
+    # σ̂ de los residuos de la recta con los datos conocidos (3 parámetros)
+    A = np.column_stack([np.ones((~huecos).sum()), a[~huecos], b[~huecos]])
+    r = y[~huecos] - A @ np.linalg.lstsq(A, y[~huecos], rcond=None)[0]
+    sigma = np.sqrt(r @ r / (len(r) - 3))
+    assert ruidos.std() == pytest.approx(sigma, rel=0.05)
+    assert ruidos[0].std() > 0 and np.std(ruidos[0]) == pytest.approx(sigma, rel=0.3)   # y cada punto es independiente
+
+
+def test_con_una_relacion_exacta_la_estocastica_es_la_regresion():
+    x = np.arange(30, dtype=float)
+    y = list(1 + 2 * x)
+    y[10] = None
+    p = problema(y, [list(x)])
+    assert con_explicativas.regresion_estocastica(p)[0][10] == pytest.approx(con_explicativas.regresion(p)[0][10], abs=1e-6)
+
+
+def test_la_estocastica_conserva_la_varianza_y_la_regresion_la_aplana():
+    y, a, b, quitados = _con_ruido(n=400, hueco=(100, 299), sd=3.0)
+    r = imputar(list(y), quitados, [list(a), list(b)], [{"metodo": "regresion"}, {"metodo": "regresion_estocastica", "parametros": {"semilla": 3}}])
+    por = {f["metodo"]: f["metricas"] for f in r["resultados"]}
+    assert por["regresion_estocastica"]["razon_var"] > por["regresion"]["razon_var"] + 0.1
+    assert por["regresion_estocastica"]["rmse"] > por["regresion"]["rmse"]              # suma ruido: falla más al acertar el valor
+    assert por["regresion_estocastica"]["rmse"] == pytest.approx(np.sqrt(2) * por["regresion"]["rmse"], rel=0.2)
+
+
+def test_la_estocastica_no_da_intervalo():
+    y, a, b, quitados = _con_ruido()
+    r = imputar(list(y), quitados, [list(a), list(b)], [{"metodo": "regresion_estocastica"}])["resultados"][0]
+    assert r["error"] is None and r["intervalo"] is None and r["metricas"]["cobertura"] is None
+
+
+def test_la_estocastica_usa_el_modelo_con_las_explicativas_que_hay_en_cada_punto():
+    y, a, b, _ = _con_ruido(n=100)
+    y = [float(v) for v in y]
+    y[10] = None
+    y[11] = None
+    a = [float(v) for v in a]
+    b = [float(v) for v in b]
+    b[11] = None                                                    # en el punto 11 solo hay la primera explicativa
+    p = problema(y, [a, b])
+    completa = con_explicativas.regresion_estocastica(p)[0]
+    assert np.isfinite(completa[[10, 11]]).all()
+    a[11] = None                                                    # y en el 12... sin ninguna: se queda sin imputar
+    y[12] = None
+    b[12] = None
+    a[12] = None
+    assert np.isnan(con_explicativas.regresion_estocastica(problema(y, [a, b]))[0][12])
+
+
+def test_errores_de_la_estocastica():
+    with pytest.raises(ErrorDeEntrada, match="explicativa"):
+        con_explicativas.regresion_estocastica(problema([1, None, 3, 4]))
+    y, a, b, quitados = _con_ruido(n=50, hueco=(10, 20))
+    p = problema(list(y), [list(a)], quitados)
+    for semilla in (-1, 1.5, True, 2_000_000):
+        with pytest.raises(ErrorDeEntrada, match="semilla"):
+            con_explicativas.regresion_estocastica(p, {"semilla": semilla})

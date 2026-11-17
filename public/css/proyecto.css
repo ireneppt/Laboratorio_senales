@@ -3,6 +3,7 @@
 .proyecto { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .proyecto input[type=text] { width: 230px; height: 36px; margin: 0; font-weight: 650; }
 .proyecto button { width: auto; height: 36px; padding: 0 14px; }
+.proyecto button.boton-ayuda { width: 36px; padding: 0; border-radius: 50%; font-weight: 700; }
 .estado-proyecto { min-width: 140px; font-size: 0.85rem; color: var(--ink-2); text-align: right; }
 .estado-proyecto.pendiente { color: var(--ink); font-weight: 650; }
 .banner-recuperar {

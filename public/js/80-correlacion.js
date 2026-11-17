@@ -102,31 +102,38 @@ function montarCorrelacion() {
       <span id="cor-falta-texto"></span>
       <button type="button" id="cor-falta-ir"></button>
     </div>
-    <div id="cor-trabajo" hidden>
-      <p class="ayuda" id="cor-info" style="margin:0 0 14px"></p>
-      <div class="cor-tabla" id="cor-tabla" role="table" aria-label="Correlación de cada explicativa con la explicada"></div>
-      <section class="cor-matriz">
-        <h3>Correlación entre las explicativas</h3>
-        <div class="cor-controles">
-          <label>Medida
-            <select id="cor-medida" aria-label="Medida de la matriz">
-              <option value="pearson">Correlación (Pearson)</option>
-              <option value="spearman">Correlación por orden (Spearman)</option>
-            </select>
-          </label>
+    <div id="cor-trabajo" class="exp-columna" hidden>
+      <section class="caja">
+        <h3 class="caja-titulo">Con la variable explicada</h3>
+        <p class="ayuda" id="cor-info" style="margin:0 0 14px"></p>
+        <div class="cor-tabla" id="cor-tabla" role="table" aria-label="Correlación de cada explicativa con la explicada"></div>
+      </section>
+      <section class="caja cor-matriz">
+        <div class="caja-cab">
+          <h3 class="caja-titulo">Entre variables</h3>
+          <div class="cor-controles">
+            <label>Medida
+              <select id="cor-medida" aria-label="Medida de la matriz">
+                <option value="pearson">Correlación (Pearson)</option>
+                <option value="spearman">Correlación por orden (Spearman)</option>
+              </select>
+            </label>
+          </div>
         </div>
         <div class="cor-matriz-rejilla" id="cor-matriz" role="table" aria-label="Correlación de cada explicativa con las demás"></div>
         <p class="ayuda" id="cor-matriz-nota" style="margin:10px 0 0" hidden></p>
       </section>
-      <section class="cor-cruzada">
-        <h3>Correlación cruzada (con desfases)</h3>
-        <div class="cor-controles">
-          <label>Serie
-            <select id="cor-serie" aria-label="Serie que se muestra en el gráfico"></select>
-          </label>
-          <label>Desfase máximo (puntos)
-            <input type="number" id="cor-maxlag" min="1" max="200" step="1" aria-label="Desfase máximo en puntos">
-          </label>
+      <section class="caja cor-cruzada">
+        <div class="caja-cab">
+          <h3 class="caja-titulo">Correlación cruzada (con desfases)</h3>
+          <div class="cor-controles">
+            <label>Serie
+              <select id="cor-serie" aria-label="Serie que se muestra en el gráfico"></select>
+            </label>
+            <label>Desfase máximo (puntos)
+              <input type="number" id="cor-maxlag" min="1" max="200" step="1" aria-label="Desfase máximo en puntos">
+            </label>
+          </div>
         </div>
         <div id="cor-grafica"></div>
       </section>

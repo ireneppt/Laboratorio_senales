@@ -45,12 +45,26 @@ function imputacionDesdeGuardada(guardada, mapa) {
     const ids = METODOS_IMPUTACION.filter((m) => m.explicativas === (clave !== "sin") && lista.includes(m.id)).map((m) => m.id);
     if (ids.length) e.metodos[esSolo ? `solo:${idSolo}` : esMulti ? `multi:${idCombinacion}` : clave] = ids;
   }
+  // la elección de la pestaña Selección ("método@ventana"): solo si el método y la ventana siguen existiendo
+  const clave = guardada && guardada.seleccion && typeof guardada.seleccion.clave === "string" ? guardada.seleccion.clave : "";
+  const [metodoElegido, ventanaElegida] = clave.split("@");
+  const metodoValido = METODOS_IMPUTACION.find((m) => m.id === metodoElegido);
+  if (metodoValido && ventanaElegida) {
+    const solo = /^solo:(\d+)$/.exec(ventanaElegida);
+    const multi = /^multi:(\d+)$/.exec(ventanaElegida);
+    const idSolo = solo ? mapa[Number(solo[1])] : undefined;
+    const ventanaValida = metodoValido.explicativas === (ventanaElegida !== "sin") && (ventanaElegida === "sin"
+      || (multi && e.combinaciones.some((c) => c.id === Number(multi[1])))
+      || (solo && idSolo !== undefined && e.explicativas.includes(idSolo)));
+    if (ventanaValida) e.seleccion = { clave: `${metodoElegido}@${solo ? `solo:${idSolo}` : ventanaElegida}` };
+  }
   // parámetros de métodos (los de hot deck y serie donante, que ya no existen, se descartan)
   const p = (guardada && guardada.parametros) || {};
   e.parametros = PARAMETROS_IMPUTACION_INICIALES();
   for (const clave of ["k_movil", "k_movil_atras", "k_movil_pond", "k_movil_pond_atras"]) if (Number.isInteger(p[clave]) && p[clave] >= 1) e.parametros[clave] = p[clave];
   if (typeof p.quitar_tendencia === "boolean") e.parametros.quitar_tendencia = p.quitar_tendencia;
   const entero = (v, minimo, maximo) => Number.isInteger(v) && v >= minimo && v <= maximo;
+  if (entero(p.re_semilla, 0, 1000000)) e.parametros.re_semilla = p.re_semilla;
   if (entero(p.mi_n, 2, 50)) e.parametros.mi_n = p.mi_n;
   if (entero(p.mi_iteraciones, 10, 500)) e.parametros.mi_iteraciones = p.mi_iteraciones;
   if (entero(p.mi_semilla, 0, 1000000)) e.parametros.mi_semilla = p.mi_semilla;

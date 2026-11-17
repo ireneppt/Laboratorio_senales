@@ -7,9 +7,10 @@
 // tendencia (su periodo es el de la serie)
 const PARAMETROS_IMPUTACION_INICIALES = () => ({
   k_movil: 3, k_movil_atras: 3, k_movil_pond: 3, k_movil_pond_atras: 3, quitar_tendencia: true,
+  re_semilla: 42,   // regresión estocástica: semilla
   mi_n: 5, mi_iteraciones: 100, mi_semilla: 42, mi_combinar: "media",   // imputación múltiple: N, iteraciones, semilla y cómo se combinan
 });
-const estadoImputacionVacio = () => ({ explicada: { serieId: null, quitados: [] }, explicativas: [], combinaciones: [{ id: 1, explicativas: null }], metodos: {}, parametros: PARAMETROS_IMPUTACION_INICIALES() });
+const estadoImputacionVacio = () => ({ explicada: { serieId: null, quitados: [] }, explicativas: [], combinaciones: [{ id: 1, explicativas: null }], metodos: {}, seleccion: null, parametros: PARAMETROS_IMPUTACION_INICIALES() });
 let imputacion = estadoImputacionVacio();
 
 const exp = {
@@ -111,15 +112,18 @@ function montarExplicada() {
   const raiz = document.createElement("div");
   raiz.className = "exp";
   raiz.innerHTML = `
-    <aside class="exp-lateral">
-      <h3>Series del proyecto</h3>
+    <aside class="exp-lateral caja">
+      <h3 class="caja-titulo">Series del proyecto</h3>
       <p class="ayuda">Arrastra una serie al campo de la derecha (o púlsala) para usarla como variable explicada.</p>
       <ul class="exp-series" id="exp-lista"></ul>
     </aside>
     <section class="exp-principal">
-      <div class="campo-soltar" id="exp-campo" aria-live="polite"></div>
-      <div class="exp-aviso" id="exp-aviso" hidden></div>
-      <div id="exp-trabajo" hidden>
+      <div class="caja">
+        <h3 class="caja-titulo">Variable explicada</h3>
+        <div class="campo-soltar" id="exp-campo" aria-live="polite"></div>
+        <div class="exp-aviso" id="exp-aviso" hidden></div>
+        <div id="exp-trabajo" hidden>
+        <div class="exp-contadores" id="exp-contadores"></div>
         <div class="exp-barra" role="toolbar" aria-label="Herramientas">
           <div class="exp-grupo" role="group" aria-label="Herramienta">
             <button type="button" data-herr="quitar" title="Quitar datos: arrastra sobre la gráfica (Q)">Quitar</button>
@@ -143,27 +147,29 @@ function montarExplicada() {
           <div class="exp-capa" id="exp-curso"></div>
         </div>
         <canvas id="exp-mapa" height="72" aria-label="Mapa de la serie: arrastra la ventana para moverte"></canvas>
-        <div class="exp-contadores" id="exp-contadores"></div>
+        </div>
+      </div>
+      <div class="exp-columna" id="exp-extra" hidden>
         <details class="exp-azar" id="exp-azar">
-          <summary>Quitar al azar</summary>
-          <div class="exp-azar-cuerpo">
-            <div class="exp-grupo" role="group" aria-label="Modo">
-              <button type="button" data-azar-modo="sueltos">Puntos sueltos</button>
-              <button type="button" data-azar-modo="bloques">Bloques</button>
+            <summary>Quitar al azar</summary>
+            <div class="exp-azar-cuerpo">
+              <div class="exp-grupo" role="group" aria-label="Modo">
+                <button type="button" data-azar-modo="sueltos">Puntos sueltos</button>
+                <button type="button" data-azar-modo="bloques">Bloques</button>
+              </div>
+              <label data-azar="sueltos">% de puntos <output id="az-pct-v"></output>
+                <input type="range" id="az-pct" min="1" max="60" value="10"></label>
+              <label data-azar="bloques">Nº de bloques <output id="az-bloques-v"></output>
+                <input type="range" id="az-bloques" min="1" max="20" value="3"></label>
+              <label data-azar="bloques">Tamaño de cada bloque (puntos) <output id="az-tamano-v"></output>
+                <input type="range" id="az-tamano" min="2" max="200" value="20"></label>
+              <label>Semilla
+                <input type="number" id="az-semilla" min="0" max="1000000" step="1" value="1"></label>
+              <button type="button" id="az-otra">Otra semilla</button>
+              <button type="button" id="az-aplicar">Aplicar</button>
+              <p class="ayuda" id="az-info"></p>
             </div>
-            <label data-azar="sueltos">% de puntos <output id="az-pct-v"></output>
-              <input type="range" id="az-pct" min="1" max="60" value="10"></label>
-            <label data-azar="bloques">Nº de bloques <output id="az-bloques-v"></output>
-              <input type="range" id="az-bloques" min="1" max="20" value="3"></label>
-            <label data-azar="bloques">Tamaño de cada bloque (puntos) <output id="az-tamano-v"></output>
-              <input type="range" id="az-tamano" min="2" max="200" value="20"></label>
-            <label>Semilla
-              <input type="number" id="az-semilla" min="0" max="1000000" step="1" value="1"></label>
-            <button type="button" id="az-otra">Otra semilla</button>
-            <button type="button" id="az-aplicar">Aplicar</button>
-            <p class="ayuda" id="az-info"></p>
-          </div>
-        </details>
+          </details>
         <details class="exp-tramos" id="exp-tramos-det" open>
           <summary>Tramos quitados por ti <span id="exp-tramos-cuenta"></span></summary>
           <div class="exp-tramos-cuerpo">
@@ -182,7 +188,7 @@ function montarExplicada() {
     </section>`;
   const q = (sel) => raiz.querySelector(sel);
   exp.ui = {
-    raiz, lista: q("#exp-lista"), campo: q("#exp-campo"), aviso: q("#exp-aviso"), trabajo: q("#exp-trabajo"),
+    raiz, lista: q("#exp-lista"), campo: q("#exp-campo"), aviso: q("#exp-aviso"), trabajo: q("#exp-trabajo"), extra: q("#exp-extra"),
     grafica: q("#exp-grafica"), caja: q("#exp-caja"), capa: q("#exp-capa"), curso: q("#exp-curso"), mapa: q("#exp-mapa"),
     contadores: q("#exp-contadores"), tramosLista: q("#exp-tramos-lista"), ayuda: q("#exp-ayuda"),
     deshacer: q("#exp-deshacer"), rehacer: q("#exp-rehacer"), ghost: q("#exp-ghost"),
@@ -190,7 +196,7 @@ function montarExplicada() {
   };
   exp.ui.ghost.checked = exp.ghost;
   // las tarjetas de números se crean una vez y luego solo cambian sus valores
-  for (const [clave, etiqueta, clase] of [["n", "Puntos", ""], ["origen", "Faltaban de origen", ""], ["quitados", "Quitados por ti", "naranja"], ["total", "A imputar", "naranja"], ["bloques", "Bloques sin datos", ""]]) {
+  for (const [clave, etiqueta, clase] of [["n", "Puntos", ""], ["origen", "Faltaban de origen", ""], ["quitados", "Quitados por ti", "naranja"], ["total", "A imputar", "naranja"]]) {
     const tarjeta = document.createElement("div");
     tarjeta.className = "imp-dato " + clase;
     tarjeta.innerHTML = `<span></span><strong data-dato="${clave}">0</strong><small data-nota="${clave}"></small>`;
@@ -318,6 +324,7 @@ async function actualizarExplicada() {
     exp.idMostrado = serie ? serie.id : null;
   }
   exp.ui.trabajo.hidden = !exp.y;
+  exp.ui.extra.hidden = !exp.y;   // «Quitar al azar», resumen y tramos: solo con una variable elegida
   pintarLista();
   pintarCampo();
   if (exp.y) {
@@ -691,10 +698,9 @@ function animarNumero(el, destino, formato = (v) => String(Math.round(v))) {
 function pintarContadores() {
   const { y, n } = exp;
   const quitado = tramosAMascara(tramosQuitados(), n);
-  let origen = 0, quitados = 0, bloques = 0, mayor = 0, racha = 0;
+  let origen = 0, quitados = 0;
   for (let i = 0; i < n; i++) {
     if (y[i] === null) origen++; else if (quitado[i]) quitados++;
-    if (y[i] === null || quitado[i]) { racha++; if (racha === 1) bloques++; mayor = Math.max(mayor, racha); } else racha = 0;
   }
   const total = origen + quitados;
   const poner = (clave, valor, nota = "") => {
@@ -706,7 +712,6 @@ function pintarContadores() {
   const previa = exp.azar.vista.reduce((suma, [a, b]) => suma + (b - a + 1), 0);
   poner("quitados", quitados, previa ? `+${previa} con la vista previa` : quitados ? `${((quitados / n) * 100).toFixed(1)} %` : "");
   poner("total", total, total ? `${((total / n) * 100).toFixed(1)} % de la serie` : "");
-  poner("bloques", bloques, mayor ? `el más largo: ${mayor} puntos` : "");
 }
 
 // ----- Lista de tramos, con números que se pueden escribir -----

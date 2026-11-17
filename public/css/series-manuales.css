@@ -29,6 +29,10 @@ label.boton-archivo:hover { background: var(--grid); }
 button[aria-pressed=true] { background: var(--series-1); border-color: var(--series-1); color: #fff; }
 small.ayuda { display: block; margin: 0 0 14px; color: var(--muted); font-size: 0.8rem; line-height: 1.4; }
 #chart.dibujando { cursor: crosshair; touch-action: none; user-select: none; }
+/* con la goma, el cursor es un círculo */
+#chart.dibujando.borrando {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20'%3E%3Ccircle cx='10' cy='10' r='7' fill='white' fill-opacity='0.6' stroke='black' stroke-width='1.5'/%3E%3C/svg%3E") 10 10, cell;
+}
 
 @media (max-width: 900px) {
   .layout { grid-template-columns: 1fr; }

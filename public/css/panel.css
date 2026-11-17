@@ -6,7 +6,25 @@
 }
 .panel { padding: 20px; }
 .tarjeta-grafica { padding: 16px 20px 12px; position: sticky; top: 16px; }
-.graf-cab h2 { margin: 0; font-size: 1.05rem; font-weight: 650; }
+.graf-cab h2 { margin: 0; font-size: 1.05rem; font-weight: 650; min-width: 0; overflow-wrap: anywhere; }
+/* a la izquierda el título y el resumen; a la derecha la descarga y, debajo, las herramientas de dibujo */
+.graf-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.graf-texto { min-width: 0; }
+.graf-herramientas { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; margin-bottom: 8px; }
+.graf-herramientas .boton-descargar { width: auto; height: 28px; padding: 0 10px; font-size: 0.8rem; color: var(--ink-2); }
+.graf-herramientas .boton-descargar:hover:not(:disabled) { color: var(--ink); }
+.graf-herramientas .boton-descargar:disabled { opacity: 0.45; cursor: default; }
+.herramientas-dibujo { display: flex; align-items: center; gap: 2px; padding: 2px; border: 1px solid var(--border); border-radius: 9px; }
+.herramientas-dibujo[hidden] { display: none; }
+.herramientas-dibujo .herr {
+  width: 32px; height: 30px; min-height: 0; padding: 0; margin: 0; display: grid; place-items: center;
+  border: 0; border-radius: 7px; background: transparent; color: var(--ink-2);
+}
+.herramientas-dibujo .herr svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.herramientas-dibujo .herr:hover:not(:disabled):not([aria-pressed="true"]) { color: var(--ink); background: var(--grid); }
+.herramientas-dibujo .herr[aria-pressed="true"] { background: var(--series-1); color: #fff; }
+.herramientas-dibujo .herr:disabled { opacity: 0.35; cursor: default; }
+.herr-sep { width: 1px; height: 18px; margin: 0 3px; background: var(--border); }
 .graf-cab p { margin: 2px 0 12px; color: var(--ink-2); font-size: 0.85rem; min-height: 1.2em; }
 #chart { width: 100%; height: clamp(320px, 56vh, 600px); }
 .acciones { display: flex; gap: 10px; margin-top: 12px; }

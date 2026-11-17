@@ -244,11 +244,14 @@ botonDescargar.addEventListener("click", () => {
 function pintarBotonDescargar() {
   const lista = seriesParaDescargar();
   botonDescargar.disabled = lista.length === 0;
-  botonDescargar.textContent = vista === "todas" ? "Descargar todas (CSV)" : "Descargar datos (CSV)";
+  botonDescargar.title = vista === "todas"
+    ? "Descarga los puntos de todas las series en un archivo CSV (se abre en Excel)"
+    : "Descarga los puntos de esta serie en un archivo CSV (se abre en Excel)";
 }
 
 function pintarAnalisis() {
   pintarBotonDescargar();
+  actualizarBarraDibujo();   // pincel, goma, deshacer y rehacer: solo viendo una serie dibujada
   pintarDescomposicion();
   document.querySelector(".tarjeta-grafica").classList.toggle("abierta", !contDescomposicion.hidden);
 }

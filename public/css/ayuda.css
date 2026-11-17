@@ -1,0 +1,43 @@
+/* La ayuda del «?»: una ventana con pestañas por fase, un índice a la izquierda y el contenido a la derecha. */
+dialog.ayuda-dialogo {
+  width: min(1000px, 94vw); height: min(760px, 90vh); padding: 0; border: 1px solid var(--axis); border-radius: 14px;
+  background: var(--surface); color: var(--ink); overflow: hidden;
+}
+dialog.ayuda-dialogo[open] { display: flex; flex-direction: column; }
+dialog.ayuda-dialogo::backdrop { background: rgba(0, 0, 0, 0.4); }
+
+.ayuda-cabecera { display: flex; align-items: center; justify-content: space-between; padding: 16px 22px 8px; }
+.ayuda-cabecera h2 { margin: 0; font-size: 1.2rem; }
+.ayuda-cabecera button { width: auto; height: 32px; padding: 0 14px; }
+
+/* las pestañas son las de la app (.pestanas): aquí solo su sitio y la línea de abajo */
+.ayuda-pestanas { padding: 0 22px 12px; border-bottom: 1px solid var(--grid); }
+
+.ayuda-cuerpo { display: grid; grid-template-columns: 230px minmax(0, 1fr); flex: 1; min-height: 0; }
+.ayuda-indice { overflow-y: auto; padding: 16px 12px 20px 22px; border-right: 1px solid var(--grid); background: var(--surface-2); }
+.ayuda-indice-titulo { margin: 0 0 6px; font-size: 0.78rem; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.ayuda-indice-grupo { margin: 14px 0 4px; font-size: 0.8rem; font-weight: 650; color: var(--ink); }
+.ayuda-indice-item {
+  display: block; width: 100%; height: auto; margin: 0; padding: 5px 10px; border: 1px solid transparent; border-radius: 7px;
+  background: transparent; color: var(--ink-2); font-size: 0.86rem; text-align: left;
+}
+.ayuda-indice-item:hover { background: var(--grid); color: var(--ink); }
+.ayuda-indice-item.activa { background: var(--surface); border-color: var(--axis); color: var(--ink); font-weight: 650; }
+
+.ayuda-contenido { overflow-y: auto; padding: 8px 26px 40px; scroll-behavior: smooth; }
+.ayuda-seccion { padding: 18px 0 22px; border-bottom: 1px solid var(--grid); }
+.ayuda-seccion:last-child { border-bottom: 0; }
+.ayuda-grupo { margin: 0 0 2px; font-size: 0.75rem; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.ayuda-seccion h3 { margin: 0 0 10px; font-size: 1.15rem; }
+.ayuda-intro { margin: 0 0 14px; padding: 8px 14px; border-left: 3px solid var(--axis); color: var(--ink-2); font-size: 0.92rem; }
+.ayuda-lista { margin: 0; }
+.ayuda-lista > div { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 4px 18px; padding: 8px 0; border-top: 1px solid var(--grid); }
+.ayuda-lista > div:first-child { border-top: 0; }
+.ayuda-lista dt { font-weight: 650; font-size: 0.92rem; }
+.ayuda-lista dd { margin: 0; color: var(--ink-2); font-size: 0.9rem; line-height: 1.5; }
+
+@media (max-width: 760px) {
+  .ayuda-cuerpo { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+  .ayuda-indice { max-height: 28vh; border-right: 0; border-bottom: 1px solid var(--grid); }
+  .ayuda-lista > div { grid-template-columns: 1fr; }
+}

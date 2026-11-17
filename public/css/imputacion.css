@@ -21,8 +21,15 @@
   background: var(--grid); font-size: 0.75rem; font-weight: 700;
 }
 .pestanas button.activa .numero-tab { background: var(--series-1); color: #fff; }
-.imp-panel h2 { margin: 0 0 6px; font-size: 1.3rem; }
-.imp-panel > p { margin: 0 0 16px; color: var(--ink-2); }
+/* cabecera de cada pestaña: título y frase, con aire y una línea que las separa del contenido */
+.imp-panel h2 { margin: 6px 0 8px; font-size: 1.4rem; text-align: center; }
+.imp-panel > p { margin: 0 auto 28px; padding-bottom: 22px; border-bottom: 1px solid var(--grid); color: var(--ink-2); text-align: center; }
+/* cajas: cada una con una sola función y su título pequeño */
+.caja { padding: 18px 20px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.caja-titulo { margin: 0 0 14px; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-2); }
+.exp-columna { display: grid; gap: 22px; }
+.exp-principal { display: grid; gap: 22px; min-width: 0; }
+.exp-principal [hidden] { display: none; }
 .imp-panel ul { margin: 0 0 4px; padding-left: 20px; color: var(--ink-2); line-height: 1.7; }
 .en-construccion {
   margin-top: 20px; padding: 40px 20px; border: 2px dashed var(--axis); border-radius: 12px;
@@ -33,7 +40,8 @@
 /* Pestaña "Variable explicada": lista de series, campo, gráfica editable, mapa y herramientas */
 .exp { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 22px; align-items: start; }
 @media (max-width: 900px) { .exp { grid-template-columns: 1fr; } }
-.exp-lateral h3 { margin: 0 0 4px; font-size: 1rem; }
+/* la caja de «Series disponibles» (pestaña 2), más ancha */
+@media (min-width: 901px) { .exp.exp-ancha { grid-template-columns: 340px minmax(0, 1fr); } }
 .exp-lateral .ayuda { margin-bottom: 12px; }
 .exp-series { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .exp-serie {
@@ -89,7 +97,7 @@
 .imp-dato strong { display: block; font-size: 1.35rem; line-height: 1.3; font-variant-numeric: tabular-nums; }
 .imp-dato small { color: var(--muted); font-size: 0.78rem; }
 .imp-dato.naranja strong { color: color-mix(in srgb, var(--series-4) 80%, var(--ink)); }
-.exp-azar, .exp-tramos { margin-top: 14px; padding: 12px 16px; border: 1px solid var(--grid); border-radius: 10px; }
+.exp-azar, .exp-tramos { margin: 0; padding: 16px 20px; border: 1px solid var(--border); border-radius: 14px; }
 .exp-azar summary { cursor: pointer; font-weight: 650; }
 .exp-azar-cuerpo { display: grid; gap: 10px 18px; margin-top: 12px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); align-items: end; }
 .exp-azar-cuerpo label { margin: 0; font-size: 0.85rem; }
@@ -129,6 +137,7 @@
 .ev-sel button { width: auto; height: 34px; padding: 0 14px; font-size: 0.88rem; }
 .ev-sel select { display: inline-block; width: auto; height: 34px; margin: 0 0 0 6px; padding: 0 10px; font-size: 0.9rem; }
 .ev-sel label { margin: 0; font-size: 0.88rem; }
+.ev-sel.ev-sel-lista { margin: 0 0 14px; }
 #ev-grafica { width: 100%; height: 340px; margin-top: 8px; }
 .ev-tabla { display: grid; grid-template-columns: minmax(120px, 1.2fr) repeat(4, minmax(90px, 1fr)); gap: 0; font-size: 0.86rem; overflow-x: auto; }
 .ev-tabla > div { padding: 8px 10px; border-top: 1px solid var(--grid); }
@@ -140,8 +149,11 @@
 /* Pestaña "Correlación" */
 .cor-tabla { display: grid; grid-template-columns: minmax(130px, 1.2fr) repeat(3, minmax(150px, 1fr)) minmax(130px, 0.9fr) minmax(80px, 0.5fr); overflow-x: auto; }
 .cor-tabla .valor.desfase.cambia { color: color-mix(in srgb, var(--series-4) 75%, var(--ink)); }
-.cor-matriz { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--axis); }
-.cor-matriz h3 { margin: 0 0 12px; font-size: 1.05rem; }
+.cor [hidden] { display: none; }
+/* título de la caja a la izquierda y, a su derecha, los controles de esa caja */
+.caja-cab { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; margin-bottom: 14px; }
+.caja-cab .caja-titulo { margin: 0; }
+.caja-cab .cor-controles { margin: 0; }
 .cor-matriz-rejilla { display: grid; overflow-x: auto; gap: 3px; }
 .cor-matriz-rejilla .cab-col {
   padding: 4px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center;
@@ -162,8 +174,6 @@
 .cor-matriz-rejilla .cab-col.resaltada, .cor-matriz-rejilla .cab-fila.resaltada { color: var(--ink); }
 .cor-matriz-rejilla .explicada { color: var(--ink); font-weight: 750; }
 .cor-matriz-rejilla .cab-fila small { color: var(--muted); font-size: 0.72rem; font-weight: 400; }
-.cor-cruzada { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--axis); }
-.cor-cruzada h3 { margin: 0 0 12px; font-size: 1.05rem; }
 .cor-controles { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 20px; margin-bottom: 8px; }
 .cor-controles label { margin: 0; font-size: 0.88rem; }
 .cor-controles select { display: block; width: auto; min-width: 190px; height: 38px; margin-top: 4px; padding: 0 10px; font-size: 0.92rem; }

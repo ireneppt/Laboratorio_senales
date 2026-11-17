@@ -1,5 +1,5 @@
 """Métodos que solo usan la propia serie: media, mediana, último y siguiente valor, medias móviles (simples y
-ponderadas), media estacional e interpolación (lineal, y spline cúbica)."""
+ponderadas), media estacional e interpolación (lineal, spline cúbica y PCHIP)."""
 import numpy as np
 
 from ..errores import ErrorDeEntrada
@@ -178,4 +178,57 @@ def polinomica(p, parametros=None):
     a, b = (x1 - dentro) / h, (dentro - x0) / h
     completa[dentro] = (a * y[tramo] + b * y[tramo + 1]
                         + ((a ** 3 - a) * m[tramo] + (b ** 3 - b) * m[tramo + 1]) * h ** 2 / 6)
+    return completa
+
+
+def _pendientes_pchip(x, y):
+    """Pendiente de la curva en cada dato, como en `pchip` de MATLAB (Fritsch y Carlson; la versión de Moler, "Numerical
+    Computing with MATLAB", cap. 3). x tiene que estar ordenada y sin repetidos, con al menos 2 datos."""
+    h = np.diff(x)
+    delta = np.diff(y) / h                                      # pendiente de cada tramo
+    n = len(x)
+    d = np.zeros(n)
+    if n == 2:
+        d[:] = delta[0]
+        return d
+    # datos de dentro: 0 si los dos tramos vecinos no van en el mismo sentido (hay un máximo o un mínimo);
+    # si no, la media armónica ponderada de sus pendientes, con las distancias reales entre datos
+    k = np.flatnonzero(delta[:-1] * delta[1:] > 0) + 1
+    w1 = 2 * h[k] + h[k - 1]
+    w2 = h[k] + 2 * h[k - 1]
+    d[k] = (w1 + w2) / (w1 / delta[k - 1] + w2 / delta[k])
+
+    def extremo(h1, h2, d1, d2):
+        """Fórmula de tres puntos, corregida para que conserve la forma."""
+        e = ((2 * h1 + h2) * d1 - h1 * d2) / (h1 + h2)
+        if np.sign(e) != np.sign(d1):
+            return 0.0
+        if np.sign(d1) != np.sign(d2) and abs(e) > abs(3 * d1):
+            return 3 * d1
+        return e
+    d[0] = extremo(h[0], h[1], delta[0], delta[1])
+    d[-1] = extremo(h[-1], h[-2], delta[-1], delta[-2])
+    return d
+
+
+def pchip(p, parametros=None):
+    """Interpolación PCHIP (cúbica de Hermite a trozos que conserva la forma), como `pchip` de MATLAB: entre cada dos
+    datos conocidos, un polinomio de grado 3 cuyas pendientes en los datos se eligen para que la curva no se pase de
+    largo (no sale del rango de sus dos datos vecinos y conserva la monotonía). Con 2 datos, una recta. Fuera del
+    primer y último dato se mantiene el valor más cercano, como en la interpolación lineal (MATLAB extrapolaría con la
+    última cúbica)."""
+    _conocidos(p)
+    x = np.flatnonzero(~np.isnan(p.y)).astype(float)
+    y = p.y[~np.isnan(p.y)]
+    completa = interpolacion(p)                                # los extremos (y el caso de pocos datos) como la lineal
+    if len(x) < 2:
+        return completa
+    d = _pendientes_pchip(x, y)
+    objetivo = np.flatnonzero(p.objetivo)
+    dentro = objetivo[(objetivo > x[0]) & (objetivo < x[-1])]
+    tramo = np.searchsorted(x, dentro) - 1                     # entre x[tramo] y x[tramo + 1]
+    h = x[tramo + 1] - x[tramo]
+    t = (dentro - x[tramo]) / h
+    completa[dentro] = ((2 * t ** 3 - 3 * t ** 2 + 1) * y[tramo] + (t ** 3 - 2 * t ** 2 + t) * h * d[tramo]
+                        + (-2 * t ** 3 + 3 * t ** 2) * y[tramo + 1] + (t ** 3 - t ** 2) * h * d[tramo + 1])
     return completa

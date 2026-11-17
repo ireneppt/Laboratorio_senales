@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="css/panel.css">
   <link rel="stylesheet" href="css/formulario.css">
   <link rel="stylesheet" href="css/series-manuales.css">
+  <link rel="stylesheet" href="css/ayuda.css">
 </head>
 <body>
   <div class="pagina">
@@ -24,6 +25,7 @@
         <button type="button" id="p-guardar" title="Guardar en este navegador (Ctrl+S)">Guardar</button>
         <button type="button" id="p-abrir">Mis proyectos</button>
         <button type="button" id="p-exportar" title="Descarga el proyecto como un archivo .json">Exportar</button>
+        <button type="button" id="p-ayuda" class="boton-ayuda" title="Ayuda: qué significa cada cosa en esta fase" aria-label="Ayuda de esta fase" aria-haspopup="dialog">?</button>
       </div>
     </header>
 
@@ -340,7 +342,7 @@
 
           <fieldset id="grupo-dibujar" hidden>
             <legend>Dibujar con el cursor</legend>
-            <small class="ayuda">Con el dibujo activado, mantén pulsado y arrastra sobre la gráfica: cada punto toma la altura del cursor. Vuelve a pasar por un tramo para corregirlo.</small>
+            <small class="ayuda">Con el pincel (arriba a la derecha de la gráfica), mantén pulsado y arrastra sobre la gráfica: cada punto toma la altura del cursor. Vuelve a pasar por un tramo para corregirlo; con la goma, lo borras.</small>
             <label>Número de puntos
               <input type="number" id="manual-n" value="100" min="2" max="10000" step="1">
             </label>
@@ -356,7 +358,6 @@
               <textarea id="manual-texto-dibujar" rows="6" spellcheck="false" placeholder="Lo que dibujes aparece aquí, y lo que escribas aquí se dibuja."></textarea>
             </label>
             <div class="botones-manual">
-              <button type="button" id="manual-dibujar" aria-pressed="false">Dibujo activado</button>
               <button type="button" id="manual-borrar">Vaciar</button>
             </div>
           </fieldset>
@@ -367,8 +368,29 @@
         <!-- Una pestaña por serie y, si hay más de una, otra "Todas" que las superpone -->
         <div class="pestanas" id="pestanas-grafica" role="tablist" aria-label="Vista de la gráfica"></div>
         <div class="graf-cab">
-          <h2 id="titulo-grafica"></h2>
-          <p id="resumen"></p>
+          <div class="graf-texto">
+            <h2 id="titulo-grafica"></h2>
+            <p id="resumen"></p>
+          </div>
+          <!-- A la derecha: la descarga y, en las series dibujadas, las herramientas de dibujo -->
+          <div class="graf-herramientas">
+            <button type="button" id="boton-descargar" class="boton-descargar">↓ Descargar CSV</button>
+            <div class="herramientas-dibujo" id="herramientas-dibujo" role="toolbar" aria-label="Herramientas de dibujo" hidden>
+              <button type="button" class="herr" id="herr-pincel" aria-pressed="false" aria-label="Pincel" title="Pincel: mantén pulsado y arrastra sobre la gráfica para dibujar">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1-4.5L16 4.5a2.1 2.1 0 0 1 3 3L8 18.5z"/><path d="M14 6.5l3 3"/></svg>
+              </button>
+              <button type="button" class="herr" id="herr-goma" aria-pressed="false" aria-label="Goma" title="Goma: arrastra sobre la gráfica para borrar puntos (quedan como dato faltante)">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 19.5L4.2 15.2a2 2 0 0 1 0-2.8l8.4-8.4a2 2 0 0 1 2.8 0l4.2 4.2a2 2 0 0 1 0 2.8l-8.3 8.5z"/><path d="M8.5 19.5H20"/><path d="M9 8l7 7"/></svg>
+              </button>
+              <span class="herr-sep" aria-hidden="true"></span>
+              <button type="button" class="herr" id="herr-deshacer" aria-label="Deshacer" title="Deshacer (Ctrl+Z)" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+              </button>
+              <button type="button" class="herr" id="herr-rehacer" aria-label="Rehacer" title="Rehacer (Ctrl+Y)" disabled>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 14l5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>
+              </button>
+            </div>
+          </div>
         </div>
         <div id="chart"></div>
         <!-- Solo en la vista de una serie: sus componentes por separado -->
@@ -378,7 +400,6 @@
             <button type="button" class="boton-como" id="boton-como" hidden aria-expanded="false"
               aria-label="Cómo se han calculado los componentes, paso a paso" title="Cómo se ha calculado, paso a paso">?</button>
           </span>
-          <button type="button" id="boton-descargar" title="Descarga los puntos en un archivo CSV (se abre en Excel)">Descargar datos (CSV)</button>
         </div>
         <div id="descomposicion" hidden></div>
       </section>
@@ -411,10 +432,12 @@
   <script src="js/40-series-manuales.js"></script>
   <script src="js/45-componentes.js"></script>
   <script src="js/50-fases.js"></script>
+  <script src="js/51-ayuda.js"></script>
   <script src="js/60-explicada.js"></script>
   <script src="js/70-explicativas.js"></script>
   <script src="js/80-correlacion.js"></script>
   <script src="js/82-resultados.js"></script>
+  <script src="js/84-seleccion.js"></script>
   <script src="js/85-imputacion-proyecto.js"></script>
   <script src="js/90-proyectos.js"></script>
   <script src="js/99-arranque.js"></script>

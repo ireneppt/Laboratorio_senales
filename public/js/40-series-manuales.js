@@ -20,9 +20,10 @@ const textoDibujo = document.getElementById("manual-texto-dibujar");   // en "Di
 const nManual = document.getElementById("manual-n");
 const yMinManual = document.getElementById("manual-ymin");
 const yMaxManual = document.getElementById("manual-ymax");
-const botonDibujar = document.getElementById("manual-dibujar");
 const graficaEl = document.getElementById("chart");
-let dibujando = false;
+// Herramienta de dibujo elegida en la barra de la gráfica: "pincel", "goma" o ninguna (null: la gráfica vuelve a hacer zoom)
+let herramientaDibujo = null;
+let dibujando = false;   // = hay herramienta: los ejes se fijan para que el cursor corresponda siempre al mismo valor
 
 function esManual(s) { return Boolean(s) && s.tipo === "manual"; }
 
@@ -159,13 +160,20 @@ function leerTexto(s, texto, ajustarEje) {
 // Al pegar, además de leer los datos se ajusta el eje Y a ellos; al teclear, el eje no se toca.
 let temporizadorTexto = 0;
 let pegado = false;
+let antesDelTexto = null;   // en las dibujadas: cómo estaba la serie antes de esta tanda de tecleo (para deshacer)
 for (const caja of [textoManual, textoDibujo]) {
   caja.addEventListener("paste", () => { pegado = true; });
   caja.addEventListener("input", () => {
     const ajustarEje = pegado;
     pegado = false;
+    const s = activa;
+    if (!antesDelTexto && esDibujada(s)) antesDelTexto = fotoDibujo(s);
     clearTimeout(temporizadorTexto);
-    temporizadorTexto = setTimeout(() => leerTexto(activa, caja.value, ajustarEje), 250);
+    temporizadorTexto = setTimeout(() => {
+      leerTexto(s, caja.value, ajustarEje);
+      apuntarCambio(s, antesDelTexto);
+      antesDelTexto = null;
+    }, 250);
   });
 }
 
@@ -214,18 +222,105 @@ document.getElementById("manual-archivo").addEventListener("change", async (e) =
   }
 });
 
+// ----- Deshacer y rehacer (solo en las dibujadas) -----
+// Antes de cada cambio (un trazo, una pasada de goma, «Vaciar», el número de puntos o lo escrito en el cuadro) se guarda
+// cómo estaba la serie. El historial vive en memoria, no en el proyecto: va con el objeto de la serie, así que al abrir
+// otro proyecto empieza vacío. Un cambio nuevo borra lo que se podía rehacer.
+const MAX_DESHACER = 100;
+const historialDibujo = new WeakMap();   // serie -> [fotos, de la más antigua a la más reciente]
+const historialRehacer = new WeakMap();  // serie -> [fotos deshechas, la última es la siguiente en rehacerse]
+const barraDibujo = document.getElementById("herramientas-dibujo");
+const botonPincel = document.getElementById("herr-pincel");
+const botonGoma = document.getElementById("herr-goma");
+const botonDeshacer = document.getElementById("herr-deshacer");
+const botonRehacer = document.getElementById("herr-rehacer");
+const esDibujada = (s) => esManual(s) && s.origen === "dibujar";
+
+function fotoDibujo(s) {
+  const m = s.manual;
+  return { y: m.y.slice(), yMin: m.yMin, yMax: m.yMax, baseY: m.baseY ? { ...m.baseY } : null };
+}
+// guarda "antes" si la serie ha cambiado desde entonces
+function apuntarCambio(s, antes) {
+  if (!esDibujada(s) || !antes) return;
+  const ahora = fotoDibujo(s);
+  if (JSON.stringify(ahora.y) === JSON.stringify(antes.y) && ahora.yMin === antes.yMin && ahora.yMax === antes.yMax) return;
+  const pila = historialDibujo.get(s) || [];
+  pila.push(antes);
+  if (pila.length > MAX_DESHACER) pila.shift();
+  historialDibujo.set(s, pila);
+  historialRehacer.delete(s);
+  actualizarBarraDibujo();
+}
+function conDeshacer(s, cambio) {
+  const antes = esDibujada(s) ? fotoDibujo(s) : null;
+  cambio();
+  apuntarCambio(s, antes);
+}
+// pasa la última foto de una pila a la serie, y lo que había a la otra pila
+function moverEntreHistoriales(desde, hacia) {
+  const s = activa;
+  const pila = esDibujada(s) && desde.get(s);
+  if (!pila || !pila.length) return;
+  const otra = hacia.get(s) || [];
+  otra.push(fotoDibujo(s));
+  hacia.set(s, otra);
+  const f = pila.pop();
+  Object.assign(s.manual, { y: f.y, yMin: f.yMin, yMax: f.yMax, baseY: f.baseY, tabla: null });
+  cambioManual(s);
+  actualizarBarraDibujo();
+}
+const deshacerDibujo = () => moverEntreHistoriales(historialDibujo, historialRehacer);
+const rehacerDibujo = () => moverEntreHistoriales(historialRehacer, historialDibujo);
+
+// La barra (pincel, goma, deshacer, rehacer) sale arriba a la derecha de la gráfica cuando se ve una serie dibujada
+function actualizarBarraDibujo() {
+  const visible = esDibujada(activa) && vista === activa.id;
+  barraDibujo.hidden = !visible;
+  botonPincel.setAttribute("aria-pressed", herramientaDibujo === "pincel");
+  botonGoma.setAttribute("aria-pressed", herramientaDibujo === "goma");
+  botonDeshacer.disabled = !(visible && (historialDibujo.get(activa) || []).length);
+  botonRehacer.disabled = !(visible && (historialRehacer.get(activa) || []).length);
+  graficaEl.classList.toggle("borrando", herramientaDibujo === "goma");
+}
+// pulsar la herramienta que ya estaba elegida la suelta (y la gráfica vuelve a poder hacer zoom)
+function elegirHerramientaDibujo(h) {
+  herramientaDibujo = herramientaDibujo === h ? null : h;
+  dibujando = herramientaDibujo !== null;
+  actualizarBarraDibujo();
+  pintar();
+}
+botonPincel.addEventListener("click", () => elegirHerramientaDibujo("pincel"));
+botonGoma.addEventListener("click", () => elegirHerramientaDibujo("goma"));
+botonDeshacer.addEventListener("click", deshacerDibujo);
+botonRehacer.addEventListener("click", rehacerDibujo);
+// Ctrl+Z deshace; Ctrl+Y o Ctrl+Mayús+Z rehace (con la barra a la vista; dentro de un cuadro de texto actúa el navegador)
+document.addEventListener("keydown", (e) => {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+  const tecla = e.key.toLowerCase();
+  const accion = tecla === "z" ? (e.shiftKey ? rehacerDibujo : deshacerDibujo) : tecla === "y" && !e.shiftKey ? rehacerDibujo : null;
+  if (!accion || e.target.closest("input, textarea, select, [contenteditable]")) return;
+  if (barraDibujo.hidden || !barraDibujo.offsetParent) return;
+  e.preventDefault();
+  accion();
+});
+
 // ----- Dibujar con el cursor -----
 nManual.addEventListener("change", () => {
-  const n = Math.min(Math.max(parseInt(nManual.value) || 0, 2), MAX_PUNTOS_MANUAL);
-  const y = activa.manual.y;
-  activa.manual.y = n <= y.length ? y.slice(0, n) : y.concat(Array(n - y.length).fill(null));
-  cambioManual(activa);
+  conDeshacer(activa, () => {
+    const n = Math.min(Math.max(parseInt(nManual.value) || 0, 2), MAX_PUNTOS_MANUAL);
+    const y = activa.manual.y;
+    activa.manual.y = n <= y.length ? y.slice(0, n) : y.concat(Array(n - y.length).fill(null));
+    cambioManual(activa);
+  });
 });
 
 document.getElementById("manual-borrar").addEventListener("click", () => {
-  activa.manual.y = activa.manual.y.map(() => null);
-  activa.manual.tabla = null;
-  cambioManual(activa);
+  conDeshacer(activa, () => {
+    activa.manual.y = activa.manual.y.map(() => null);
+    activa.manual.tabla = null;
+    cambioManual(activa);
+  });
 });
 
 for (const [campo, clave] of [[yMinManual, "yMin"], [yMaxManual, "yMax"]]) {
@@ -237,18 +332,6 @@ for (const [campo, clave] of [[yMinManual, "yMin"], [yMaxManual, "yMax"]]) {
     if (activa.manual.yMin < activa.manual.yMax) pintar();
   });
 }
-
-function actualizarBotonDibujo() {
-  botonDibujar.setAttribute("aria-pressed", dibujando);
-  botonDibujar.textContent = dibujando ? "Dibujo activado" : "Dibujo desactivado";
-}
-
-botonDibujar.addEventListener("click", () => {
-  dibujando = !dibujando;
-  if (dibujando && vista !== activa.id) { vista = activa.id; renderPestanasGrafica(); } // se dibuja sobre una sola serie
-  actualizarBotonDibujo();
-  pintar();
-});
 
 // Pixel del ratón -> punto de la serie y valor, con los ejes de Plotly. null si está fuera del dibujo.
 // Con "libreY" el cursor puede salirse por arriba o por abajo del dibujo (para ampliar el eje y).
@@ -264,10 +347,29 @@ function posicionEnGrafica(e, libreY = false) {
 }
 
 let trazo = null;          // último punto dibujado en el trazo en curso { i, v }
+let antesDelTrazo = null;  // cómo estaba la serie al empezar el trazo (para deshacer)
 let repintadoPendiente = false;
 let ultimoCrecimiento = null; // instante del último ajuste del eje y durante el trazo
 
+// Goma: los puntos por los que pasa el cursor (a cualquier altura) quedan sin dato
+function borrarConGoma(e) {
+  const s = activa;
+  const pos = posicionEnGrafica(e, true);
+  if (!pos || pos.i < 0 || pos.i >= s.manual.y.length) { trazo = null; return; }
+  const y = s.manual.y;
+  const desde = trazo ? Math.min(trazo.i, pos.i) : pos.i;   // si el cursor va rápido, también los puntos que salta
+  const hasta = trazo ? Math.max(trazo.i, pos.i) : pos.i;
+  for (let k = desde; k <= hasta; k++) y[k] = null;
+  trazo = pos;
+  recalcularManual(s);
+  if (!repintadoPendiente) {
+    repintadoPendiente = true;
+    requestAnimationFrame(() => { repintadoPendiente = false; pintar(); });
+  }
+}
+
 function marcar(e) {
+  if (herramientaDibujo === "goma") { borrarConGoma(e); return; }
   const s = activa;
   // en mitad de un trazo el cursor puede salirse por arriba o por abajo: el eje y crece para seguirlo
   const pos = posicionEnGrafica(e, trazo !== null);
@@ -314,6 +416,7 @@ graficaEl.addEventListener("pointerdown", (e) => {
   if (!dibujandoAhora() || e.button !== 0) return;
   graficaEl.setPointerCapture(e.pointerId);
   trazo = null;
+  antesDelTrazo = fotoDibujo(activa);
   marcar(e);
 });
 graficaEl.addEventListener("pointermove", (e) => {
@@ -324,6 +427,8 @@ const soltar = (e) => {
   if (!graficaEl.hasPointerCapture(e.pointerId)) return;
   graficaEl.releasePointerCapture(e.pointerId);
   trazo = null;
+  apuntarCambio(activa, antesDelTrazo);   // todo el trazo se deshace de una vez
+  antesDelTrazo = null;
   pintarPanelManual(activa); // el cuadro de valores refleja lo dibujado
 };
 graficaEl.addEventListener("pointerup", soltar);
@@ -355,8 +460,9 @@ function mostrarModo(s) {
   form.classList.toggle("es-manual", esManual(s));
   panelManual.hidden = !esManual(s);
   for (const [origen, grupo] of Object.entries(grupos)) grupo.hidden = !(esManual(s) && s.origen === origen);
-  dibujando = esManual(s) && s.origen === "dibujar";
-  actualizarBotonDibujo();
+  herramientaDibujo = esDibujada(s) ? "pincel" : null;   // las dibujadas arrancan con el pincel
+  dibujando = herramientaDibujo !== null;
+  actualizarBarraDibujo();
   if (esManual(s)) pintarPanelManual(s);
 }
 

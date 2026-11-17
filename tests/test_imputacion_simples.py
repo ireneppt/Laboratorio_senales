@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from senales import ErrorDeEntrada
-from senales.imputacion import simples
+from senales.imputacion import imputar, simples
 from senales.imputacion.preparar import preparar
 
 NAN = np.nan
@@ -185,3 +185,69 @@ def test_media_estacional_necesita_un_periodo_valido():
 def test_media_estacional_sin_datos_en_ese_momento_del_ciclo_no_imputa():
     completa = simples.media_estacional(problema([1, None, 3, 4, None, 6]), {"periodo": 3, "quitar_tendencia": False})
     assert np.isnan(completa[1]) and np.isnan(completa[4])       # el momento 1 del ciclo no tiene ningún dato
+
+
+# ---------------------------------------------------------------- PCHIP
+def test_pchip_pasa_por_los_datos_y_con_una_recta_da_la_recta():
+    con_huecos = [0.0, None, None, 6.0, 8.0, None, 12.0, 14.0]
+    completa = simples.pchip(problema(con_huecos))
+    assert completa.tolist() == pytest.approx([0, 2, 4, 6, 8, 10, 12, 14])   # y = 2x
+    assert completa[[0, 3, 4, 6, 7]].tolist() == [0, 6, 8, 12, 14]
+
+
+def test_pchip_calcula_las_pendientes_como_matlab():
+    # datos equiespaciados (h = 1) en x = 0..3, y = 0, 1, 4, 5: pendientes de los tramos δ = 1, 3, 1
+    d = simples._pendientes_pchip(np.arange(4.0), np.array([0.0, 1.0, 4.0, 5.0]))
+    assert d[1] == pytest.approx(2 / (1 / 1 + 1 / 3))                        # media armónica de 1 y 3 = 1,5
+    assert d[2] == pytest.approx(1.5)
+    assert d[0] == pytest.approx(0.0)                                        # tres puntos: (3·1 − 3)/2 = 0
+    assert d[3] == pytest.approx(0.0)
+    # con una distancia irregular los pesos usan las distancias reales: x = 0, 1, 3; y = 0, 1, 2 → δ = 1, 0,5; h = 1, 2
+    d = simples._pendientes_pchip(np.array([0.0, 1.0, 3.0]), np.array([0.0, 1.0, 2.0]))
+    w1, w2 = 2 * 2 + 1, 2 + 2 * 1
+    assert d[1] == pytest.approx((w1 + w2) / (w1 / 1 + w2 / 0.5))
+
+
+def test_pchip_con_un_maximo_o_minimo_en_los_datos_tiene_pendiente_cero():
+    d = simples._pendientes_pchip(np.arange(5.0), np.array([0.0, 3.0, 5.0, 2.0, 1.0]))
+    assert d[2] == 0.0
+
+
+def test_pchip_no_se_pasa_de_largo_y_la_spline_si():
+    # una subida seguida de un hueco y una meseta: la spline sube por encima de la meseta; PCHIP no sale del rango de los datos
+    y = [0.0, 0.0, 0.0, 0.0, 10.0, None, None, None, None, 10.0, 10.0, 10.0, 10.0]
+    p = problema(y)
+    pchip = simples.pchip(p)
+    assert pchip.min() >= 0 and pchip.max() <= 10 + 1e-9
+    assert np.all(np.diff(pchip) >= -1e-9)                                   # y no baja en ningún momento
+    assert simples.polinomica(p).max() > 10 + 1                              # la spline natural sí se pasa de largo (llega a ~18)
+
+
+def test_pchip_es_monotona_si_los_datos_lo_son():
+    rng = np.random.default_rng(1)
+    y = np.cumsum(rng.uniform(0, 3, size=60)).tolist()
+    for i in (5, 6, 7, 20, 21, 22, 23, 40):
+        y[i] = None
+    completa = simples.pchip(problema(y))
+    assert np.all(np.diff(completa) >= -1e-9)
+
+
+def test_pchip_en_los_huecos_se_queda_entre_los_dos_datos_de_los_lados():
+    y = [3.0, 7.0, None, None, None, 2.0, 9.0, None, 4.0]
+    completa = simples.pchip(problema(y))
+    assert completa[2:5].min() >= 2 - 1e-9 and completa[2:5].max() <= 7 + 1e-9
+    assert completa[7] >= 4 - 1e-9 and completa[7] <= 9 + 1e-9
+
+
+def test_pchip_en_los_extremos_y_con_pocos_datos_es_como_la_lineal():
+    assert simples.pchip(problema([None, 1, None, 3, None])).tolist() == [1, 1, 2, 3, 3]     # dos datos: recta; fuera, el valor más cercano
+    assert simples.pchip(problema([None, 5, None, None])).tolist() == [5, 5, 5, 5]           # un dato
+    assert simples.pchip(problema([1, 2, 3, 4])).tolist() == [1, 2, 3, 4]                    # sin huecos
+    with pytest.raises(ErrorDeEntrada, match="ningún dato"):
+        simples.pchip(problema([None, None, None, None]))
+
+
+def test_pchip_con_los_huecos_quitados_se_puede_comparar():
+    y = [float(np.sin(i / 4)) for i in range(40)]
+    r = imputar(y, [(10, 14)], [], [{"metodo": "pchip"}, {"metodo": "interpolacion"}])["resultados"]
+    assert r[0]["error"] is None and r[0]["metricas"]["rmse"] < r[1]["metricas"]["rmse"] * 1.5
