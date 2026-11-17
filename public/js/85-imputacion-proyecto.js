@@ -23,7 +23,8 @@ function imputacionDesdeGuardada(guardada, mapa) {
   e.explicativas = [...new Set(nuevas.filter((id) => id !== undefined && id !== e.explicada.serieId))];
   // métodos de imputación elegidos y sus parámetros (solo los que existen)
   // combinaciones de la ventana multivariante: { id, explicativas } (explicativas null = todas las elegidas)
-  const guardadas = guardada && Array.isArray(guardada.combinaciones) && guardada.combinaciones.length ? guardada.combinaciones : [{ id: 1, explicativas: guardada ? guardada.multivariante : null }];
+  // (una lista vacía es que se empezó de cero: se respeta)
+  const guardadas = guardada && Array.isArray(guardada.combinaciones) ? guardada.combinaciones : [{ id: 1, explicativas: guardada ? guardada.multivariante : null }];
   const usados = new Set();
   e.combinaciones = [];
   for (const c of guardadas.slice(0, 20)) {
@@ -37,7 +38,7 @@ function imputacionDesdeGuardada(guardada, mapa) {
   for (const [clave, lista] of Object.entries(guardados)) {
     const esSolo = clave.startsWith("solo:");
     const idSolo = esSolo ? mapa[Number(clave.slice(5))] : undefined;
-    const idCombinacion = clave === "multi" ? e.combinaciones[0].id : clave.startsWith("multi:") ? Number(clave.slice(6)) : undefined;   // "multi" a secas es el formato anterior
+    const idCombinacion = clave === "multi" ? (e.combinaciones[0] || {}).id : clave.startsWith("multi:") ? Number(clave.slice(6)) : undefined;   // "multi" a secas es el formato anterior
     const esMulti = idCombinacion !== undefined && e.combinaciones.some((c) => c.id === idCombinacion);
     const existe = clave === "sin" || esMulti || (esSolo && idSolo !== undefined && e.explicativas.includes(idSolo));
     if (!existe || !Array.isArray(lista)) continue;
@@ -49,6 +50,10 @@ function imputacionDesdeGuardada(guardada, mapa) {
   e.parametros = PARAMETROS_IMPUTACION_INICIALES();
   for (const clave of ["k_movil", "k_movil_atras", "k_movil_pond", "k_movil_pond_atras"]) if (Number.isInteger(p[clave]) && p[clave] >= 1) e.parametros[clave] = p[clave];
   if (typeof p.quitar_tendencia === "boolean") e.parametros.quitar_tendencia = p.quitar_tendencia;
-  if (Number.isInteger(p.grado_polinomica) && p.grado_polinomica >= 1 && p.grado_polinomica <= 5) e.parametros.grado_polinomica = p.grado_polinomica;
+  const entero = (v, minimo, maximo) => Number.isInteger(v) && v >= minimo && v <= maximo;
+  if (entero(p.mi_n, 2, 50)) e.parametros.mi_n = p.mi_n;
+  if (entero(p.mi_iteraciones, 10, 500)) e.parametros.mi_iteraciones = p.mi_iteraciones;
+  if (entero(p.mi_semilla, 0, 1000000)) e.parametros.mi_semilla = p.mi_semilla;
+  if (["media", "mediana"].includes(p.mi_combinar)) e.parametros.mi_combinar = p.mi_combinar;
   return e;
 }

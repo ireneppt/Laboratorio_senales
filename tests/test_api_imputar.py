@@ -68,3 +68,13 @@ def test_se_pueden_pedir_todos_los_metodos_sin_explicativas_a_la_vez():
     assert len(sin_explicativas) > 10
     r = pedir(metodos=sin_explicativas)
     assert r.status_code == 200 and all(f["error"] is None for f in r.json()["resultados"])
+
+
+def test_sugerir_explicativas():
+    a = [float((i * 7) % 11) for i in range(40)]
+    b = [float((i * 5) % 13) for i in range(40)]
+    y = [2 * p - q for p, q in zip(a, b)]
+    r = cliente.post("/api/sugerir-explicativas", json={"y": y, "explicativas": [a, b, [1.0] * 40]})
+    assert r.status_code == 200 and set(r.json()["mejor"]) >= {0, 1}
+    assert cliente.post("/api/sugerir-explicativas", json={"y": y, "explicativas": [a]}).status_code == 422
+    assert cliente.post("/api/sugerir-explicativas", json={"y": y[:6], "explicativas": [a[:6], b[:6]]}).status_code == 422

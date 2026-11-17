@@ -124,3 +124,16 @@ function syncDisabled() {
   }
   actualizarResumenes();
 }
+
+// Descarga un texto como archivo: crea un enlace temporal y lo pulsa.
+function descargarArchivo(texto, tipo, nombreArchivo) {
+  const enlace = document.createElement("a");
+  enlace.href = URL.createObjectURL(new Blob([texto], { type: tipo }));
+  enlace.download = nombreArchivo;
+  document.body.append(enlace);
+  enlace.click();
+  enlace.remove();
+  setTimeout(() => URL.revokeObjectURL(enlace.href), 1000);
+}
+// Un nombre apto para archivo: letras, números, guiones y guiones bajos
+const nombreParaArchivo = (texto, defecto) => String(texto || "").replace(/[^\p{L}\p{N}_-]+/gu, "_").replace(/^_+|_+$/g, "") || defecto;

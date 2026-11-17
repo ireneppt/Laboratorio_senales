@@ -2,7 +2,7 @@
 import numpy as np
 
 from ..errores import ErrorDeEntrada
-from . import con_explicativas, simples
+from . import con_explicativas, multiple, simples
 from .metricas import Z_95, evaluar
 from .preparar import alinear, preparar
 
@@ -12,6 +12,7 @@ METODOS = {
     "mediana": ("Mediana", "explicito", False, simples.mediana),
     "regresion": ("Regresión", "explicito", True, con_explicativas.regresion),
     "em": ("EM (esperanza-maximización)", "explicito", True, con_explicativas.em),
+    "imputacion_multiple": ("Imputación múltiple (MCMC)", "explicito", True, multiple.imputacion_multiple),
     "ultimo_valor": ("Último valor conocido", "referencia", False, simples.ultimo_valor),
     "siguiente_valor": ("Siguiente valor conocido", "referencia", False, simples.siguiente_valor),
     "media_movil": ("Media móvil centrada", "referencia", False, simples.media_movil),
@@ -21,7 +22,6 @@ METODOS = {
     "media_estacional": ("Media estacional", "referencia", False, simples.media_estacional),
     "interpolacion": ("Interpolación lineal", "referencia", False, simples.interpolacion),
     "polinomica": ("Interpolación polinómica (spline cúbica)", "referencia", False, simples.polinomica),
-    "polinomica_local": ("Interpolación polinómica local", "referencia", False, simples.polinomica_local),
 }
 REFERENCIA = "interpolacion"  # con qué se compara la mejora de cada método
 
@@ -41,8 +41,9 @@ def imputar(y, quitados, explicativas, metodos, comparar_con=()):
     y: la explicada (None donde le falta). quitados: tramos [desde, hasta] que se le han quitado para probar.
     explicativas: las series elegidas. metodos: lista de {"metodo": id, "parametros": {...}}. comparar_con: series
     con las que se mide el sesgo de correlación (las mismas para todos los métodos, para poder compararlos).
-    Un método puede devolver la serie completada o (serie completada, desviación de cada predicción): con la
-    desviación se da su intervalo del 95 % y las métricas de incertidumbre.
+    Un método puede devolver la serie completada, o (serie completada, desviación de cada predicción) para dar su
+    intervalo del 95 %, o además (…, N series completadas): la imputación múltiple, cuyas métricas de estructura se
+    calculan en cada una de las N series y se promedian.
     """
     problema = preparar(y, quitados, explicativas)
     otras = [alinear(serie, problema.n) for serie in comparar_con]
@@ -59,8 +60,9 @@ def imputar(y, quitados, explicativas, metodos, comparar_con=()):
         except ErrorDeEntrada as error:
             resultados.append({**fila, "error": str(error)})
             continue
-        completa, desviacion = salida if isinstance(salida, tuple) else (salida, None)
-        metricas, por_tramo, sesgos = evaluar(problema, completa, referencia, desviacion, otras)
+        completa, desviacion, *resto = salida if isinstance(salida, tuple) else (salida, None)
+        muestras = resto[0] if resto else None                      # las N series completadas, si el método las da
+        metricas, por_tramo, sesgos = evaluar(problema, completa, referencia, desviacion, otras, muestras)
         intervalo = None
         if desviacion is not None:
             intervalo = {"inferior": como_lista(completa - Z_95 * desviacion), "superior": como_lista(completa + Z_95 * desviacion)}

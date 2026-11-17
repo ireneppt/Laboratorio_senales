@@ -96,10 +96,12 @@ def mejora_sobre_referencia(rmse_metodo, rmse_referencia):
     return 1 - rmse_metodo / rmse_referencia
 
 
-def evaluar(problema, completa, referencia, desviacion=None, comparar_con=()):
+def evaluar(problema, completa, referencia, desviacion=None, comparar_con=(), muestras=None):
     """Métricas de un método: globales y por tramo. `referencia` es la serie completada por el método de referencia;
     `desviacion`, la de la predicción de cada punto (None si el método no da intervalo); `comparar_con`, las series
-    con las que se mide el sesgo de correlación. Devuelve (métricas, por tramo, sesgo con cada serie)."""
+    con las que se mide el sesgo de correlación; `muestras`, las N series completadas de la imputación múltiple (las
+    métricas de estructura se calculan en cada una y se promedian: sobre la media saldría la variación aplanada).
+    Devuelve (métricas, por tramo, sesgo con cada serie)."""
     evaluables = problema.quitado & ~np.isnan(completa)
     resultado = {"n": int(evaluables.sum()), "mae": None, "rmse": None, "rmse_est": None, "r2": None, "mejora": None,
                  "razon_var": None, "sesgo_corr": None, "cobertura": None, "anchura": None, "anchura_est": None, "interval_score": None}
@@ -113,14 +115,27 @@ def evaluar(problema, completa, referencia, desviacion=None, comparar_con=()):
         resultado["r2"] = r2_frente_al_real(real, imputado, conocidos)
         en_referencia = referencia[evaluables]
         resultado["mejora"] = mejora_sobre_referencia(resultado["rmse"], rmse(real, en_referencia))
-        resultado["razon_var"] = razon_varianzas(real, imputado)
+        if muestras is None:
+            resultado["razon_var"] = razon_varianzas(real, imputado)
+        else:
+            razones = [razon_varianzas(real, muestra[evaluables]) for muestra in muestras]
+            razones = [r for r in razones if r is not None]
+            resultado["razon_var"] = float(np.mean(razones)) if razones else None
         if desviacion is not None:
             con_intervalo = ~np.isnan(desviacion[evaluables])
             if con_intervalo.any():
                 resultado.update(incertidumbre(real[con_intervalo], imputado[con_intervalo], desviacion[evaluables][con_intervalo], conocidos))
     # sesgo de correlación: sobre la serie entera (lo conocido, más lo imputado frente a lo real en lo quitado)
     serie_real = np.where(problema.quitado, problema.verdad, problema.y)
-    sesgos = [sesgo_correlacion(serie_real, completa, otra) for otra in comparar_con]
+    if muestras is None:
+        sesgos = [sesgo_correlacion(serie_real, completa, otra) for otra in comparar_con]
+    else:
+        completadas = [np.where(problema.objetivo, muestra, problema.y) for muestra in muestras]
+        sesgos = []
+        for otra in comparar_con:
+            valores = [sesgo_correlacion(serie_real, c, otra) for c in completadas]
+            valores = [v for v in valores if v is not None]
+            sesgos.append(float(np.mean(valores)) if valores else None)
     validos = [abs(s) for s in sesgos if s is not None]
     resultado["sesgo_corr"] = float(np.mean(validos)) if validos else None
     for desde, hasta in problema.tramos:

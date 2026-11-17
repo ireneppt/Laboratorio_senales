@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from senales import Anomalias, Ciclos, ErrorDeEntrada, Estacionalidad, Huecos, Ruido, Tendencia, generar_serie
 from senales.componentes import analizar
-from senales.imputacion import imputar
+from senales.imputacion import imputar, sugerir_explicativas
 from senales.constantes import (
     MAGNITUD_ALEATORIA, MAX_ANOMALIAS, MAX_CICLOS, MAX_ESTACIONALIDADES, MAX_HUECOS, PHI_AUTOCORRELACION,
 )
@@ -150,5 +150,21 @@ def post_imputar(peticion: PeticionImputar):
     """Imputa la explicada con cada método pedido y devuelve lo imputado y sus errores (sobre lo que se quitó)."""
     try:
         return imputar(peticion.y, peticion.quitados, peticion.explicativas, [m.model_dump() for m in peticion.metodos], peticion.comparar_con)
+    except ErrorDeEntrada as error:
+        raise HTTPException(422, str(error))
+
+
+class PeticionSugerir(BaseModel):
+    y: list[float | None] = Field(min_length=3, max_length=10_000)
+    quitados: list[tuple[int, int]] = Field(default=[], max_length=1000)
+    explicativas: list[list[float | None]] = Field(min_length=2, max_length=20)   # las candidatas
+    bloques: int = Field(default=5, ge=2, le=10)                                 # bloques seguidos de la validación
+
+
+@app.post("/api/sugerir-explicativas")
+def post_sugerir_explicativas(peticion: PeticionSugerir):
+    """Prueba subconjuntos de explicativas para la regresión y los ordena por su error de validación (por bloques)."""
+    try:
+        return sugerir_explicativas(peticion.y, peticion.quitados, peticion.explicativas, peticion.bloques)
     except ErrorDeEntrada as error:
         raise HTTPException(422, str(error))

@@ -185,33 +185,3 @@ def test_media_estacional_necesita_un_periodo_valido():
 def test_media_estacional_sin_datos_en_ese_momento_del_ciclo_no_imputa():
     completa = simples.media_estacional(problema([1, None, 3, 4, None, 6]), {"periodo": 3, "quitar_tendencia": False})
     assert np.isnan(completa[1]) and np.isnan(completa[4])       # el momento 1 del ciclo no tiene ningún dato
-
-
-# ---------------------------------------------------------------- polinómica local
-def test_polinomica_local_de_grado_1_es_la_lineal():
-    p = problema([0, None, 4, None, None, 10, 3])
-    assert simples.polinomica_local(p, {"grado": 1}).tolist() == pytest.approx(simples.interpolacion(p).tolist())
-
-
-def test_polinomica_local_de_grado_2_recupera_una_parabola():
-    y = [float((i - 5) ** 2) for i in range(12)]
-    con_huecos = [None if i in (4, 5, 6) else v for i, v in enumerate(y)]
-    assert simples.polinomica_local(problema(con_huecos), {"grado": 2})[4:7].tolist() == pytest.approx([1, 0, 1])
-
-
-def test_polinomica_local_usa_al_menos_un_dato_a_cada_lado():
-    # el punto 1 tiene a la izquierda solo el 0; con grado 2 usa el 0 y los dos más cercanos de la derecha
-    p = problema([0, None, 4, 9, 16, 25])                 # y = x², exacta con grado 2
-    assert simples.polinomica_local(p, {"grado": 2})[1] == pytest.approx(1)
-
-
-def test_polinomica_local_grado_mal_da_error_y_por_defecto_es_2():
-    for grado in (0, 6, 2.0, True):
-        with pytest.raises(ErrorDeEntrada, match="grado"):
-            simples.polinomica_local(problema([1, None, 3, 4]), {"grado": grado})
-    y = [float(i * i) for i in range(8)]
-    assert simples.polinomica_local(problema([None if i == 3 else v for i, v in enumerate(y)]))[3] == pytest.approx(9)
-
-
-def test_polinomica_local_en_los_extremos_y_con_pocos_datos():
-    assert simples.polinomica_local(problema([None, 1, None, 3, None]), {"grado": 4}).tolist() == [1, 1, 2, 3, 3]

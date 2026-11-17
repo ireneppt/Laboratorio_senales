@@ -1,5 +1,5 @@
 """Métodos que solo usan la propia serie: media, mediana, último y siguiente valor, medias móviles (simples y
-ponderadas), media estacional e interpolación (lineal, spline cúbica y polinómica local)."""
+ponderadas), media estacional e interpolación (lineal, y spline cúbica)."""
 import numpy as np
 
 from ..errores import ErrorDeEntrada
@@ -133,37 +133,6 @@ def media_estacional(p, parametros=None):
         if del_ciclo.any():
             huecos = (fase == f) & p.objetivo
             completa[huecos] = tendencia[huecos] + resto[del_ciclo].mean()
-    return completa
-
-
-def polinomica_local(p, parametros=None):
-    """Para cada punto, el polinomio de grado d que pasa por los d + 1 datos conocidos más cercanos (al menos uno a
-    cada lado, para interpolar y no extrapolar). Grado 1 es la interpolación lineal; con grados altos oscila más.
-    Fuera del primer y último dato se mantiene el valor más cercano, como en la interpolación lineal."""
-    _conocidos(p)
-    grado = _entero(parametros, "grado", 2, 1, 5, "El grado del polinomio")
-    conocidos = np.flatnonzero(~np.isnan(p.y))
-    completa = interpolacion(p)                                # los extremos, como la lineal
-    grado = min(grado, len(conocidos) - 1)
-    if grado < 1:
-        return completa
-    for i in np.flatnonzero(p.objetivo):
-        posicion = np.searchsorted(conocidos, i)
-        if posicion == 0 or posicion == len(conocidos):
-            continue                                           # fuera de los datos: ya está como la lineal
-        izquierda, derecha = posicion - 1, posicion            # uno a cada lado y, después, los más cercanos
-        elegidos = [conocidos[izquierda], conocidos[derecha]]
-        while len(elegidos) < grado + 1:
-            puede_izq, puede_der = izquierda > 0, derecha < len(conocidos) - 1
-            if puede_izq and (not puede_der or i - conocidos[izquierda - 1] <= conocidos[derecha + 1] - i):
-                izquierda -= 1
-                elegidos.append(conocidos[izquierda])
-            else:
-                derecha += 1
-                elegidos.append(conocidos[derecha])
-        x = np.array(elegidos, dtype=float) - i                # centrado en el punto: más estable
-        coeficientes = np.polyfit(x, p.y[elegidos], grado)
-        completa[i] = coeficientes[-1]                         # el valor en x = 0, que es el punto
     return completa
 
 

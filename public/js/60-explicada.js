@@ -4,9 +4,10 @@
 // que ya le falten. En el proyecto se guarda la serie elegida y los tramos quitados; lo demás (zoom, herramienta,
 // vista previa...) es solo de pantalla.
 // Parámetros propios de los métodos de imputación: la k de las medias móviles, si la media estacional quita la
-// tendencia (su periodo es el de la serie) y el grado de la interpolación polinómica local
+// tendencia (su periodo es el de la serie)
 const PARAMETROS_IMPUTACION_INICIALES = () => ({
-  k_movil: 3, k_movil_atras: 3, k_movil_pond: 3, k_movil_pond_atras: 3, quitar_tendencia: true, grado_polinomica: 2,
+  k_movil: 3, k_movil_atras: 3, k_movil_pond: 3, k_movil_pond_atras: 3, quitar_tendencia: true,
+  mi_n: 5, mi_iteraciones: 100, mi_semilla: 42, mi_combinar: "media",   // imputación múltiple: N, iteraciones, semilla y cómo se combinan
 });
 const estadoImputacionVacio = () => ({ explicada: { serieId: null, quitados: [] }, explicativas: [], combinaciones: [{ id: 1, explicativas: null }], metodos: {}, parametros: PARAMETROS_IMPUTACION_INICIALES() });
 let imputacion = estadoImputacionVacio();

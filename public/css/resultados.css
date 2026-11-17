@@ -51,6 +51,19 @@
 #res-grafica-comp { width: 100%; height: 340px; margin: 16px 0; }
 .res-multi { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 0.9rem; }
 .res-anadir { border-style: dashed; color: var(--ink-2); }
+.res-reiniciar { margin-left: auto; color: var(--ink-2); }
+.res-reiniciar:disabled { opacity: 0.45; cursor: default; }
+.res-sugerencia { margin: 0 0 14px; padding: 10px 14px; border: 1px solid var(--axis); border-radius: 10px; background: var(--surface-2); }
+.res-sugerencia-titular { margin: 0 0 8px; font-weight: 650; }
+.res-sugerencia-tabla { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+.res-sugerencia-tabla th, .res-sugerencia-tabla td { padding: 4px 10px; border-bottom: 1px solid var(--axis); text-align: right; }
+.res-sugerencia-tabla th:nth-child(-n+2), .res-sugerencia-tabla td:nth-child(-n+2) { text-align: left; }
+.res-sugerencia-tabla th[title] { cursor: help; }
+.res-sugerencia-tabla tbody tr:first-child { font-weight: 650; }
+.res-sugerencia-mejor { margin-left: 4px; padding: 1px 8px; border: 1px solid var(--ink-2); border-radius: 999px; font-size: 0.75rem; font-weight: 650; }
+.res-sugerencia-pie { margin: 8px 0 4px; color: var(--ink-2); font-size: 0.85rem; }
+.res-sugerencia details { color: var(--ink-2); font-size: 0.85rem; }
+.res-sugerencia summary { cursor: pointer; }
 /* las combinaciones van dentro de "Multivariante": un recuadro más pequeño, pegado a la barra de arriba */
 .res-combinaciones {
   align-items: center; gap: 4px; width: fit-content; max-width: 100%; margin: -4px 0 14px; padding: 6px 8px;
@@ -75,7 +88,18 @@
 .res-familia > summary::-webkit-details-marker { display: none; }
 .res-familia > summary::before { content: "▶"; flex: none; font-size: 0.7rem; color: var(--ink-2); transition: transform 0.15s; }
 .res-familia[open] > summary::before { transform: rotate(90deg); }
-/* bloques de métricas (precisión, estructura, incertidumbre) y lo que no aplica */
+/* bloques de métricas (precisión y estructura) */
 .res-bloques { margin: 0 0 12px; }
-.res-tabla .valor.no-aplica { color: var(--muted); font-size: 0.85rem; }
 .res-nota { margin: 0 0 12px; padding: 10px 14px; border-left: 3px solid var(--axis); color: var(--ink-2); font-size: 0.88rem; }
+/* el «?» con todas las explicaciones: arriba a la derecha de la zona de resultados */
+.res-cabecera { display: flex; justify-content: flex-end; margin: -4px 0 6px; }
+.res-ayuda-abrir { width: 30px; height: 30px; padding: 0; border-radius: 50%; font-weight: 700; }
+dialog.res-ayuda-dialogo { width: min(760px, 92vw); max-height: 86vh; padding: 22px; border: 1px solid var(--axis); border-radius: 14px; background: var(--surface); color: var(--ink); }
+dialog.res-ayuda-dialogo::backdrop { background: rgba(0, 0, 0, 0.4); }
+.res-ayuda-cuerpo { overflow: auto; max-height: calc(86vh - 110px); padding-right: 6px; }
+.res-ayuda-cuerpo h3 { margin: 18px 0 6px; font-size: 1.05rem; }
+.res-ayuda-cuerpo h3:first-child { margin-top: 0; }
+.res-ayuda-cuerpo h4 { margin: 12px 0 4px; font-size: 0.9rem; color: var(--ink-2); }
+.res-ayuda-nota { margin: 0 0 6px; padding-left: 10px; border-left: 3px solid var(--axis); color: var(--ink-2); font-size: 0.88rem; }
+.res-ayuda-entrada { margin: 0 0 8px; }
+.res-ayuda-entrada p { margin: 2px 0 0; font-size: 0.88rem; color: var(--ink-2); }

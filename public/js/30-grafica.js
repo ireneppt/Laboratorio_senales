@@ -216,7 +216,39 @@ botonDescomponer.addEventListener("click", () => {
 });
 
 // Pinta lo que va debajo de la gráfica y fija la tarjeta si hay algo abierto.
+// ----- Descargar los puntos de la serie que se ve (o de todas, en la vista "Todas") -----
+// CSV pensado para Excel en español: separador ";", decimales con coma y BOM para que los acentos salgan bien. Una fila por
+// punto (empezando en 0, como el eje) y una columna por serie; los datos que faltan, en blanco. Se puede volver a importar.
+const botonDescargar = document.getElementById("boton-descargar");
+const celdaCSV = (texto) => (/[;"\n\r]/.test(texto) ? `"${texto.replaceAll('"', '""')}"` : texto);
+const numeroCSV = (v) => (v === null || v === undefined ? "" : String(v).replace(".", ","));
+
+function csvDeSeries(lista) {
+  const n = Math.max(...lista.map((s) => s.datos.y.length));
+  const filas = [["punto", ...lista.map((s) => celdaCSV(nombreDe(s)))].join(";")];
+  for (let i = 0; i < n; i++) filas.push([i, ...lista.map((s) => numeroCSV(s.datos.y[i]))].join(";"));
+  return "\ufeff" + filas.join("\r\n") + "\r\n";
+}
+
+function seriesParaDescargar() {
+  return (vista === "todas" ? series : series.filter((x) => x.id === vista)).filter((s) => s.datos);
+}
+
+botonDescargar.addEventListener("click", () => {
+  const lista = seriesParaDescargar();
+  if (!lista.length) return;
+  const nombre = lista.length === 1 ? nombreParaArchivo(nombreDe(lista[0]), "serie") : `${nombreParaArchivo(nombreProyecto(), "proyecto")}_series`;
+  descargarArchivo(csvDeSeries(lista), "text/csv;charset=utf-8", `${nombre}.csv`);
+});
+
+function pintarBotonDescargar() {
+  const lista = seriesParaDescargar();
+  botonDescargar.disabled = lista.length === 0;
+  botonDescargar.textContent = vista === "todas" ? "Descargar todas (CSV)" : "Descargar datos (CSV)";
+}
+
 function pintarAnalisis() {
+  pintarBotonDescargar();
   pintarDescomposicion();
   document.querySelector(".tarjeta-grafica").classList.toggle("abierta", !contDescomposicion.hidden);
 }

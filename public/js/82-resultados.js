@@ -10,8 +10,8 @@ const FAMILIAS_IMPUTACION = [
   { id: "cercano", titulo: "Valor más cercano", metodos: ["ultimo_valor", "siguiente_valor"] },
   { id: "moviles", titulo: "Medias móviles", metodos: ["media_movil", "media_movil_atras", "media_movil_pond", "media_movil_pond_atras"] },
   { id: "estacional", titulo: "Estacional", metodos: ["media_estacional"] },
-  { id: "interpolacion", titulo: "Interpolación", metodos: ["interpolacion", "polinomica", "polinomica_local"] },
-  { id: "modelos", titulo: "Modelos", metodos: ["regresion", "em"] },
+  { id: "interpolacion", titulo: "Interpolación", metodos: ["interpolacion", "polinomica"] },
+  { id: "modelos", titulo: "Modelos", metodos: ["regresion", "em", "imputacion_multiple"] },
 ];
 
 // id (el mismo que usa la API), nombre, grupo, si necesita explicativas, y qué hace (texto al pasar el ratón)
@@ -22,6 +22,8 @@ const METODOS_IMPUTACION = [
     ayuda: "Ajusta una recta de la explicada sobre las explicativas con los datos conocidos y predice los huecos." },
   { id: "em", nombre: "EM (esperanza-maximización)", grupo: "explicito", explicativas: true,
     ayuda: "Estima las medias y correlaciones de todas las series, rellena lo que falta y repite hasta estabilizarse. Admite huecos en las explicativas." },
+  { id: "imputacion_multiple", nombre: "Imputación múltiple (MCMC)", grupo: "explicito", explicativas: true,
+    ayuda: "Tal como la describe el Handbook de la OCDE y el JRC (apartado 3.5). Parte de las medias y covarianzas de los puntos sin datos faltantes; en cada iteración simula al azar los valores que faltan (paso de imputación) y recalcula medias y covarianzas con ellos (paso posterior), hasta que se estabiliza, y se queda con la imputación de la última. Repite todo N veces, de forma independiente, y rellena el hueco con la media (o la mediana) de las N. Supone que las series siguen una normal multivariante y que los datos faltan al azar; no usa el orden temporal. El manual no fija N ni las iteraciones: los eliges tú (por defecto, 5 y 100). Con la misma semilla sale siempre lo mismo." },
   { id: "ultimo_valor", nombre: "Último valor conocido", grupo: "referencia", explicativas: false, ayuda: "Repite el último dato conocido (forward fill). Al principio de la serie, donde no hay ninguno antes, no imputa." },
   { id: "siguiente_valor", nombre: "Siguiente valor conocido", grupo: "referencia", explicativas: false,
     ayuda: "Repite el siguiente dato conocido (backward fill). Al final de la serie, donde no hay ninguno después, no imputa." },
@@ -39,8 +41,6 @@ const METODOS_IMPUTACION = [
     ayuda: "Une los datos conocidos con rectas. Es la referencia con la que se compara la mejora de cada método." },
   { id: "polinomica", nombre: "Interpolación polinómica (spline cúbica)", grupo: "referencia", explicativas: false,
     ayuda: "Une los datos conocidos con curvas: un polinomio de grado 3 entre cada dos datos, empalmados de forma suave. En huecos largos puede pasarse de largo." },
-  { id: "polinomica_local", nombre: "Interpolación polinómica local", grupo: "referencia", explicativas: false,
-    ayuda: "Para cada punto, el polinomio del grado que elijas que pasa por los datos conocidos más cercanos (grado + 1 datos, al menos uno a cada lado). Grado 1 es la lineal; con grados altos oscila más." },
 ];
 const REFERENCIA_IMPUTACION = "interpolacion";
 
@@ -103,14 +103,44 @@ function anadirCombinacion() {
   irAVentana(`multi:${id}`);
 }
 
+// Multivariante sin ninguna combinación: su pestaña sigue ahí (con «+ combinación» y «Mejor combinación (regresión)»)
+const MULTI_VACIA = "multi:0";
+const esMultivariante = (s) => Boolean(s.combinacion || s.vacia);
+
 function quitarCombinacion(combinacion) {
-  if (!combinacion || imputacion.combinaciones.length < 2) return;
+  if (!combinacion) return;
   const eraLaActiva = resImp.sub === `multi:${combinacion.id}`;
   const posicion = imputacion.combinaciones.indexOf(combinacion);
   imputacion.combinaciones = imputacion.combinaciones.filter((c) => c !== combinacion);
   delete imputacion.metodos[`multi:${combinacion.id}`];
-  // si era la que se veía, pasa a la anterior; si no, se queda donde estaba
-  irAVentana(eraLaActiva ? `multi:${imputacion.combinaciones[Math.max(0, posicion - 1)].id}` : resImp.sub);
+  if (resImp.dibujar) resImp.dibujar = new Set([...resImp.dibujar].filter((clave) => !clave.endsWith(`@multi:${combinacion.id}`)));
+  // si era la que se veía, pasa a la anterior (o a Multivariante vacía); si no, se queda donde estaba
+  const anterior = imputacion.combinaciones[Math.max(0, posicion - 1)];
+  irAVentana(eraLaActiva ? (anterior ? `multi:${anterior.id}` : MULTI_VACIA) : resImp.sub);
+}
+
+const multivarianteVacia = () => imputacion.combinaciones.length === 0;
+
+// Quita todas las combinaciones y sus métodos marcados (lo de las otras ventanas no se toca)
+function empezarMultivarianteDeCero() {
+  if (multivarianteVacia()) return;
+  if (!confirm("¿Quitar todas las combinaciones de Multivariante (y sus métodos marcados) y empezar de cero?")) return;
+  imputacion.combinaciones = [];
+  for (const k of Object.keys(imputacion.metodos)) if (k.startsWith("multi:")) delete imputacion.metodos[k];
+  if (resImp.dibujar) resImp.dibujar = new Set([...resImp.dibujar].filter((clave) => !clave.includes("@multi:")));
+  resImp.sugerencia = null;
+  irAVentana(MULTI_VACIA);
+}
+
+function botonEmpezarDeCero() {
+  const boton = document.createElement("button");
+  boton.type = "button";
+  boton.dataset.accion = "reiniciar";
+  boton.className = "res-reiniciar";
+  boton.title = "Quitar todas las combinaciones y los métodos marcados en Multivariante";
+  boton.textContent = "Empezar de cero";
+  boton.disabled = multivarianteVacia();
+  return boton;
 }
 
 // cambia de ventana y lo repinta todo (también para guardar el cambio en el proyecto)
@@ -125,6 +155,88 @@ function irAVentana(id) {
   pintarMetodosImputacion();
   pintarResultados(objetivoDeExplicada());
   ejecutarImputacion();
+}
+
+// ----- Sugerir explicativas: el servidor prueba subconjuntos (validando por bloques) y los ordena por error -----
+const cuerpoSugerencia = () => {
+  const obj = objetivoDeExplicada();
+  return obj ? JSON.stringify({ y: obj.y, quitados: tramosQuitados(), explicativas: explicativasConDatos().map((x) => x.datos.y) }) : null;
+};
+
+async function sugerirCombinacion() {
+  const cuerpo = cuerpoSugerencia();
+  const panel = resImp.ui.sugerencia;
+  if (!cuerpo || explicativasConDatos().length < 2) return;
+  const ids = explicativasConDatos().map((x) => x.id);
+  panel.hidden = false;
+  panel.textContent = "Buscando la mejor combinación…";
+  try {
+    const respuesta = await fetch("/api/sugerir-explicativas", { method: "POST", headers: { "Content-Type": "application/json" }, body: cuerpo });
+    const datos = await respuesta.json();
+    if (!respuesta.ok) { panel.textContent = typeof datos.detail === "string" ? datos.detail : "No se ha podido sugerir una combinación con estos datos."; return; }
+    const mejor = datos.mejor.map((i) => ids[i]);
+    const existente = imputacion.combinaciones.find((c) => claveSubconjunto(idsDeCombinacion(c)) === claveSubconjunto(mejor));
+    resImp.sugerencia = { huella: huellaTexto(cuerpo), ids, datos, existia: Boolean(existente) };
+    if (existente) { irAVentana(`multi:${existente.id}`); return; }
+    const id = Math.max(0, ...imputacion.combinaciones.map((c) => c.id)) + 1;
+    imputacion.combinaciones.push({ id, explicativas: mejor.length >= ids.length ? null : mejor });
+    irAVentana(`multi:${id}`);
+  } catch (e) {
+    panel.textContent = "No se ha podido conectar con el servidor para sugerir una combinación.";
+  }
+}
+
+// la tabla con las mejores combinaciones probadas (solo si sigue siendo para los datos que hay ahora)
+function pintarSugerencia() {
+  const panel = resImp.ui.sugerencia;
+  const s = resImp.sugerencia;
+  const cuerpo = cuerpoSugerencia();
+  if (!s || !cuerpo || s.huella !== huellaTexto(cuerpo)) { if (s) resImp.sugerencia = null; panel.hidden = true; panel.replaceChildren(); return; }
+  const cifra = (v, d = 2) => (v === null || v === undefined ? "—" : v.toLocaleString("es-ES", { minimumFractionDigits: d, maximumFractionDigits: d }));
+  const nombre = (i) => { const x = explicativasConDatos().find((e) => e.id === s.ids[i]); return x ? nombreDe(x) : "?"; };
+  const d = s.datos;
+  const mejorNombre = d.candidatos[0].indices.map(nombre).join(" + ");
+  const titular = document.createElement("p");
+  titular.className = "res-sugerencia-titular";
+  titular.textContent = `Mejor combinación para la regresión: ${mejorNombre} (${s.existia ? "ya la tenías, te he llevado a ella" : "la he añadido como pestaña"}). Se han probado ${d.probados}.`;
+  const tabla = document.createElement("table");
+  tabla.className = "res-sugerencia-tabla";
+  const cabecera = tabla.createTHead().insertRow();
+  const columnas = [["#", "Posición según el RMSE"], ["Combinación", "Las explicativas que usa la regresión"],
+    ["RMSE", "Error típico al predecir los bloques escondidos, en las unidades de la serie. Menos es mejor."],
+    ["MAE", "Error medio absoluto de esos bloques. Menos es mejor."],
+    ["R² ajustado", "Qué parte de la variación de la serie explica el modelo con todos sus datos, penalizando usar variables de más. Más es mejor."]];
+  for (const [t, ayuda] of columnas) { const th = document.createElement("th"); th.scope = "col"; th.textContent = t; th.title = ayuda; cabecera.append(th); }
+  const cuerpoTabla = tabla.createTBody();
+  d.candidatos.slice(0, 5).forEach((c, posicion) => {
+    const fila = cuerpoTabla.insertRow();
+    fila.insertCell().textContent = String(posicion + 1);
+    const celda = fila.insertCell();
+    celda.textContent = c.indices.map(nombre).join(" + ");
+    if (posicion === 0) { const marca = document.createElement("span"); marca.className = "res-sugerencia-mejor"; marca.textContent = "mejor"; celda.append(" ", marca); }
+    for (const v of [cifra(c.rmse), cifra(c.mae), cifra(c.r2_ajustado, 3)]) fila.insertCell().textContent = v;
+  });
+  const pie = document.createElement("p");
+  pie.className = "res-sugerencia-pie";
+  pie.textContent = `${d.candidatos.length > 5 ? `Se muestran las 5 mejores de ${d.candidatos.length}. ` : ""}Solo vale para la regresión: con EM o imputación múltiple el orden puede ser otro. Las demás combinaciones las puedes añadir con «+ combinación».`;
+  const detalle = document.createElement("details");
+  const resumen = document.createElement("summary");
+  resumen.textContent = "Cómo se ha calculado";
+  const texto = document.createElement("p");
+  texto.textContent = `${d.metodo === "exhaustivo" ? "Se han probado todas las combinaciones posibles de 2 o más explicativas." : "Como hay muchas explicativas, se ha ido añadiendo la que más baja el error (paso a paso); no garantiza la mejor de todas."} Para cada una se han escondido ${d.bloques} bloques seguidos de los ${d.conocidos} datos conocidos y se han predicho con la regresión, ajustada con el resto. Se ordenan por el RMSE de esos bloques.`;
+  detalle.append(resumen, texto);
+  panel.replaceChildren(titular, tabla, pie, detalle);
+  panel.hidden = false;
+}
+
+function botonSugerirCombinacion() {
+  const boton = document.createElement("button");
+  boton.type = "button";
+  boton.dataset.accion = "sugerir";
+  boton.className = "res-anadir";
+  boton.title = "Prueba combinaciones de explicativas con la regresión, las ordena por su error de validación y crea una pestaña con la mejor";
+  boton.textContent = "Mejor combinación (regresión)";
+  return boton;
 }
 
 function botonAnadirCombinacion() {
@@ -160,12 +272,13 @@ function subpestanasImputacion() {
   if (elegidas.length >= 2) {
     for (const combinacion of imputacion.combinaciones) {
       const usadas = explicativasDe(combinacion);
-      const nombres = usadas.length === elegidas.length ? "todas" : usadas.map(nombreDe).join(" + ");
+      const nombres = usadas.length === elegidas.length ? "Todas" : usadas.map(nombreDe).join(" + ");
       lista.push({
         id: `multi:${combinacion.id}`, titulo: nombres, series: usadas, combinacion,
         ayuda: `Los métodos con explicativas, usando ${usadas.map(nombreDe).join(" + ")} a la vez (eliges cuáles a la izquierda).`,
       });
     }
+    if (!imputacion.combinaciones.length) lista.push({ id: MULTI_VACIA, titulo: "", series: [], vacia: true, ayuda: "" });
   }
   lista.push({ id: "comparacion", titulo: "Comparación", ayuda: "Compara en una sola tabla los métodos que has marcado en las otras ventanas." });
   return lista;
@@ -205,7 +318,12 @@ const PARAMETROS_DE_METODO = {
   media_movil_pond: [{ clave: "k_movil_pond", api: "k", texto: "Datos a cada lado (k)", min: 1, max: maximoKMovil }],
   media_movil_pond_atras: [{ clave: "k_movil_pond_atras", api: "k", texto: "Datos anteriores (k)", min: 1, max: maximoKMovil }],
   media_estacional: [{ clave: "quitar_tendencia", api: "quitar_tendencia", texto: "Quitar la tendencia antes", tipo: "casilla" }],
-  polinomica_local: [{ clave: "grado_polinomica", api: "grado", texto: "Grado", min: 1, max: () => 5 }],
+  imputacion_multiple: [
+    { clave: "mi_n", api: "n", texto: "Imputaciones (N)", min: 2, max: () => 50 },
+    { clave: "mi_iteraciones", api: "iteraciones", texto: "Iteraciones", min: 10, max: () => 500 },
+    { clave: "mi_semilla", api: "semilla", texto: "Semilla", min: 0, max: () => 1000000, nuevaSemilla: true },
+    { clave: "mi_combinar", api: "combinar", texto: "Combinar con", tipo: "seleccion", opciones: [["media", "la media"], ["mediana", "la mediana"]] },
+  ],
 };
 const definicionDeParametro = (clave) => Object.values(PARAMETROS_DE_METODO).flat().find((d) => d.clave === clave);
 
@@ -237,6 +355,40 @@ function huellaTexto(texto) {
   return `${texto.length}-${(h2 >>> 0).toString(16)}${(h1 >>> 0).toString(16)}`;
 }
 
+// ----- Ayuda («?»): todas las explicaciones juntas, sacadas de las mismas constantes que los tooltips -----
+function abrirAyudaImputacion() {
+  const d = resImp.ui.ayudaDialogo;
+  const el = (etiqueta, texto, clase) => { const e = document.createElement(etiqueta); if (texto !== undefined) e.textContent = texto; if (clase) e.className = clase; return e; };
+  const entrada = (nombre, texto) => { const caja = el("div", undefined, "res-ayuda-entrada"); caja.append(el("strong", nombre), el("p", texto)); return caja; };
+  const cabecera = el("div", undefined, "dialogo-cab");
+  const titulo = el("h2", "Ayuda: imputación y resultados");
+  titulo.id = "res-ayuda-titulo";
+  const cerrar = el("button", "Cerrar");
+  cerrar.type = "button";
+  cerrar.addEventListener("click", () => d.close());
+  cabecera.append(titulo, cerrar);
+
+  const cuerpo = el("div", undefined, "res-ayuda-cuerpo");
+  cuerpo.append(el("h3", "Cómo se lee"));
+  cuerpo.append(el("p", "Se quitan tramos de la serie (pestaña 1), cada método los rellena y se compara lo imputado con el valor real que había. En las tablas, la mejor cifra de cada columna va en negrita: en unas es la menor (errores) y en otras la mayor (R², mejora) o la más cercana a 1 (razón de varianzas). Cada métrica lo indica en su explicación."));
+  cuerpo.append(el("h3", "Métricas"));
+  for (const b of BLOQUES_METRICAS) {
+    cuerpo.append(el("h4", b.titulo), el("p", b.explicacion, "res-ayuda-nota"));
+    for (const m of b.metricas) cuerpo.append(entrada(m.texto, m.ayuda));
+  }
+  cuerpo.append(el("h3", "Métodos"));
+  for (const familia of FAMILIAS_IMPUTACION) {
+    cuerpo.append(el("h4", familia.titulo));
+    for (const id of familia.metodos) { const m = metodoDeImputacion(id); if (m) cuerpo.append(entrada(m.nombre, m.ayuda)); }
+  }
+  cuerpo.append(el("h3", "Mejor combinación (regresión)"));
+  cuerpo.append(entrada("Qué hace", "Prueba combinaciones de explicativas con el método Regresión, las ordena por su error de validación y crea una pestaña en Multivariante con la mejor. Con 8 explicativas o menos prueba todas las combinaciones; con más, va añadiendo la que más baja el error (paso a paso), que no garantiza la mejor de todas."));
+  cuerpo.append(entrada("Cómo valida", "Esconde bloques seguidos de los datos conocidos, los predice con un modelo ajustado con el resto y mide el error (RMSE y MAE). El R² ajustado se calcula sobre los mismos datos con los que se ajusta, por eso puede no coincidir con el orden."));
+  cuerpo.append(entrada("Ojo", "El orden es solo para la regresión: con EM o imputación múltiple puede ser otro."));
+  d.replaceChildren(cabecera, cuerpo);
+  d.showModal();
+}
+
 // ----- Montaje -----
 function montarResultados() {
   const raiz = document.createElement("div");
@@ -252,6 +404,10 @@ function montarResultados() {
       <div id="res-metodos"></div>
     </aside>
     <section class="res-principal">
+      <div class="res-cabecera">
+        <button type="button" class="res-ayuda-abrir" id="res-ayuda-abrir" title="Qué significa cada método y cada métrica" aria-label="Ayuda: qué significa cada método y cada métrica" aria-haspopup="dialog">?</button>
+      </div>
+      <dialog id="res-ayuda-dialogo" class="res-ayuda-dialogo" aria-labelledby="res-ayuda-titulo"></dialog>
       <div class="exp-aviso" id="res-falta" hidden>
         <span id="res-falta-texto"></span>
         <button type="button" id="res-falta-ir"></button>
@@ -260,6 +416,7 @@ function montarResultados() {
         <div class="pestanas res-subpestanas" id="res-subpestanas" role="tablist" aria-label="Con qué explicativas se imputa"></div>
         <div class="pestanas res-combinaciones" id="res-combinaciones" role="tablist" aria-label="Combinaciones de explicativas" hidden></div>
         <p class="res-aviso" id="res-aviso-combinacion" role="alert" hidden>Ya has hecho esta combinación.</p>
+        <div class="res-sugerencia" id="res-sugerencia" hidden></div>
         <p class="ayuda" id="res-info" style="margin:0 0 12px"></p>
         <div class="pestanas res-bloques" id="res-bloques" role="tablist" aria-label="Qué métricas se ven"></div>
         <div class="res-estado" id="res-estado" role="status"></div>
@@ -287,7 +444,7 @@ function montarResultados() {
   const q = (sel) => raiz.querySelector(sel);
   resImp.ui = {
     raiz, metodos: q("#res-metodos"), ayudaLateral: q("#res-ayuda-lateral"), falta: q("#res-falta"), faltaTexto: q("#res-falta-texto"), faltaIr: q("#res-falta-ir"),
-    trabajo: q("#res-trabajo"), subpestanas: q("#res-subpestanas"), combinaciones: q("#res-combinaciones"), avisoCombinacion: q("#res-aviso-combinacion"), info: q("#res-info"), bloques: q("#res-bloques"), estado: q("#res-estado"),
+    trabajo: q("#res-trabajo"), subpestanas: q("#res-subpestanas"), combinaciones: q("#res-combinaciones"), avisoCombinacion: q("#res-aviso-combinacion"), sugerencia: q("#res-sugerencia"), ayudaDialogo: q("#res-ayuda-dialogo"), info: q("#res-info"), bloques: q("#res-bloques"), estado: q("#res-estado"),
     vistaComp: q("#res-vista-comp"), medida: q("#res-medida"), tablaComp: q("#res-tabla-comp"), graficaRanking: q("#res-grafica-ranking"), graficaComp: q("#res-grafica-comp"),
     vistaConjunto: q("#res-vista-conjunto"), tabla: q("#res-tabla"), grafica: q("#res-grafica"), detalle: q("#res-detalle"), tramos: q("#res-tramos"),
   };
@@ -319,7 +476,16 @@ function montarResultados() {
   q("#res-todos").addEventListener("click", () => cambiarMetodosVisibles(true));
   q("#res-ninguno").addEventListener("click", () => cambiarMetodosVisibles(false));
   resImp.ui.metodos.addEventListener("change", alCambiarMetodo);
+  resImp.ui.metodos.addEventListener("click", (e) => {            // "Nueva semilla": otra tirada del azar
+    const boton = e.target.closest('button[data-accion="nueva-semilla"]');
+    if (!boton) return;
+    imputacion.parametros[boton.dataset.param] = Math.floor(Math.random() * 1000001);
+    cambioImputacion();
+    pintarMetodosImputacion();
+    ejecutarImputacion();
+  });
   resImp.ui.tabla.addEventListener("click", alPulsarTabla);
+  q("#res-ayuda-abrir").addEventListener("click", abrirAyudaImputacion);
   resImp.ui.subpestanas.addEventListener("click", alPulsarVentana);
   resImp.ui.combinaciones.addEventListener("click", alPulsarVentana);
   return raiz;
@@ -328,6 +494,8 @@ function montarResultados() {
 // las ventanas se eligen en la barra de arriba y, dentro de "Multivariante", en la de las combinaciones
 function alPulsarVentana(e) {
   if (e.target.closest('button[data-accion="anadir"]')) { anadirCombinacion(); return; }
+  if (e.target.closest('button[data-accion="sugerir"]')) { sugerirCombinacion(); return; }
+  if (e.target.closest('button[data-accion="reiniciar"]')) { empezarMultivarianteDeCero(); return; }
   const quitar = e.target.closest('button[data-accion="quitar"]');
   if (quitar) { quitarCombinacion(imputacion.combinaciones.find((c) => c.id === Number(quitar.dataset.combinacion))); return; }
   const boton = e.target.closest("button[data-sub]");
@@ -363,33 +531,35 @@ function pintarSubpestanas() {
   const actual = subActual();
   const lista = subpestanasImputacion();
   resImp.ui.raiz.classList.toggle("res-ancha", actual.id === "comparacion");   // la comparación no usa la lista de métodos
-  if (actual.combinacion) resImp.multiActiva = actual.id;
+  if (esMultivariante(actual)) resImp.multiActiva = actual.id;
   barra.replaceChildren();
   let grupoPuesto = false;
   for (const s of lista) {
-    if (s.combinacion) {                       // todas las combinaciones comparten una sola pestaña, "Multivariante"
+    const multi = esMultivariante(s);
+    if (multi) {                       // todas las combinaciones comparten una sola pestaña, "Multivariante"
       if (grupoPuesto) continue;
       grupoPuesto = true;
     }
-    const destino = s.combinacion ? lista.find((x) => x.id === resImp.multiActiva) || s : s;
-    const activa = s.combinacion ? Boolean(actual.combinacion) : s.id === actual.id;
+    const destino = multi ? lista.find((x) => x.id === resImp.multiActiva) || s : s;
+    const activa = multi ? esMultivariante(actual) : s.id === actual.id;
     const boton = document.createElement("button");
     boton.type = "button";
     boton.dataset.sub = destino.id;
-    boton.title = s.combinacion ? "Los métodos con varias explicativas a la vez; tus combinaciones salen dentro." : s.ayuda;
+    boton.title = multi ? "Los métodos con varias explicativas a la vez; tus combinaciones salen dentro." : s.ayuda;
     boton.className = activa ? "activa" : "";
     boton.setAttribute("role", "tab");
     boton.setAttribute("aria-selected", activa);
     if (s.serie) boton.append(crearPunto(s.serie.color));
-    boton.append(s.combinacion ? "Multivariante" : s.titulo);
+    boton.append(multi ? "Multivariante" : s.titulo);
     barra.append(boton);
   }
   // las combinaciones, dentro de la pestaña Multivariante
   const fila = resImp.ui.combinaciones;
   fila.replaceChildren();
-  fila.hidden = !actual.combinacion;
+  fila.hidden = !esMultivariante(actual);
   resImp.ui.avisoCombinacion.hidden = true;
-  if (!actual.combinacion) return;
+  if (!esMultivariante(actual)) { resImp.ui.sugerencia.hidden = true; return; }
+  pintarSugerencia();
   const clavesCombinaciones = lista.filter((x) => x.combinacion).map((x) => claveSubconjunto(x.series.map((y) => y.id)));
   for (const s of lista.filter((x) => x.combinacion)) {
     const pestana = document.createElement("div");
@@ -403,7 +573,7 @@ function pintarSubpestanas() {
     boton.setAttribute("aria-selected", s.id === actual.id);
     boton.append(s.titulo);
     pestana.append(boton);
-    if (lista.filter((x) => x.combinacion).length > 1) {
+    {
       const cerrar = document.createElement("button");
       cerrar.type = "button";
       cerrar.className = "cerrar";
@@ -417,6 +587,8 @@ function pintarSubpestanas() {
     fila.append(pestana);
   }
   if (subconjuntoLibre()) fila.append(botonAnadirCombinacion());
+  fila.append(botonSugerirCombinacion());
+  fila.append(botonEmpezarDeCero());
   // aviso si la combinación que se ve es igual a otra que ya existe
   const repetida = clavesCombinaciones.filter((clave) => clave === claveSubconjunto(actual.series.map((y) => y.id))).length > 1;
   resImp.ui.avisoCombinacion.hidden = !repetida;
@@ -428,6 +600,7 @@ function pintarMetodosImputacion() {
   cont.replaceChildren();
   const sub = subActual();
   if (sub.id === "comparacion") return;
+  if (sub.vacia) { resImp.ui.ayudaLateral.textContent = ""; return; }
   const visibles = metodosDeSub(sub);
   const sinExplicativas = sub.id === "sin";
   resImp.ui.ayudaLateral.textContent = sinExplicativas
@@ -492,7 +665,7 @@ function pintarMetodosImputacion() {
   if (sinExplicativas && !explicativasConDatos().length) {
     const nota = document.createElement("p");
     nota.className = "ayuda";
-    nota.textContent = "Elige variables explicativas en la pestaña 2 para probar también la regresión y el EM.";
+    nota.textContent = "Elige variables explicativas en la pestaña 2 para probar también la regresión, el EM y la imputación múltiple.";
     cont.append(nota);
   }
 }
@@ -511,9 +684,28 @@ function campoDeParametro(d, m) {
     campo.append(entrada, ` ${d.texto}`);
     return campo;
   }
+  if (d.tipo === "seleccion") {
+    const selector = document.createElement("select");
+    selector.dataset.param = d.clave;
+    selector.setAttribute("aria-label", `${d.texto}: ${m.nombre}`);
+    for (const [valor, texto] of d.opciones) selector.append(new Option(texto, valor));
+    selector.value = imputacion.parametros[d.clave];
+    campo.append(`${d.texto} `, selector);
+    return campo;
+  }
   entrada.type = "number"; entrada.min = d.min; entrada.max = d.max(); entrada.step = 1;
   entrada.value = imputacion.parametros[d.clave];
   campo.append(`${d.texto} `, entrada);
+  if (d.nuevaSemilla) {
+    const boton = document.createElement("button");
+    boton.type = "button";
+    boton.className = "res-detectar";
+    boton.dataset.accion = "nueva-semilla";
+    boton.dataset.param = d.clave;
+    boton.textContent = "Nueva semilla";
+    boton.title = "Otra tirada del azar: sale otro resultado (con la misma semilla, siempre el mismo)";
+    campo.append(boton);
+  }
   return campo;
 }
 
@@ -545,6 +737,8 @@ function alCambiarMetodo(e) {
   let valor;
   if (d.tipo === "casilla") {
     valor = objetivo.checked;
+  } else if (d.tipo === "seleccion") {
+    valor = objetivo.value;
   } else {
     valor = Math.min(Math.max(parseInt(objetivo.value) || d.min, d.min), d.max());
     objetivo.value = valor;
@@ -560,6 +754,8 @@ function cambiarMetodosImputacion(ids) {
   if (JSON.stringify(ids) === JSON.stringify(elegidosDe(sub))) return;
   if (ids.length) imputacion.metodos[sub] = ids; else delete imputacion.metodos[sub];
   cambioImputacion();
+  const reiniciar = document.querySelector("#res-combinaciones .res-reiniciar");
+  if (reiniciar) reiniciar.disabled = multivarianteVacia();
   pintarMetodosImputacion();
   ejecutarImputacion();
 }
@@ -675,8 +871,8 @@ function pintarResultados(obj) {
   if (!listo) {
     for (const g of [u.grafica, u.graficaRanking, u.graficaComp]) { try { Plotly.purge(g); } catch { /* aún no había gráfica */ } }
     if (!resImp.error && obj && obj.aImputar && !hayMetodos && !resImp.cargando) {
-      u.estado.textContent = esComp ? "Todavía no has marcado ningún método en las otras ventanas." : sub.id === "sin" ? "Marca algún método a la izquierda para ver cómo imputa y cuánto se equivoca."
-        : "Marca la regresión o el EM a la izquierda para ver cómo imputan con estas explicativas.";
+      u.estado.textContent = esComp ? "Todavía no has marcado ningún método en las otras ventanas." : sub.vacia ? "No hay ninguna combinación: crea una con «+ combinación» o «Mejor combinación (regresión)»." : sub.id === "sin" ? "Marca algún método a la izquierda para ver cómo imputa y cuánto se equivoca."
+        : "Marca la regresión, el EM o la imputación múltiple a la izquierda para ver cómo imputan con estas explicativas.";
       u.estado.classList.remove("error");
       u.estado.hidden = false;
     }
@@ -700,9 +896,7 @@ function filasDeResultados(vista) {
 }
 
 // ----- Métricas, en tres bloques: la tabla enseña el bloque elegido -----
-// mejor: "menor", "mayor", "uno" (cuanto más cerca de 1) o "noventa_y_cinco" (cuanto más cerca del 95 %); sin "mejor" no
-// se resalta ni sirve para el ranking. soloConIntervalo: los métodos sin intervalo dicen "no aplica".
-const porcentajeEntero = (v) => (v === null || v === undefined ? "—" : `${Math.round(v * 100)} %`);
+// mejor: "menor", "mayor" o "uno" (cuanto más cerca de 1); sin "mejor" no se resalta ni sirve para el ranking.
 const BLOQUES_METRICAS = [
   { id: "precision", titulo: "Precisión", ranking: "rmse",
     explicacion: "¿Acierta cada valor? Cuánto se aleja lo imputado del valor real en cada punto que quitaste (MAE, RMSE…). Ojo: premia a los métodos que van por el medio, aunque aplanen la serie.",
@@ -725,32 +919,19 @@ const BLOQUES_METRICAS = [
     { clave: "sesgo_corr", texto: "Cambio en la correlación", formato: decimalesResultado, mejor: "menor",
       ayuda: "Para cada explicativa elegida: corr(serie con lo imputado, explicativa) − corr(serie real, explicativa), sobre la serie entera. Aquí, la media de esos valores en valor absoluto. 0 = la imputación no cambia la relación con las explicativas. Pasa el ratón por un valor para ver el de cada una. Menos es mejor." },
   ] },
-  { id: "incertidumbre", titulo: "Incertidumbre", ranking: "interval_score",
-    explicacion: "¿Sabe el método cuánto se puede equivocar? Solo para los que dan un intervalo del 95 % (regresión, EM y, más adelante, la imputación múltiple); los demás, «no aplica». Cobertura: cuántos valores reales caen dentro (lo ideal, cerca del 95 %). Anchura: cuánto mide. Interval score: las dos cosas juntas. Importa para el análisis de sensibilidad del índice: no es lo mismo un valor imputado casi seguro que uno muy dudoso.",
-    metricas: [
-    { clave: "cobertura", texto: "Cobertura del 95 %", formato: porcentajeEntero, mejor: "noventa_y_cinco", soloConIntervalo: true,
-      ayuda: "Porcentaje de valores reales que caen dentro del intervalo del 95 % del método. Debería salir cerca del 95 %: por debajo, el intervalo es demasiado estrecho (el método se fía demasiado de sí mismo); por encima, demasiado ancho. Con pocos puntos quitados varía mucho. Solo para los métodos que dan intervalo." },
-    { clave: "anchura", texto: "Anchura media", formato: numeroResultado, soloConIntervalo: true,
-      ayuda: "Anchura media del intervalo del 95 % (superior − inferior), en unidades de la serie. Más estrecho es mejor solo si la cobertura sigue cerca del 95 %." },
-    { clave: "anchura_est", texto: "Anchura estandarizada", formato: decimalesResultado, soloConIntervalo: true,
-      ayuda: "Anchura media / desviación típica de los datos conocidos: sin unidades, como el RMSE estandarizado." },
-    { clave: "interval_score", texto: "Interval score", formato: numeroResultado, mejor: "menor", soloConIntervalo: true,
-      ayuda: "IS = (u − l) + (2/α)·(l − y) si y < l + (2/α)·(y − u) si y > u, con α = 0,05 y [l, u] el intervalo del 95 %; promediado (Gneiting y Raftery, 2007). Premia los intervalos estrechos y castiga mucho los que dejan fuera el valor real. Menos es mejor." },
-  ] },
 ];
 const METRICAS = BLOQUES_METRICAS.flatMap((b) => b.metricas.map((m) => ({ ...m, bloque: b.id })));
 const metricaPorClave = (clave) => METRICAS.find((m) => m.clave === clave);
 const bloqueActual = () => BLOQUES_METRICAS.find((b) => b.id === resImp.bloque) || BLOQUES_METRICAS[0];
-const COLUMNA_NOMBRE = { clave: "nombre", texto: "Método", ayuda: "El método de imputación. Pulsa una fila para resaltarlo en la gráfica (con su intervalo, si lo tiene)." };
+const COLUMNA_NOMBRE = { clave: "nombre", texto: "Método", ayuda: "El método de imputación. Pulsa una fila para resaltarlo en la gráfica." };
 const COLUMNA_CONJUNTO = { clave: "conjunto", texto: "Explicativas", ayuda: "Con qué explicativas se ha calculado: todas, algunas (X1 + X3), solo una o ninguna (—)." };
 const COLUMNA_N = { clave: "n", texto: "Puntos medidos", ayuda: "Puntos quitados por ti, con valor real, que el método ha conseguido imputar." };
-const textoRanking = (def) => def.texto + (def.mejor === "uno" ? " (distancia a 1)" : def.mejor === "noventa_y_cinco" ? " (distancia al 95 %)" : "");
+const textoRanking = (def) => def.texto + (def.mejor === "uno" ? " (distancia a 1)" : "");
 
 // Lo que cuenta para ordenar, resaltar el mejor y el ranking: el valor o, si lo ideal es 1 o el 95 %, la distancia a eso
 function puntuacion(def, v) {
   if (v === null || v === undefined) return null;
   if (def.mejor === "uno") return Math.abs(v - 1);
-  if (def.mejor === "noventa_y_cinco") return Math.abs(v - 0.95);
   return v;
 }
 const menorEsMejor = (def) => def.mejor !== "mayor";
@@ -879,11 +1060,10 @@ function pintarTablaMetricas(tabla, filas, { comparacion = false, dibujadas = ne
     }
     const m = f.metricas;
     for (const def of metricas) {
-      const noAplica = def.soloConIntervalo && !f.intervalo;
-      const esMejor = !noAplica && mejor[def.clave] !== undefined && valor(f, def.clave) === mejor[def.clave];
-      const d = celda("valor" + (esMejor ? " mejor" : "") + (noAplica ? " no-aplica" : ""));
-      d.textContent = noAplica ? "no aplica" : def.clave === "mejora" && esReferencia(f) ? "—" : def.formato(m[def.clave]);
-      d.title = noAplica ? "Este método no da intervalo, así que no tiene métricas de incertidumbre." : def.ayuda;
+      const esMejor = mejor[def.clave] !== undefined && valor(f, def.clave) === mejor[def.clave];
+      const d = celda("valor" + (esMejor ? " mejor" : ""));
+      d.textContent = def.clave === "mejora" && esReferencia(f) ? "—" : def.formato(m[def.clave]);
+      d.title = def.ayuda;
       if (def.clave === "sesgo_corr" && (f.sesgo_correlacion || []).length) {
         d.title = f.sesgo_correlacion.map((v, i) => `${nombresComparar[i] ?? `Serie ${i + 1}`}: ${decimalesResultado(v)}`).join(" · ") + "\n\n" + def.ayuda;
       }
@@ -943,18 +1123,11 @@ function pintarGraficaResultados(filas, obj, grafica = resImp.ui.grafica) {
       for (const j of [i - 1, i, i + 1]) if (j >= 0 && j < n && f.imputado[j] !== null) trazo[j] = f.imputado[j];
     }
     const atenuado = resImp.destacado !== null && resImp.destacado !== f.metodo;
-    // el método resaltado enseña su intervalo del 95 % en cada punto imputado (si lo tiene)
-    const conIntervalo = resImp.destacado === f.metodo && f.intervalo;
-    const errores = conIntervalo ? {
-      type: "data", symmetric: false, thickness: 1.2, width: 3, color: colorDeMetodo(f.metodo, c),
-      array: trazo.map((v, i) => (v === null || !objetivo[i] || f.intervalo.superior[i] === null ? null : f.intervalo.superior[i] - v)),
-      arrayminus: trazo.map((v, i) => (v === null || !objetivo[i] || f.intervalo.inferior[i] === null ? null : v - f.intervalo.inferior[i])),
-    } : undefined;
     const comoReferencia = f.metodo === REFERENCIA_IMPUTACION && resImp.sub !== "sin";
     trazas.push({
       x, y: trazo, type: "scatter", mode: "lines+markers", name: f.nombre, opacity: atenuado ? 0.25 : comoReferencia ? 0.4 : 1,
       line: { color: f.color || colorDeMetodo(f.metodo, c), width: resImp.destacado === f.metodo ? 3.5 : 1.8 },
-      marker: { size: 4 }, error_y: errores,
+      marker: { size: 4 },
       hovertemplate: "<b>%{y:.2f}</b>  ·  punto %{x}<extra>" + f.nombre + "</extra>",
     });
   }
@@ -1090,7 +1263,7 @@ function pintarRankingComparacion(filas) {
   }
   grafica.style.height = `${90 + 34 * con.length}px`;
   const c = colores();
-  const enPorcentaje = clave === "mejora" || clave === "cobertura";
+  const enPorcentaje = clave === "mejora";
   const factor = enPorcentaje ? 100 : 1;
   const eje = (texto) => ({
     title: texto ? { text: texto, font: { color: c.muted, size: 12 }, standoff: 8 } : undefined,
@@ -1101,11 +1274,11 @@ function pintarRankingComparacion(filas) {
     marker: {
       color: con.map((f) => f.colorFila || colorDeMetodo(f.metodo, c)), opacity: con.map((f) => (f.esReferencia ? 0.4 : 1)),
     },
-    hovertemplate: `<b>%{x:.3g}${enPorcentaje ? (clave === "cobertura" ? " puntos" : " %") : ""}</b><extra>%{y}</extra>`,
+    hovertemplate: `<b>%{x:.3g}${enPorcentaje ? " %" : ""}</b><extra>%{y}</extra>`,
   }], {
     paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)", font: { family: c.fuente, color: c.ink2 },
     margin: { t: 8, r: 16, b: 48, l: 250 }, showlegend: false, hovermode: "closest",
-    xaxis: { ...eje(clave === "mejora" ? `${nombreMedida} (%)` : clave === "cobertura" ? `${nombreMedida}, en puntos porcentuales` : nombreMedida), showline: false },
+    xaxis: { ...eje(clave === "mejora" ? `${nombreMedida} (%)` : nombreMedida), showline: false },
     yaxis: { ...eje(""), autorange: "reversed", showgrid: false, showline: true },
     hoverlabel: { bgcolor: c.surface, bordercolor: c.axis, font: { color: c.ink, family: c.fuente, size: 13 } },
   }, { responsive: true, displaylogo: false, displayModeBar: false });

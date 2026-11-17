@@ -249,14 +249,8 @@ async function guardarProyecto() {
 }
 
 function descargarJSON(doc) {
-  const nombre = (doc.nombre || NOMBRE_SIN_TITULO).replace(/[^\p{L}\p{N}_-]+/gu, "_").replace(/^_+|_+$/g, "") || "proyecto";
-  const enlace = document.createElement("a");
-  enlace.href = URL.createObjectURL(new Blob([JSON.stringify(doc, null, 2)], { type: "application/json" }));
-  enlace.download = `${nombre}.senales.json`;
-  document.body.append(enlace);
-  enlace.click();
-  enlace.remove();
-  setTimeout(() => URL.revokeObjectURL(enlace.href), 1000);
+  const nombre = nombreParaArchivo(doc.nombre || NOMBRE_SIN_TITULO, "proyecto");
+  descargarArchivo(JSON.stringify(doc, null, 2), "application/json", `${nombre}.senales.json`);
 }
 
 async function pintarListaProyectos() {
