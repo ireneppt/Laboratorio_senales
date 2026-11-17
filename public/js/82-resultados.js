@@ -704,7 +704,9 @@ function filasDeResultados(vista) {
 // se resalta ni sirve para el ranking. soloConIntervalo: los métodos sin intervalo dicen "no aplica".
 const porcentajeEntero = (v) => (v === null || v === undefined ? "—" : `${Math.round(v * 100)} %`);
 const BLOQUES_METRICAS = [
-  { id: "precision", titulo: "Precisión", ranking: "rmse", metricas: [
+  { id: "precision", titulo: "Precisión", ranking: "rmse",
+    explicacion: "¿Acierta cada valor? Cuánto se aleja lo imputado del valor real en cada punto que quitaste (MAE, RMSE…). Ojo: premia a los métodos que van por el medio, aunque aplanen la serie.",
+    metricas: [
     { clave: "mae", texto: "Error absoluto medio (MAE)", formato: numeroResultado, mejor: "menor",
       ayuda: "La media de las distancias entre lo imputado y el valor real, en las unidades de la serie. Menos es mejor." },
     { clave: "rmse", texto: "RMSE", formato: numeroResultado, mejor: "menor", ayuda: "Como el MAE, pero castiga más los fallos grandes. Menos es mejor." },
@@ -715,13 +717,17 @@ const BLOQUES_METRICAS = [
     { clave: "mejora", texto: "Mejora sobre la interpolación", formato: porcentajeResultado, mejor: "mayor",
       ayuda: "1 − RMSE del método / RMSE de la interpolación lineal. Positivo = mejor que la interpolación (35 % = un 35 % menos de error); negativo = peor." },
   ] },
-  { id: "estructura", titulo: "Estructura", ranking: "razon_var", metricas: [
+  { id: "estructura", titulo: "Estructura", ranking: "razon_var",
+    explicacion: "¿La serie rellenada sigue pareciendo una serie de verdad? Razón de varianzas: si lo imputado sube y baja tanto como lo real (1 = sí; 0 = una línea plana). Cambio en la correlación: si la serie se sigue relacionando igual con las explicativas (0 = igual). Importa porque el índice compuesto se calcula con varianzas, correlaciones y pesos: si la imputación aplana una serie, los sesga, aunque acierte de media.",
+    metricas: [
     { clave: "razon_var", texto: "Razón de varianzas", formato: decimalesResultado, mejor: "uno",
       ayuda: "Varianza de lo imputado / varianza de lo real, en los puntos quitados. 1 = conserva la variación; por debajo de 1, la aplana (es lo que pasa al rellenar con la media o con rectas); por encima, la exagera. Lo mejor, cerca de 1." },
-    { clave: "sesgo_corr", texto: "Sesgo de correlación", formato: decimalesResultado, mejor: "menor",
+    { clave: "sesgo_corr", texto: "Cambio en la correlación", formato: decimalesResultado, mejor: "menor",
       ayuda: "Para cada explicativa elegida: corr(serie con lo imputado, explicativa) − corr(serie real, explicativa), sobre la serie entera. Aquí, la media de esos valores en valor absoluto. 0 = la imputación no cambia la relación con las explicativas. Pasa el ratón por un valor para ver el de cada una. Menos es mejor." },
   ] },
-  { id: "incertidumbre", titulo: "Incertidumbre", ranking: "interval_score", metricas: [
+  { id: "incertidumbre", titulo: "Incertidumbre", ranking: "interval_score",
+    explicacion: "¿Sabe el método cuánto se puede equivocar? Solo para los que dan un intervalo del 95 % (regresión, EM y, más adelante, la imputación múltiple); los demás, «no aplica». Cobertura: cuántos valores reales caen dentro (lo ideal, cerca del 95 %). Anchura: cuánto mide. Interval score: las dos cosas juntas. Importa para el análisis de sensibilidad del índice: no es lo mismo un valor imputado casi seguro que uno muy dudoso.",
+    metricas: [
     { clave: "cobertura", texto: "Cobertura del 95 %", formato: porcentajeEntero, mejor: "noventa_y_cinco", soloConIntervalo: true,
       ayuda: "Porcentaje de valores reales que caen dentro del intervalo del 95 % del método. Debería salir cerca del 95 %: por debajo, el intervalo es demasiado estrecho (el método se fía demasiado de sí mismo); por encima, demasiado ancho. Con pocos puntos quitados varía mucho. Solo para los métodos que dan intervalo." },
     { clave: "anchura", texto: "Anchura media", formato: numeroResultado, soloConIntervalo: true,
@@ -760,6 +766,7 @@ function pintarBloques() {
     boton.setAttribute("role", "tab");
     boton.setAttribute("aria-selected", b.id === resImp.bloque);
     boton.textContent = b.titulo;
+    boton.title = b.explicacion;
     barra.append(boton);
   }
 }
