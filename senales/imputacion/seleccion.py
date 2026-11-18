@@ -1,9 +1,12 @@
 """Sugiere qué explicativas usar en la regresión: prueba subconjuntos y los ordena por su error de validación.
 
-Siguiendo el «in sample / out of sample» del Handbook (Box 4): se esconden trozos de lo que se conoce de la explicada,
-se imputan con la regresión y se mide cuánto se falla. Los trozos son bloques seguidos de la serie (no puntos
-sueltos), porque los huecos reales suelen ser tramos y, en una serie temporal, esconder puntos aislados es demasiado fácil.
-Cada bloque se imputa con un modelo ajustado con los demás puntos conocidos. No hay azar: el mismo problema da siempre lo mismo.
+Siguiendo el «in sample / out of sample» del Handbook (Box 4), se mide cuánto falla la regresión con cada combinación:
+- Si se han quitado tramos con valor real (pestaña «Variable explicada»), se miden en ellos, igual que la tabla de
+  resultados: regresión ajustada con lo demás y error sobre lo quitado. El RMSE y el MAE de una combinación coinciden con
+  los de la fila «Regresión» de esa tabla. Como se elige y se mide con los mismos puntos, el error sale algo optimista.
+- Si no se ha quitado nada (o casi), se esconden bloques seguidos de lo que se conoce (no puntos sueltos: los huecos
+  reales suelen ser tramos), cada bloque se imputa con un modelo ajustado con los demás, y se mide el error.
+No hay azar: el mismo problema da siempre lo mismo.
 
 Con pocas explicativas se prueban todos los subconjuntos; con muchas, se va añadiendo la que más baja el error
 (regresión paso a paso hacia delante), que no garantiza el mejor subconjunto global. Solo se consideran subconjuntos
@@ -52,6 +55,21 @@ def _validar(y, X, bloques):
     return float(np.sqrt(np.mean(errores ** 2))), float(np.mean(np.abs(errores))), int(len(errores))
 
 
+def _validar_en_tramos(problema, columnas):
+    """Error de la regresión con esas columnas sobre los puntos quitados con valor real, con la misma regla que la tabla de
+    resultados (se evalúan los que el método consigue imputar). Devuelve (rmse, mae, puntos) o None si casi no se ha podido predecir."""
+    p = Problema(y=problema.y, verdad=problema.verdad, quitado=problema.quitado, objetivo=problema.objetivo, tramos=problema.tramos, X=problema.X[:, columnas])
+    try:
+        completa, _ = con_explicativas.regresion(p)
+    except ErrorDeEntrada:
+        return None
+    evaluables = problema.quitado & ~np.isnan(completa)
+    if evaluables.sum() < MIN_VALIDADOS:
+        return None
+    errores = completa[evaluables] - problema.verdad[evaluables]
+    return float(np.sqrt(np.mean(errores ** 2))), float(np.mean(np.abs(errores))), int(evaluables.sum())
+
+
 def _ajuste(y, X):
     """(SSE, puntos, parámetros) de la recta de y sobre X con los puntos donde todo tiene dato; None si no se puede."""
     filas = ~np.isnan(y) & ~np.isnan(X).any(axis=1)
@@ -86,6 +104,8 @@ def sugerir_explicativas(y, quitados, explicativas, bloques=5):
     if conocidos < MIN_CONOCIDOS:
         raise ErrorDeEntrada(f"Hacen falta al menos {MIN_CONOCIDOS} datos conocidos de la explicada para validar (hay {conocidos})")
     bloques = min(bloques, conocidos // 2)
+    quitados_con_valor = int(problema.quitado.sum())
+    en_tramos = quitados_con_valor >= MIN_VALIDADOS          # hay con qué comparar: los tramos quitados (si no, se esconden bloques)
     k = X.shape[1]
 
     evaluados = {}
@@ -94,7 +114,7 @@ def sugerir_explicativas(y, quitados, explicativas, bloques=5):
         subconjunto = tuple(sorted(subconjunto))
         if subconjunto in evaluados:
             return evaluados[subconjunto]
-        validacion = _validar(y, X[:, list(subconjunto)], bloques)
+        validacion = _validar_en_tramos(problema, list(subconjunto)) if en_tramos else _validar(y, X[:, list(subconjunto)], bloques)
         if validacion is None:
             evaluados[subconjunto] = None
         else:
@@ -128,4 +148,4 @@ def sugerir_explicativas(y, quitados, explicativas, bloques=5):
     if not candidatos:
         raise ErrorDeEntrada("Ninguna combinación de explicativas tiene datos suficientes para validar")
     redondeado = [{**c, **{clave: (None if c[clave] is None else round(float(c[clave]), 6)) for clave in ("rmse", "mae", "r2_ajustado")}} for c in candidatos]
-    return {"metodo": metodo, "bloques": bloques, "conocidos": conocidos, "probados": len(candidatos), "candidatos": redondeado, "mejor": redondeado[0]["indices"]}
+    return {"metodo": metodo, "validacion": "tramos" if en_tramos else "bloques", "bloques": bloques, "conocidos": conocidos, "quitados": quitados_con_valor, "probados": len(candidatos), "candidatos": redondeado, "mejor": redondeado[0]["indices"]}

@@ -10,7 +10,7 @@ const FAMILIAS_IMPUTACION = [
   { id: "cercano", titulo: "Valor más cercano", metodos: ["ultimo_valor", "siguiente_valor"] },
   { id: "moviles", titulo: "Medias móviles", metodos: ["media_movil", "media_movil_atras", "media_movil_pond", "media_movil_pond_atras"] },
   { id: "estacional", titulo: "Estacional", metodos: ["media_estacional"] },
-  { id: "interpolacion", titulo: "Interpolación", metodos: ["interpolacion", "polinomica", "pchip"] },
+  { id: "interpolacion", titulo: "Interpolación", metodos: ["interpolacion", "polinomica", "pchip", "makima"] },
   { id: "modelos", titulo: "Modelos", metodos: ["regresion", "regresion_estocastica", "em", "imputacion_multiple"] },
 ];
 
@@ -42,9 +42,11 @@ const METODOS_IMPUTACION = [
   { id: "interpolacion", nombre: "Interpolación lineal", grupo: "referencia", explicativas: false,
     ayuda: "Une los datos conocidos con rectas. Es la referencia con la que se compara la mejora de cada método." },
   { id: "polinomica", nombre: "Interpolación polinómica (spline cúbica)", grupo: "referencia", explicativas: false,
-    ayuda: "Une los datos conocidos con curvas: un polinomio de grado 3 entre cada dos datos, empalmados de forma suave. En huecos largos puede pasarse de largo." },
+    ayuda: "Une los datos conocidos con curvas: un polinomio de grado 3 entre cada dos datos, empalmados de forma suave (que coincidan también la pendiente y la curvatura). Eso obliga a resolver un solo sistema con todos los datos conocidos de la serie, así que un dato lejano influye un poco en el hueco, cada vez menos cuanto más lejos esté. En huecos largos puede pasarse de largo y oscilar; PCHIP y makima, que solo usan los datos vecinos, no." },
   { id: "pchip", nombre: "Interpolación PCHIP", grupo: "referencia", explicativas: false,
     ayuda: "Como la spline cúbica (una curva de grado 3 entre cada dos datos), pero eligiendo las pendientes para que la curva no se pase de largo: no sale del rango de sus dos datos vecinos y conserva si sube o baja entre ellos. Es lo que hace pchip en MATLAB. Donde hay un máximo o un mínimo en los datos, la curva se aplana. No recupera un pico escondido dentro de un hueco: solo ve los datos de los lados." },
+  { id: "makima", nombre: "Interpolación makima", grupo: "referencia", explicativas: false,
+    ayuda: "Como PCHIP, una curva de grado 3 entre cada dos datos, pero con las pendientes de la Akima modificada (la que usa makima en MATLAB): cada pendiente es una media de las de los dos tramos vecinos, que pesa más al que está más de acuerdo con ella. Oscila menos que la spline cúbica y trata mejor los tramos planos que PCHIP, aunque puede pasarse algo de los datos de los lados. No recupera un pico escondido dentro de un hueco: solo ve los datos de los lados." },
 ];
 const REFERENCIA_IMPUTACION = "interpolacion";
 
@@ -82,34 +84,13 @@ function explicativasDe(combinacion) {
 const idsDeCombinacion = (combinacion) => explicativasDe(combinacion).map((x) => x.id);
 const claveSubconjunto = (ids) => [...ids].sort((a, b) => a - b).join(",");
 
-// el primer subconjunto de 2 o más explicativas que todavía no tiene ventana (de más a menos explicativas), o null
-function subconjuntoLibre() {
-  const ids = explicativasConDatos().map((x) => x.id);
-  const usados = new Set(imputacion.combinaciones.map((c) => claveSubconjunto(idsDeCombinacion(c))));
-  const combinar = (desde, tamano) => {
-    if (tamano === 0) return [[]];
-    const salida = [];
-    for (let i = desde; i <= ids.length - tamano; i++) for (const resto of combinar(i + 1, tamano - 1)) salida.push([ids[i], ...resto]);
-    return salida;
-  };
-  for (let tamano = ids.length; tamano >= 2; tamano--) {
-    const libre = combinar(0, tamano).find((c) => !usados.has(claveSubconjunto(c)));
-    if (libre) return libre;
-  }
-  return null;
-}
-
-function anadirCombinacion() {
-  const libre = subconjuntoLibre();
-  if (!libre) return;
-  const id = Math.max(0, ...imputacion.combinaciones.map((c) => c.id)) + 1;
-  imputacion.combinaciones.push({ id, explicativas: libre.length >= explicativasConDatos().length ? null : libre });
-  irAVentana(`multi:${id}`);
-}
-
-// Multivariante sin ninguna combinación: su pestaña sigue ahí (con «+ combinación» y «Mejor combinación (regresión)»)
+// Multivariante sin ninguna combinación: su pestaña sigue ahí (con «Manual» y «Stepwise» para crearlas)
 const MULTI_VACIA = "multi:0";
-const esMultivariante = (s) => Boolean(s.combinacion || s.vacia);
+// la pestaña «Resumen» de Multivariante compara todas las combinaciones en una tabla
+const RESUMEN = "multi:resumen";
+const esMultivariante = (s) => Boolean(s.combinacion || s.vacia || s.resumen);
+// las vistas que son una tabla comparativa y no una sola ventana con su lista de métodos
+const esComparativa = (s) => s.id === "comparacion" || Boolean(s.resumen);
 
 function quitarCombinacion(combinacion) {
   if (!combinacion) return;
@@ -120,7 +101,8 @@ function quitarCombinacion(combinacion) {
   if (resImp.dibujar) resImp.dibujar = new Set([...resImp.dibujar].filter((clave) => !clave.endsWith(`@multi:${combinacion.id}`)));
   // si era la que se veía, pasa a la anterior (o a Multivariante vacía); si no, se queda donde estaba
   const anterior = imputacion.combinaciones[Math.max(0, posicion - 1)];
-  irAVentana(eraLaActiva ? (anterior ? `multi:${anterior.id}` : MULTI_VACIA) : resImp.sub);
+  const resumenDesaparece = resImp.sub === RESUMEN && imputacion.combinaciones.length < 2;
+  irAVentana(eraLaActiva || resumenDesaparece ? (anterior ? `multi:${anterior.id}` : MULTI_VACIA) : resImp.sub);
 }
 
 const multivarianteVacia = () => imputacion.combinaciones.length === 0;
@@ -134,17 +116,6 @@ function empezarMultivarianteDeCero() {
   if (resImp.dibujar) resImp.dibujar = new Set([...resImp.dibujar].filter((clave) => !clave.includes("@multi:")));
   resImp.sugerencia = null;
   irAVentana(MULTI_VACIA);
-}
-
-function botonEmpezarDeCero() {
-  const boton = document.createElement("button");
-  boton.type = "button";
-  boton.dataset.accion = "reiniciar";
-  boton.className = "res-reiniciar";
-  boton.title = "Quitar todas las combinaciones y los métodos marcados en Multivariante";
-  boton.textContent = "Empezar de cero";
-  boton.disabled = multivarianteVacia();
-  return boton;
 }
 
 // cambia de ventana y lo repinta todo (también para guardar el cambio en el proyecto)
@@ -170,94 +141,288 @@ const cuerpoSugerencia = () => {
 async function sugerirCombinacion() {
   const cuerpo = cuerpoSugerencia();
   const panel = resImp.ui.sugerencia;
-  if (!cuerpo || explicativasConDatos().length < 2) return;
-  const ids = explicativasConDatos().map((x) => x.id);
+  if (!cuerpo) return;
   panel.hidden = false;
-  panel.textContent = "Buscando la mejor combinación…";
+  if (explicativasConDatos().length < 2) { panel.textContent = "Hacen falta al menos 2 explicativas con datos para buscar combinaciones."; return; }
+  const ids = explicativasConDatos().map((x) => x.id);
+  panel.textContent = "Buscando combinaciones…";
   try {
     const respuesta = await fetch("/api/sugerir-explicativas", { method: "POST", headers: { "Content-Type": "application/json" }, body: cuerpo });
     const datos = await respuesta.json();
-    if (!respuesta.ok) { panel.textContent = typeof datos.detail === "string" ? datos.detail : "No se ha podido sugerir una combinación con estos datos."; return; }
-    const mejor = datos.mejor.map((i) => ids[i]);
-    const existente = imputacion.combinaciones.find((c) => claveSubconjunto(idsDeCombinacion(c)) === claveSubconjunto(mejor));
-    resImp.sugerencia = { huella: huellaTexto(cuerpo), ids, datos, existia: Boolean(existente) };
-    if (existente) { irAVentana(`multi:${existente.id}`); return; }
-    const id = Math.max(0, ...imputacion.combinaciones.map((c) => c.id)) + 1;
-    imputacion.combinaciones.push({ id, explicativas: mejor.length >= ids.length ? null : mejor });
-    irAVentana(`multi:${id}`);
+    if (!respuesta.ok) { panel.textContent = typeof datos.detail === "string" ? datos.detail : "No se han podido buscar combinaciones con estos datos."; return; }
+    resImp.sugerencia = { huella: huellaTexto(cuerpo), ids, datos };
+    resImp.sugerenciaTodas = false;
+    resImp.sugerenciaOrden = ORDEN_SUGERENCIA_INICIAL();
+    pintarSugerencia();
   } catch (e) {
-    panel.textContent = "No se ha podido conectar con el servidor para sugerir una combinación.";
+    panel.textContent = "No se ha podido conectar con el servidor para buscar combinaciones.";
   }
 }
 
-// la tabla con las mejores combinaciones probadas (solo si sigue siendo para los datos que hay ahora)
-function pintarSugerencia() {
-  const panel = resImp.ui.sugerencia;
+// la búsqueda guardada, si sigue siendo para los datos que hay ahora
+function sugerenciaVigente() {
   const s = resImp.sugerencia;
   const cuerpo = cuerpoSugerencia();
-  if (!s || !cuerpo || s.huella !== huellaTexto(cuerpo)) { if (s) resImp.sugerencia = null; panel.hidden = true; panel.replaceChildren(); return; }
+  return Boolean(s && cuerpo && s.huella === huellaTexto(cuerpo));
+}
+
+// la combinación (pestaña de Multivariante) que usa justo estas explicativas, o undefined
+const combinacionConExplicativas = (idsSerie) => imputacion.combinaciones.find((c) => claveSubconjunto(idsDeCombinacion(c)) === claveSubconjunto(idsSerie));
+const MAX_COMBINACIONES = 20;   // las que se guardan en el proyecto
+
+// Crea la combinación y devuelve su id. `metodos`: los que salen marcados al crearla.
+function nuevaCombinacion(idsSerie, metodos) {
+  const id = Math.max(0, ...imputacion.combinaciones.map((c) => c.id)) + 1;
+  imputacion.combinaciones.push({ id, explicativas: idsSerie.length >= explicativasConDatos().length ? null : idsSerie });
+  if (metodos.length) imputacion.metodos[`multi:${id}`] = [...metodos];
+  return id;
+}
+
+// Añade a la lista, SIN cambiar de pestaña (para poder añadir varias seguidas); la pestaña nueva parpadea un momento.
+// Si no había ninguna combinación se va a la primera, porque la vista vacía desaparece.
+function anadidaSinIr(id, veniaDeVacia) {
+  if (veniaDeVacia) { irAVentana(`multi:${id}`); return; }
+  resImp.destello = id;
+  cambioImputacion();
+  pintarSubpestanas();
+  ejecutarImputacion();
+  setTimeout(() => {
+    if (resImp.destello !== id) return;
+    resImp.destello = null;
+    const pestana = resImp.ui.combinaciones && resImp.ui.combinaciones.querySelector(`[data-sub="multi:${id}"]`);
+    if (pestana && pestana.parentElement) pestana.parentElement.classList.remove("destello");
+  }, 1600);
+}
+
+// Stepwise: añade la combinación con la regresión marcada (es con lo que se ordenan)
+function anadirDeSugerencia(indices) {
+  const s = resImp.sugerencia;
+  if (!s) return;
+  const subconjunto = indices.map((i) => s.ids[i]);
+  if (combinacionConExplicativas(subconjunto) || imputacion.combinaciones.length >= MAX_COMBINACIONES) return;
+  const veniaDeVacia = resImp.sub === MULTI_VACIA;
+  anadidaSinIr(nuevaCombinacion(subconjunto, ["regresion"]), veniaDeVacia);
+}
+
+// Manual: las explicativas que se han marcado en el panel
+function marcadasEnManual() {
+  const existentes = new Set(explicativasConDatos().map((x) => x.id));
+  return [...(resImp.manualSel || [])].filter((id) => existentes.has(id));
+}
+
+// Manual: añade la combinación y va a ella. Hereda los métodos de la combinación que se estaba viendo (o la regresión)
+function anadirManual() {
+  const ids = marcadasEnManual();
+  if (ids.length < 2 || combinacionConExplicativas(ids) || imputacion.combinaciones.length >= MAX_COMBINACIONES) return;
+  const actual = subActual();
+  const heredados = actual.combinacion ? elegidosDe(actual.id) : [];
+  const id = nuevaCombinacion(ids, heredados.length ? heredados : ["regresion"]);
+  resImp.manualSel = new Set();
+  irAVentana(`multi:${id}`);
+}
+
+// Abre o cierra Manual / Stepwise (solo uno a la vez). Al abrir Stepwise sin búsqueda vigente, busca.
+function cambiarModoMulti(modo) {
+  resImp.modoMulti = resImp.modoMulti === modo ? null : modo;
+  if (resImp.modoMulti === "stepwise" && !sugerenciaVigente()) sugerirCombinacion();
+  pintarSubpestanas();
+}
+
+// El panel de «Manual»: las casillas de las explicativas y el botón de añadir
+function pintarModoManual() {
+  const caja = resImp.ui.modoManual;
+  caja.hidden = resImp.modoMulti !== "manual";
+  caja.replaceChildren();
+  if (caja.hidden) return;
+  const encabezado = document.createElement("span");
+  encabezado.className = "res-explicativas-titulo";
+  encabezado.textContent = "Elige 2 o más explicativas:";
+  caja.append(encabezado);
+  const marcadas = new Set(marcadasEnManual());
+  for (const x of explicativasConDatos()) {
+    const etiqueta = document.createElement("label");
+    etiqueta.className = "toggle opcion res-multi";
+    const casilla = document.createElement("input");
+    casilla.type = "checkbox";
+    casilla.className = "alea";
+    casilla.dataset.manual = x.id;
+    casilla.checked = marcadas.has(x.id);
+    etiqueta.append(casilla, crearPunto(x.color), ` ${nombreDe(x)}`);
+    caja.append(etiqueta);
+  }
+  const ids = [...marcadas];
+  const repetida = ids.length >= 2 && combinacionConExplicativas(ids);
+  const llena = imputacion.combinaciones.length >= MAX_COMBINACIONES;
+  const boton = document.createElement("button");
+  boton.type = "button";
+  boton.dataset.accion = "manual-anadir";
+  boton.textContent = "Añadir combinación";
+  boton.disabled = ids.length < 2 || Boolean(repetida) || llena;
+  boton.title = llena ? `Ya hay ${MAX_COMBINACIONES} combinaciones: quita alguna para añadir otra` : repetida ? "Ya tienes esta combinación" : ids.length < 2 ? "Marca al menos 2 explicativas" : "Añadir esta combinación a la lista";
+  caja.append(boton);
+  if (repetida) {
+    const aviso = document.createElement("small");
+    aviso.className = "res-multi-aviso";
+    aviso.textContent = "Ya tienes esta combinación.";
+    caja.append(aviso);
+  }
+}
+
+// El estado de la barra: qué modo está abierto y si hay algo que vaciar
+function pintarHerramientasMulti() {
+  const caja = resImp.ui.multiCaja;
+  for (const boton of caja.querySelectorAll("button[data-modo]")) {
+    const abierto = boton.dataset.modo === resImp.modoMulti;
+    boton.classList.toggle("activa", abierto);
+    boton.setAttribute("aria-pressed", String(abierto));
+  }
+  const reiniciar = caja.querySelector('button[data-accion="reiniciar"]');
+  if (reiniciar) reiniciar.disabled = multivarianteVacia();
+  pintarModoManual();
+}
+
+// Por qué columna se ordena la tabla de Stepwise. «natural» es el sentido en que va lo mejor primero: 1 = de menor a mayor
+// (los errores), -1 = de mayor a menor (el R²). Pulsar la misma columna invierte el orden.
+const ORDENES_SUGERENCIA = { rmse: { texto: "RMSE", natural: 1 }, mae: { texto: "MAE", natural: 1 }, r2_ajustado: { texto: "R² ajustado", natural: -1 } };
+const ORDEN_SUGERENCIA_INICIAL = () => ({ col: "rmse", invertido: false });
+
+// Las combinaciones ordenadas por esa columna; sin valor, al final; los empates, como venían (por RMSE)
+function ordenarCandidatos(candidatos, col, invertido) {
+  const direccion = ORDENES_SUGERENCIA[col].natural * (invertido ? -1 : 1);
+  return candidatos.map((c, i) => ({ c, i })).sort((a, b) => {
+    const va = a.c[col], vb = b.c[col];
+    const sinA = va === null || va === undefined, sinB = vb === null || vb === undefined;
+    if (sinA !== sinB) return sinA ? 1 : -1;
+    if (!sinA && va !== vb) return (va - vb) * direccion;
+    return a.i - b.i;
+  }).map((x) => x.c);
+}
+
+function ordenarSugerencia(col) {
+  if (!ORDENES_SUGERENCIA[col]) return;
+  const actual = resImp.sugerenciaOrden || ORDEN_SUGERENCIA_INICIAL();
+  resImp.sugerenciaOrden = actual.col === col ? { col, invertido: !actual.invertido } : { col, invertido: false };
+  pintarSugerencia();
+}
+
+// la tabla de «Stepwise»: las combinaciones probadas, ordenadas por la columna elegida, con «Añadir a la lista»
+function pintarSugerencia() {
+  const panel = resImp.ui.sugerencia;
+  if (resImp.modoMulti !== "stepwise") { panel.hidden = true; return; }
+  const s = resImp.sugerencia;
+  if (s && !sugerenciaVigente()) {                       // los datos cambiaron desde la búsqueda
+    resImp.sugerencia = null;
+    const aviso = document.createElement("p");
+    aviso.className = "res-sugerencia-pie";
+    aviso.textContent = "Los datos han cambiado desde la última búsqueda.";
+    const otra = document.createElement("button");
+    otra.type = "button";
+    otra.dataset.sugBuscar = "1";
+    otra.textContent = "Buscar de nuevo";
+    panel.replaceChildren(aviso, otra);
+    panel.hidden = false;
+    return;
+  }
+  if (!s) return;                                        // aún sin buscar (o buscando): no se toca lo que haya
   const cifra = (v, d = 2) => (v === null || v === undefined ? "—" : v.toLocaleString("es-ES", { minimumFractionDigits: d, maximumFractionDigits: d }));
   const nombre = (i) => { const x = explicativasConDatos().find((e) => e.id === s.ids[i]); return x ? nombreDe(x) : "?"; };
   const d = s.datos;
-  const mejorNombre = d.candidatos[0].indices.map(nombre).join(" + ");
+  const POR_DEFECTO = 5;
+  const todas = Boolean(resImp.sugerenciaTodas) && d.candidatos.length > POR_DEFECTO;
+  const orden = resImp.sugerenciaOrden || ORDEN_SUGERENCIA_INICIAL();
+  const ordenadas = ordenarCandidatos(d.candidatos, orden.col, orden.invertido);
+  const mostradas = todas ? ordenadas : ordenadas.slice(0, POR_DEFECTO);
+  const mejorFila = ordenarCandidatos(d.candidatos, orden.col, false)[0];      // la mejor según esa columna, esté donde esté en la lista
+  const mejorNombre = mejorFila.indices.map(nombre).join(" + ");
   const titular = document.createElement("p");
   titular.className = "res-sugerencia-titular";
-  titular.textContent = `Mejor combinación para la regresión: ${mejorNombre} (${s.existia ? "ya la tenías, te he llevado a ella" : "la he añadido como pestaña"}). Se han probado ${d.probados}.`;
+  titular.textContent = `Mejor combinación para la regresión según ${ORDENES_SUGERENCIA[orden.col].texto}: ${mejorNombre}. Se han probado ${d.probados}.`;
+
   const tabla = document.createElement("table");
   tabla.className = "res-sugerencia-tabla";
   const cabecera = tabla.createTHead().insertRow();
-  const columnas = [["#", "Posición según el RMSE"], ["Combinación", "Las explicativas que usa la regresión"],
-    ["RMSE", "Error típico al predecir los bloques escondidos, en las unidades de la serie. Menos es mejor."],
-    ["MAE", "Error medio absoluto de esos bloques. Menos es mejor."],
-    ["R² ajustado", "Qué parte de la variación de la serie explica el modelo con todos sus datos, penalizando usar variables de más. Más es mejor."]];
-  for (const [t, ayuda] of columnas) { const th = document.createElement("th"); th.scope = "col"; th.textContent = t; th.title = ayuda; cabecera.append(th); }
+  const columnas = [["#", "Posición en el orden elegido"], ["Combinación", "Las explicativas que usa la regresión"],
+    ["RMSE", d.validacion === "tramos" ? "Error típico sobre los tramos que quitaste, medido igual que en la tabla de resultados de abajo. Menos es mejor." : "Error típico al predecir los bloques escondidos, en las unidades de la serie. Menos es mejor."],
+    ["MAE", d.validacion === "tramos" ? "Error medio absoluto sobre los tramos que quitaste, igual que en la tabla de resultados. Menos es mejor." : "Error medio absoluto de esos bloques. Menos es mejor."],
+    ["R² ajustado", "Qué parte de la variación de la serie explica el modelo con todos sus datos, penalizando usar variables de más. Más es mejor."],
+    ["Lista", "Añade esta combinación a la lista de pestañas de arriba, con la regresión marcada"]];
+  const columnaDe = { "RMSE": "rmse", "MAE": "mae", "R² ajustado": "r2_ajustado" };
+  for (const [t, ayuda] of columnas) {
+    const th = document.createElement("th");
+    th.scope = "col";
+    th.title = columnaDe[t] ? `${ayuda} Pulsa para ordenar por esta columna; otra vez, para invertir el orden.` : ayuda;
+    const col = columnaDe[t];
+    if (col) {
+      const activa = orden.col === col;
+      const sentido = ORDENES_SUGERENCIA[col].natural * (orden.invertido ? -1 : 1);         // 1 = de menor a mayor
+      th.setAttribute("aria-sort", activa ? (sentido === 1 ? "ascending" : "descending") : "none");
+      const boton = document.createElement("button");
+      boton.type = "button";
+      boton.className = "res-ordenar" + (activa ? " activa" : "");
+      boton.dataset.sugOrden = col;
+      boton.textContent = activa ? `${t} ${sentido === 1 ? "▲" : "▼"}` : t;
+      th.append(boton);
+    } else {
+      th.textContent = t;
+    }
+    cabecera.append(th);
+  }
   const cuerpoTabla = tabla.createTBody();
-  d.candidatos.slice(0, 5).forEach((c, posicion) => {
+  const llena = imputacion.combinaciones.length >= MAX_COMBINACIONES;
+  mostradas.forEach((c, posicion) => {
     const fila = cuerpoTabla.insertRow();
     fila.insertCell().textContent = String(posicion + 1);
     const celda = fila.insertCell();
     celda.textContent = c.indices.map(nombre).join(" + ");
-    if (posicion === 0) { const marca = document.createElement("span"); marca.className = "res-sugerencia-mejor"; marca.textContent = "mejor"; celda.append(" ", marca); }
+    if (c === mejorFila) { const marca = document.createElement("span"); marca.className = "res-sugerencia-mejor"; marca.textContent = "mejor"; celda.append(" ", marca); }
     for (const v of [cifra(c.rmse), cifra(c.mae), cifra(c.r2_ajustado, 3)]) fila.insertCell().textContent = v;
+    const yaEsta = Boolean(combinacionConExplicativas(c.indices.map((i) => s.ids[i])));
+    const boton = document.createElement("button");
+    boton.type = "button";
+    boton.className = "res-sugerencia-anadir" + (yaEsta ? " anadida" : "");
+    boton.dataset.sugIndices = c.indices.join(",");
+    boton.textContent = yaEsta ? "✓ En la lista" : "Añadir a la lista";
+    boton.title = yaEsta ? "Esta combinación ya es una pestaña" : llena ? `Ya hay ${MAX_COMBINACIONES} combinaciones: quita alguna para añadir otra` : "Añadir esta combinación a la lista de pestañas de arriba, con la regresión marcada";
+    boton.disabled = yaEsta || llena;
+    fila.insertCell().append(boton);
   });
+  const caja = document.createElement("div");
+  caja.className = "res-sugerencia-caja" + (todas ? " con-scroll" : "");
+  caja.append(tabla);
+
+  const controles = document.createElement("div");
+  controles.className = "res-sugerencia-controles";
+  if (d.candidatos.length > POR_DEFECTO) {
+    const alternar = document.createElement("button");
+    alternar.type = "button";
+    alternar.dataset.sugTodas = "1";
+    alternar.setAttribute("aria-expanded", String(todas));
+    alternar.textContent = todas ? `Ver solo las ${POR_DEFECTO} mejores` : `Ver las ${d.candidatos.length} combinaciones`;
+    controles.append(alternar);
+  }
   const pie = document.createElement("p");
   pie.className = "res-sugerencia-pie";
-  pie.textContent = `${d.candidatos.length > 5 ? `Se muestran las 5 mejores de ${d.candidatos.length}. ` : ""}Solo vale para la regresión: con EM o imputación múltiple el orden puede ser otro. Las demás combinaciones las puedes añadir con «+ combinación».`;
+  const cuantas = todas || d.candidatos.length <= POR_DEFECTO
+    ? (d.metodo === "exhaustivo" ? `Se muestran las ${d.candidatos.length} combinaciones posibles.` : `Se muestran las ${d.candidatos.length} combinaciones que ha probado por el camino (no todas las posibles).`)
+    : `Se muestran las ${POR_DEFECTO} mejores de ${d.candidatos.length}.`;
+  pie.textContent = `${cuantas} Solo vale para la regresión: con EM o imputación múltiple el orden puede ser otro.`;
+  controles.append(pie);
+
   const detalle = document.createElement("details");
   const resumen = document.createElement("summary");
   resumen.textContent = "Cómo se ha calculado";
   const texto = document.createElement("p");
-  texto.textContent = `${d.metodo === "exhaustivo" ? "Se han probado todas las combinaciones posibles de 2 o más explicativas." : "Como hay muchas explicativas, se ha ido añadiendo la que más baja el error (paso a paso); no garantiza la mejor de todas."} Para cada una se han escondido ${d.bloques} bloques seguidos de los ${d.conocidos} datos conocidos y se han predicho con la regresión, ajustada con el resto. Se ordenan por el RMSE de esos bloques.`;
+  texto.textContent = `${d.metodo === "exhaustivo" ? "Se han probado todas las combinaciones posibles de 2 o más explicativas." : "Como hay muchas explicativas, se ha ido añadiendo la que más baja el error (paso a paso); no garantiza la mejor de todas."} ${d.validacion === "tramos" ? `Para cada una se ha ajustado la regresión con los datos conocidos y se ha medido el error sobre los ${d.quitados} puntos que quitaste, igual que en la tabla de resultados: el RMSE y el MAE de la primera coinciden con los de la fila «Regresión» de esa combinación. Se ordenan por ese RMSE. Como se elige y se mide con los mismos puntos, el error sale algo optimista.` : `Como no has quitado tramos con valor real (o hay muy pocos), para cada una se han escondido ${d.bloques} bloques seguidos de los ${d.conocidos} datos conocidos y se han predicho con la regresión, ajustada con el resto. Se ordenan por el RMSE de esos bloques; no coincide con el de la tabla de resultados, que se mide en tus tramos.`}`;
   detalle.append(resumen, texto);
-  panel.replaceChildren(titular, tabla, pie, detalle);
+  panel.replaceChildren(titular, caja, controles, detalle);
   panel.hidden = false;
 }
 
-function botonSugerirCombinacion() {
-  const boton = document.createElement("button");
-  boton.type = "button";
-  boton.dataset.accion = "sugerir";
-  boton.className = "res-anadir";
-  boton.title = "Prueba combinaciones de explicativas con la regresión, las ordena por su error de validación y crea una pestaña con la mejor";
-  boton.textContent = "Mejor combinación (regresión)";
-  return boton;
-}
-
-function botonAnadirCombinacion() {
-  const boton = document.createElement("button");
-  boton.type = "button";
-  boton.dataset.accion = "anadir";
-  boton.className = "res-anadir";
-  boton.title = "Añadir otra combinación de explicativas";
-  boton.textContent = "+ combinación";
-  return boton;
-}
-
-// Números para las tablas: pocos decimales, más cuanto más pequeños
+// Números para las tablas: siempre 2 decimales
 function numeroResultado(v) {
   if (v === null || v === undefined) return "—";
-  const decimales = Math.abs(v) >= 100 ? 0 : Math.abs(v) >= 10 ? 1 : 2;
-  return v.toLocaleString("es-ES", { minimumFractionDigits: decimales, maximumFractionDigits: decimales });
+  // siempre 2 decimales, para que las cifras de una pantalla se puedan comparar con las de otra
+  return v.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 const porcentajeResultado = (v) => (v === null || v === undefined ? "—" : `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v * 100).toLocaleString("es-ES", { maximumFractionDigits: 0 })} %`);
 const decimalesResultado = (v) => (v === null || v === undefined ? "—" : v.toLocaleString("es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
@@ -283,6 +448,7 @@ function subpestanasImputacion() {
       });
     }
     if (!imputacion.combinaciones.length) lista.push({ id: MULTI_VACIA, titulo: "", series: [], vacia: true, ayuda: "" });
+    if (imputacion.combinaciones.length >= 2) lista.push({ id: RESUMEN, titulo: "Resumen", series: [], resumen: true, ayuda: "Compara en una tabla todas las combinaciones de Multivariante, con los métodos que has marcado en cada una." });
   }
   lista.push({ id: "comparacion", titulo: "Comparación", ayuda: "Compara en una sola tabla los métodos que has marcado en las otras ventanas." });
   return lista;
@@ -301,7 +467,8 @@ const metodosDeSub = (sub) => (sub.id === "sin" ? idsSinExplicativas() : idsConE
 // En las que usan explicativas se añade siempre la interpolación, como referencia.
 const elegidosDe = (subId) => (Array.isArray(imputacion.metodos[subId]) ? imputacion.metodos[subId] : []);
 // la comparación junta todas las demás ventanas
-const ventanasDe = (sub) => (sub.id === "comparacion" ? subpestanasImputacion().filter((s) => s.id !== "comparacion") : [sub]);
+const ventanasDe = (sub) => (sub.id === "comparacion" ? subpestanasImputacion().filter((s) => s.id !== "comparacion")
+  : sub.resumen ? subpestanasImputacion().filter((s) => s.combinacion) : [sub]);
 function especificacion(sub) {
   const elegidos = METODOS_IMPUTACION.map((m) => m.id).filter((id) => elegidosDe(sub.id).includes(id) && metodosDeSub(sub).includes(id));
   // la interpolación va siempre en la petición (de ella sale la "mejora"), pero solo se enseña como fila si no es la ventana "sin"
@@ -389,12 +556,17 @@ function seccionesAyudaImputacion() {
     ],
   });
   secciones.push({
-    id: "i-combinacion", grupo: "Elegir explicativas", titulo: "Mejor combinación (regresión)",
-    intro: "Prueba combinaciones de explicativas con el método Regresión, las ordena por su error de validación y crea una pestaña en Multivariante con la mejor.",
+    id: "i-multivariante", grupo: "Elegir las explicativas", titulo: "Multivariante: combinaciones",
+    intro: "En Multivariante trabajas con una lista de combinaciones de explicativas: cada pestaña es una, con sus métodos, errores y gráfica. Para rellenar la lista tienes dos herramientas.",
     entradas: [
-      ["Qué prueba", "Con 8 explicativas o menos, todas las combinaciones de 2 o más. Con más, va añadiendo la que más baja el error (paso a paso), que no garantiza la mejor de todas."],
-      ["Cómo valida", "Esconde bloques seguidos de los datos conocidos, los predice con un modelo ajustado con el resto y mide el error (RMSE y MAE). El R² ajustado se calcula sobre los mismos datos con los que se ajusta, por eso puede no coincidir con el orden."],
-      ["Ojo", "El orden vale solo para la regresión: con EM o imputación múltiple puede ser otro."],
+      ["Manual", "Marcas tú las explicativas (2 o más) y pulsas «Añadir combinación». Va a esa pestaña, con los métodos marcados de la que estabas viendo (o la regresión)."],
+      ["Stepwise", "Prueba combinaciones con la regresión y las ordena por su error. Con 8 explicativas o menos prueba todas las posibles; con más, va añadiendo la que más baja el error (paso a paso), que no garantiza la mejor de todas. «Añadir a la lista» crea la pestaña con la regresión marcada y no te cambia de pestaña, para poder añadir varias seguidas."],
+      ["Ver todas", "La tabla enseña las 5 mejores; «Ver las N combinaciones» despliega todas las probadas."],
+      ["Ordenar", "Por defecto va por RMSE. Pulsa la cabecera RMSE, MAE o R² ajustado para ordenar por esa columna (con la flecha ves el sentido); pulsa otra vez para invertir. La etiqueta «mejor» marca la mejor según la columna elegida."],
+      ["Cómo valida", "Mide el error sobre los tramos que quitaste, igual que la tabla de resultados: el RMSE y el MAE de una combinación coinciden con los de su fila «Regresión». Si no has quitado tramos con valor real, esconde bloques seguidos de los datos conocidos y los predice con un modelo ajustado con el resto; entonces el RMSE no coincide con el de la tabla. Como se elige y se mide con los mismos puntos, el error sale algo optimista. El R² ajustado se calcula sobre los mismos datos con los que se ajusta, por eso puede no coincidir con el orden."],
+      ["Resumen", "La última pestaña (con 2 o más combinaciones): una tabla que compara todas las combinaciones, con los métodos que has marcado en cada una."],
+      ["Empezar de cero", "Quita todas las combinaciones y sus métodos marcados."],
+      ["Ojo", "El orden de Stepwise vale solo para la regresión: con EM o imputación múltiple puede ser otro."],
     ],
   });
   return secciones;
@@ -423,9 +595,18 @@ function montarResultados() {
        <section class="caja">
         <h3 class="caja-titulo">Variables</h3>
         <div class="pestanas res-subpestanas" id="res-subpestanas" role="tablist" aria-label="Con qué explicativas se imputa"></div>
+        <div class="res-multi-caja" id="res-multi-caja" hidden>
+          <div class="res-multi-barra">
+            <span class="res-multi-etiqueta">Añadir combinaciones</span>
+            <button type="button" data-modo="manual" aria-pressed="false" aria-controls="res-modo-manual" title="Elige tú las explicativas de la combinación">Manual</button>
+            <button type="button" data-modo="stepwise" aria-pressed="false" aria-controls="res-sugerencia" title="Prueba combinaciones con la regresión y las ordena por su error: añade a la lista las que quieras">Stepwise</button>
+            <button type="button" class="res-reiniciar" data-accion="reiniciar" title="Quitar todas las combinaciones y los métodos marcados en Multivariante">Empezar de cero</button>
+          </div>
+          <div class="res-modo-manual" id="res-modo-manual" hidden></div>
+          <div class="res-sugerencia" id="res-sugerencia" hidden></div>
+        </div>
         <div class="pestanas res-combinaciones" id="res-combinaciones" role="tablist" aria-label="Combinaciones de explicativas" hidden></div>
         <p class="res-aviso" id="res-aviso-combinacion" role="alert" hidden>Ya has hecho esta combinación.</p>
-        <div class="res-sugerencia" id="res-sugerencia" hidden></div>
         <div class="res-explicativas" id="res-explicativas" hidden></div>
        </section>
        <section class="caja">
@@ -458,7 +639,7 @@ function montarResultados() {
   const q = (sel) => raiz.querySelector(sel);
   resImp.ui = {
     raiz, metodos: q("#res-metodos"), ayudaLateral: q("#res-ayuda-lateral"), falta: q("#res-falta"), faltaTexto: q("#res-falta-texto"), faltaIr: q("#res-falta-ir"),
-    trabajo: q("#res-trabajo"), subpestanas: q("#res-subpestanas"), combinaciones: q("#res-combinaciones"), avisoCombinacion: q("#res-aviso-combinacion"), explicativas: q("#res-explicativas"), sugerencia: q("#res-sugerencia"), info: q("#res-info"), bloques: q("#res-bloques"), estado: q("#res-estado"),
+    trabajo: q("#res-trabajo"), subpestanas: q("#res-subpestanas"), combinaciones: q("#res-combinaciones"), avisoCombinacion: q("#res-aviso-combinacion"), explicativas: q("#res-explicativas"), sugerencia: q("#res-sugerencia"), multiCaja: q("#res-multi-caja"), modoManual: q("#res-modo-manual"), info: q("#res-info"), bloques: q("#res-bloques"), estado: q("#res-estado"),
     vistaComp: q("#res-vista-comp"), medida: q("#res-medida"), tablaComp: q("#res-tabla-comp"), graficaRanking: q("#res-grafica-ranking"), graficaComp: q("#res-grafica-comp"),
     vistaConjunto: q("#res-vista-conjunto"), tabla: q("#res-tabla"), grafica: q("#res-grafica"), detalle: q("#res-detalle"), tramos: q("#res-tramos"),
   };
@@ -500,6 +681,28 @@ function montarResultados() {
     ejecutarImputacion();
   });
   resImp.ui.tabla.addEventListener("click", alPulsarTabla);
+  resImp.ui.sugerencia.addEventListener("click", (e) => {
+    const anadir = e.target.closest("button[data-sug-indices]");
+    if (anadir) { anadirDeSugerencia(anadir.dataset.sugIndices.split(",").map(Number)); return; }
+    const ordenar = e.target.closest("button[data-sug-orden]");
+    if (ordenar) { ordenarSugerencia(ordenar.dataset.sugOrden); return; }
+    if (e.target.closest("button[data-sug-buscar]")) { sugerirCombinacion(); return; }
+    if (e.target.closest("button[data-sug-todas]")) { resImp.sugerenciaTodas = !resImp.sugerenciaTodas; pintarSugerencia(); }
+  });
+  resImp.ui.multiCaja.addEventListener("click", (e) => {            // la barra «Manual | Stepwise | Empezar de cero» y el panel Manual
+    const modo = e.target.closest("button[data-modo]");
+    if (modo) { cambiarModoMulti(modo.dataset.modo); return; }
+    if (e.target.closest('button[data-accion="reiniciar"]')) { empezarMultivarianteDeCero(); return; }
+    if (e.target.closest('button[data-accion="manual-anadir"]')) anadirManual();
+  });
+  resImp.ui.multiCaja.addEventListener("change", (e) => {
+    const casilla = e.target.closest("input[data-manual]");
+    if (!casilla) return;
+    const marcadas = new Set(marcadasEnManual());
+    if (casilla.checked) marcadas.add(Number(casilla.dataset.manual)); else marcadas.delete(Number(casilla.dataset.manual));
+    resImp.manualSel = marcadas;
+    pintarModoManual();
+  });
   resImp.ui.subpestanas.addEventListener("click", alPulsarVentana);
   resImp.ui.combinaciones.addEventListener("click", alPulsarVentana);
   return raiz;
@@ -507,9 +710,6 @@ function montarResultados() {
 
 // las ventanas se eligen en la barra de arriba y, dentro de "Multivariante", en la de las combinaciones
 function alPulsarVentana(e) {
-  if (e.target.closest('button[data-accion="anadir"]')) { anadirCombinacion(); return; }
-  if (e.target.closest('button[data-accion="sugerir"]')) { sugerirCombinacion(); return; }
-  if (e.target.closest('button[data-accion="reiniciar"]')) { empezarMultivarianteDeCero(); return; }
   const quitar = e.target.closest('button[data-accion="quitar"]');
   if (quitar) { quitarCombinacion(imputacion.combinaciones.find((c) => c.id === Number(quitar.dataset.combinacion))); return; }
   const boton = e.target.closest("button[data-sub]");
@@ -544,7 +744,7 @@ function pintarSubpestanas() {
   const barra = resImp.ui.subpestanas;
   const actual = subActual();
   const lista = subpestanasImputacion();
-  resImp.ui.raiz.classList.toggle("res-ancha", actual.id === "comparacion");   // la comparación no usa la lista de métodos
+  resImp.ui.raiz.classList.toggle("res-ancha", esComparativa(actual));   // la comparación y el resumen no usan la lista de métodos
   if (esMultivariante(actual)) resImp.multiActiva = actual.id;
   barra.replaceChildren();
   let grupoPuesto = false;
@@ -571,13 +771,15 @@ function pintarSubpestanas() {
   const fila = resImp.ui.combinaciones;
   fila.replaceChildren();
   fila.hidden = !esMultivariante(actual);
+  resImp.ui.multiCaja.hidden = !esMultivariante(actual);
   resImp.ui.avisoCombinacion.hidden = true;
   if (!esMultivariante(actual)) { resImp.ui.sugerencia.hidden = true; return; }
+  pintarHerramientasMulti();
   pintarSugerencia();
   const clavesCombinaciones = lista.filter((x) => x.combinacion).map((x) => claveSubconjunto(x.series.map((y) => y.id)));
   for (const s of lista.filter((x) => x.combinacion)) {
     const pestana = document.createElement("div");
-    pestana.className = "tab" + (s.id === actual.id ? " activa" : "");
+    pestana.className = "tab" + (s.id === actual.id ? " activa" : "") + (resImp.destello === s.combinacion.id ? " destello" : "");
     const boton = document.createElement("button");
     boton.type = "button";
     boton.className = "tab-nombre";
@@ -600,9 +802,22 @@ function pintarSubpestanas() {
     }
     fila.append(pestana);
   }
-  if (subconjuntoLibre()) fila.append(botonAnadirCombinacion());
-  fila.append(botonSugerirCombinacion());
-  fila.append(botonEmpezarDeCero());
+  // «Resumen»: la tabla que compara todas las combinaciones (solo con 2 o más)
+  const resumen = lista.find((x) => x.resumen);
+  if (resumen) {
+    const pestana = document.createElement("div");
+    pestana.className = "tab res-resumen-tab" + (resumen.id === actual.id ? " activa" : "");
+    const boton = document.createElement("button");
+    boton.type = "button";
+    boton.className = "tab-nombre";
+    boton.dataset.sub = resumen.id;
+    boton.title = resumen.ayuda;
+    boton.setAttribute("role", "tab");
+    boton.setAttribute("aria-selected", resumen.id === actual.id);
+    boton.append(resumen.titulo);
+    pestana.append(boton);
+    fila.append(pestana);
+  }
   // aviso si la combinación que se ve es igual a otra que ya existe
   const repetida = clavesCombinaciones.filter((clave) => clave === claveSubconjunto(actual.series.map((y) => y.id))).length > 1;
   resImp.ui.avisoCombinacion.hidden = !repetida;
@@ -616,7 +831,7 @@ function pintarMetodosImputacion() {
   const cajaExplicativas = resImp.ui.explicativas;
   cajaExplicativas.replaceChildren();
   cajaExplicativas.hidden = !sub.combinacion;
-  if (sub.id === "comparacion") return;
+  if (esComparativa(sub)) return;
   if (sub.vacia) { resImp.ui.ayudaLateral.textContent = ""; return; }
   const visibles = metodosDeSub(sub);
   const sinExplicativas = sub.id === "sin";
@@ -855,7 +1070,7 @@ async function pedirImputacion() {
     if (token !== resImp.token) return;
     const error = resultados.find((r) => r.error);
     if (error) { resImp.error = error.error; resImp.vista = null; resImp.comparacion = null; }
-    else if (sub.id === "comparacion") resImp.comparacion = especificaciones.map((e, i) => ({ spec: e, datos: resultados[i].datos }));
+    else if (esComparativa(sub)) resImp.comparacion = especificaciones.map((e, i) => ({ spec: e, datos: resultados[i].datos }));
     else resImp.vista = { spec: especificaciones[0], datos: resultados[0].datos };
   } catch (err) {
     if (err.name === "AbortError" || token !== resImp.token) return;
@@ -879,7 +1094,7 @@ function pintarResultados(obj) {
   pintarEstadoResultados();
   const u = resImp.ui;
   const sub = subActual();
-  const esComp = sub.id === "comparacion";
+  const esComp = esComparativa(sub);
   const especificaciones = ventanasDe(sub).map(especificacion);
   const hayMetodos = especificaciones.some((e) => e.ids.length);
   const datos = esComp ? resImp.comparacion : (resImp.vista && resImp.vista.spec.sub.id === sub.id ? resImp.vista : null);
@@ -889,7 +1104,7 @@ function pintarResultados(obj) {
   if (!listo) {
     for (const g of [u.grafica, u.graficaRanking, u.graficaComp]) { try { Plotly.purge(g); } catch { /* aún no había gráfica */ } }
     if (!resImp.error && obj && obj.aImputar && !hayMetodos && !resImp.cargando) {
-      u.estado.textContent = esComp ? "Todavía no has marcado ningún método en las otras ventanas." : sub.vacia ? "No hay ninguna combinación: crea una con «+ combinación» o «Mejor combinación (regresión)»." : sub.id === "sin" ? "Marca algún método a la izquierda para ver cómo imputa y cuánto se equivoca."
+      u.estado.textContent = esComp ? (sub.resumen ? "Todavía no has marcado ningún método en las combinaciones." : "Todavía no has marcado ningún método en las otras ventanas.") : sub.vacia ? "No hay ninguna combinación: crea una con «Manual» o «Stepwise»." : sub.id === "sin" ? "Marca algún método a la izquierda para ver cómo imputa y cuánto se equivoca."
         : "Marca la regresión (simple o estocástica), el EM o la imputación múltiple a la izquierda para ver cómo imputan con estas explicativas.";
       u.estado.classList.remove("error");
       u.estado.hidden = false;
@@ -926,6 +1141,8 @@ const BLOQUES_METRICAS = [
       ayuda: "RMSE / desviación típica de los datos conocidos. Es el error sin unidades, para comparar series distintas: 0 = perfecto; 1 = un error tan grande como lo que varía la serie. Menos es mejor." },
     { clave: "r2", texto: "R²", formato: decimalesResultado, mejor: "mayor",
       ayuda: "R² = 1 − Σ(real − imputado)² / Σ(real − media de lo conocido)², sobre los puntos que quitaste. 1 = perfecto; 0 = igual que rellenar con la media; negativo = peor que eso. No es la correlación al cuadrado. Más es mejor." },
+    { clave: "d_r", texto: "Índice d_r de Willmott", formato: decimalesResultado, mejor: "mayor",
+      ayuda: "Índice de acuerdo d_r (Willmott et al., 2012), de −1 a 1. Con A = Σ|imputado − real| y B = 2·Σ|real − media de lo real|: d_r = 1 − A/B si A ≤ B, y B/A − 1 si A > B. 1 = perfecto; 0 = el error suma el doble de lo que se aleja lo real de su media; negativo = peor que eso. El denominador solo depende de los valores reales, así que es comparable entre métodos. Más es mejor." },
     { clave: "mejora", texto: "Mejora sobre la interpolación", formato: porcentajeResultado, mejor: "mayor",
       ayuda: "1 − RMSE del método / RMSE de la interpolación lineal. Positivo = mejor que la interpolación (35 % = un 35 % menos de error); negativo = peor." },
   ] },

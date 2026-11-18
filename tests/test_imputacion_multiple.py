@@ -259,7 +259,7 @@ def test_imputar_da_las_metricas_completas_sin_intervalo_y_junto_a_otros_metodos
     assert list(por) == ["regresion", "em", "imputacion_multiple"]
     mi = por["imputacion_multiple"]
     assert mi["error"] is None and mi["nombre"] == "Imputación múltiple (MCMC)" and mi["sin_imputar"] == 0
-    for clave in ("mae", "rmse", "rmse_est", "r2", "mejora", "razon_var", "sesgo_corr"):
+    for clave in ("mae", "rmse", "rmse_est", "r2", "d_r", "mejora", "razon_var", "sesgo_corr"):
         assert mi["metricas"][clave] is not None, clave
     assert mi["metricas"]["n"] == sum(b - a + 1 for a, b in TRAMOS)
     assert mi["intervalo"] is None

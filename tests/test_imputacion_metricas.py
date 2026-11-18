@@ -104,7 +104,7 @@ def test_un_metodo_desconocido_da_error():
 
 
 def test_cada_metodo_tiene_nombre_grupo_y_funcion():
-    assert set(METODOS) == {"media", "mediana", "regresion", "regresion_estocastica", "em", "imputacion_multiple", "ultimo_valor", "siguiente_valor", "media_movil", "media_movil_atras", "media_movil_pond", "media_movil_pond_atras", "media_estacional", "interpolacion", "polinomica", "pchip"}
+    assert set(METODOS) == {"media", "mediana", "regresion", "regresion_estocastica", "em", "imputacion_multiple", "ultimo_valor", "siguiente_valor", "media_movil", "media_movil_atras", "media_movil_pond", "media_movil_pond_atras", "media_estacional", "interpolacion", "polinomica", "pchip", "makima"}
     assert {grupo for _, grupo, _, _ in METODOS.values()} == {"explicito", "referencia"}
 
 
@@ -120,3 +120,20 @@ def test_rmse_estandarizado_divide_entre_la_desviacion_de_lo_conocido():
     assert metricas.rmse_estandarizado(3.0, np.array([5.0, 5.0])) is None     # lo conocido no varía
     # no depende de las unidades: con todo multiplicado por 10, sale lo mismo
     assert metricas.rmse_estandarizado(30.0, conocidos * 10) == pytest.approx(1.5)
+
+
+def test_d_r_de_willmott():
+    real = np.array([1.0, 3.0, 5.0, 7.0])                       # media 4 -> B = 2 * (3 + 1 + 1 + 3) = 16
+    assert metricas.d_r_de_willmott(real, real) == 1
+    assert metricas.d_r_de_willmott(real, real + 2) == pytest.approx(1 - 8 / 16)           # A = 8 <= B
+    assert metricas.d_r_de_willmott(real, np.full(4, 4.0)) == pytest.approx(1 - 8 / 16)    # la media: A = 8
+    assert metricas.d_r_de_willmott(real, real + 8) == pytest.approx(-0.5)                # A = 32 > B: B/A − 1
+    assert metricas.d_r_de_willmott(np.array([2.0, 2.0]), np.array([1.0, 3.0])) is None    # lo real no varía
+
+
+def test_d_r_ordena_los_metodos_igual_que_el_mae():
+    real = np.array([1.0, 3.0, 5.0, 7.0, 9.0])
+    a, b, c = real + 1, real + np.array([0, 0, 0, 0, 6.0]), real - 9
+    por_mae = sorted([a, b, c], key=lambda x: metricas.mae(real, x))
+    por_dr = sorted([a, b, c], key=lambda x: -metricas.d_r_de_willmott(real, x))
+    assert all(x is y for x, y in zip(por_mae, por_dr))

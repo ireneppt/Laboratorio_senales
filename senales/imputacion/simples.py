@@ -211,19 +211,17 @@ def _pendientes_pchip(x, y):
     return d
 
 
-def pchip(p, parametros=None):
-    """Interpolación PCHIP (cúbica de Hermite a trozos que conserva la forma), como `pchip` de MATLAB: entre cada dos
-    datos conocidos, un polinomio de grado 3 cuyas pendientes en los datos se eligen para que la curva no se pase de
-    largo (no sale del rango de sus dos datos vecinos y conserva la monotonía). Con 2 datos, una recta. Fuera del
-    primer y último dato se mantiene el valor más cercano, como en la interpolación lineal (MATLAB extrapolaría con la
-    última cúbica)."""
+def _hermite_a_trozos(p, pendientes):
+    """Cúbica de Hermite entre cada dos datos conocidos, con las pendientes que da `pendientes(x, y)`. Fuera del primer y
+    último dato se mantiene el valor más cercano, como en la interpolación lineal (MATLAB extrapolaría con la última
+    cúbica); con menos de 2 datos, igual que la lineal."""
     _conocidos(p)
     x = np.flatnonzero(~np.isnan(p.y)).astype(float)
     y = p.y[~np.isnan(p.y)]
     completa = interpolacion(p)                                # los extremos (y el caso de pocos datos) como la lineal
     if len(x) < 2:
         return completa
-    d = _pendientes_pchip(x, y)
+    d = pendientes(x, y)
     objetivo = np.flatnonzero(p.objetivo)
     dentro = objetivo[(objetivo > x[0]) & (objetivo < x[-1])]
     tramo = np.searchsorted(x, dentro) - 1                     # entre x[tramo] y x[tramo + 1]
@@ -232,3 +230,44 @@ def pchip(p, parametros=None):
     completa[dentro] = ((2 * t ** 3 - 3 * t ** 2 + 1) * y[tramo] + (t ** 3 - 2 * t ** 2 + t) * h * d[tramo]
                         + (-2 * t ** 3 + 3 * t ** 2) * y[tramo + 1] + (t ** 3 - t ** 2) * h * d[tramo + 1])
     return completa
+
+
+def pchip(p, parametros=None):
+    """Interpolación PCHIP (cúbica de Hermite a trozos que conserva la forma), como `pchip` de MATLAB: entre cada dos
+    datos conocidos, un polinomio de grado 3 cuyas pendientes en los datos se eligen para que la curva no se pase de
+    largo (no sale del rango de sus dos datos vecinos y conserva la monotonía). Con 2 datos, una recta. Fuera del
+    primer y último dato se mantiene el valor más cercano, como en la interpolación lineal (MATLAB extrapolaría con la
+    última cúbica)."""
+    return _hermite_a_trozos(p, _pendientes_pchip)
+
+
+def _pendientes_makima(x, y):
+    """Pendiente de la curva en cada dato, como en `makima` de MATLAB (Akima modificada). Cada pendiente es una media de
+    las de los dos tramos vecinos, ponderada por cuánto cambia la pendiente al otro lado: w1 = |m[i+1] - m[i]| +
+    |m[i+1] + m[i]| / 2 (pesa al tramo izquierdo) y w2 = |m[i-1] - m[i-2]| + |m[i-1] + m[i-2]| / 2 (pesa al derecho). Los
+    dos tramos que faltan en cada extremo se extrapolan linealmente. Si w1 + w2 = 0, la pendiente es 0. x ordenada y sin
+    repetidos, con al menos 2 datos."""
+    n = len(x)
+    delta = np.diff(y) / np.diff(x)
+    if n == 2:
+        return np.full(2, delta[0])
+    m1 = 2 * delta[0] - delta[1]
+    m0 = 2 * m1 - delta[0]
+    n1 = 2 * delta[-1] - delta[-2]
+    n2 = 2 * n1 - delta[-1]
+    e = np.concatenate([[m0, m1], delta, [n1, n2]])        # e[i + 2] = pendiente del tramo derecho del dato i
+    izq2, izq1, der, der2 = e[:n], e[1:n + 1], e[2:n + 2], e[3:n + 3]
+    w1 = np.abs(der2 - der) + np.abs(der2 + der) / 2
+    w2 = np.abs(izq1 - izq2) + np.abs(izq1 + izq2) / 2
+    suma = w1 + w2
+    d = np.zeros(n)
+    ok = suma > 0
+    d[ok] = (w1[ok] * izq1[ok] + w2[ok] * der[ok]) / suma[ok]
+    return d
+
+
+def makima(p, parametros=None):
+    """Interpolación Akima modificada (cúbica de Hermite a trozos), como `makima` de MATLAB: como PCHIP, un polinomio de
+    grado 3 entre cada dos datos, pero con las pendientes de Akima modificada, que evitan oscilaciones y tratan mejor los
+    tramos planos. Con 2 datos, una recta. Fuera del primer y último dato se mantiene el valor más cercano."""
+    return _hermite_a_trozos(p, _pendientes_makima)

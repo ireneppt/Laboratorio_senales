@@ -45,6 +45,18 @@ def rmse_estandarizado(rmse_metodo, conocidos):
     return rmse_metodo / desviacion
 
 
+def d_r_de_willmott(real, imputado):
+    """Índice de acuerdo d_r de Willmott et al. (2012). Con A = Σ|imputado − real| y B = 2·Σ|real − media de lo real|:
+    d_r = 1 − A/B si A ≤ B, y B/A − 1 si A > B. Va de −1 a 1: 1 = perfecto; 0 = el error suma el doble de lo que se
+    aleja lo real de su media; negativo = peor que eso. El denominador solo depende de lo real, así que es comparable
+    entre métodos. None si lo real es constante (B = 0)."""
+    a = float(np.sum(np.abs(_error(real, imputado))))
+    b = 2 * float(np.sum(np.abs(real - np.mean(real))))
+    if b == 0:
+        return None
+    return 1 - a / b if a <= b else b / a - 1
+
+
 def pearson(x, y):
     """Correlación de Pearson, igual que correlacionPearson de public/js/80-correlacion.js: None con menos de 3
     parejas o si una de las dos series es constante; recortada a [-1, 1]."""
@@ -103,7 +115,7 @@ def evaluar(problema, completa, referencia, desviacion=None, comparar_con=(), mu
     métricas de estructura se calculan en cada una y se promedian: sobre la media saldría la variación aplanada).
     Devuelve (métricas, por tramo, sesgo con cada serie)."""
     evaluables = problema.quitado & ~np.isnan(completa)
-    resultado = {"n": int(evaluables.sum()), "mae": None, "rmse": None, "rmse_est": None, "r2": None, "mejora": None,
+    resultado = {"n": int(evaluables.sum()), "mae": None, "rmse": None, "rmse_est": None, "r2": None, "d_r": None, "mejora": None,
                  "razon_var": None, "sesgo_corr": None, "cobertura": None, "anchura": None, "anchura_est": None, "interval_score": None}
     por_tramo = []
     if resultado["n"]:
@@ -113,6 +125,7 @@ def evaluar(problema, completa, referencia, desviacion=None, comparar_con=(), mu
         conocidos = problema.y[~np.isnan(problema.y)]
         resultado["rmse_est"] = rmse_estandarizado(resultado["rmse"], conocidos)
         resultado["r2"] = r2_frente_al_real(real, imputado, conocidos)
+        resultado["d_r"] = d_r_de_willmott(real, imputado)
         en_referencia = referencia[evaluables]
         resultado["mejora"] = mejora_sobre_referencia(resultado["rmse"], rmse(real, en_referencia))
         if muestras is None:

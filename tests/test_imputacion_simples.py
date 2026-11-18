@@ -251,3 +251,23 @@ def test_pchip_con_los_huecos_quitados_se_puede_comparar():
     y = [float(np.sin(i / 4)) for i in range(40)]
     r = imputar(y, [(10, 14)], [], [{"metodo": "pchip"}, {"metodo": "interpolacion"}])["resultados"]
     assert r[0]["error"] is None and r[0]["metricas"]["rmse"] < r[1]["metricas"]["rmse"] * 1.5
+
+
+def test_makima_pasa_por_los_datos_y_con_una_recta_da_la_recta():
+    con_huecos = [0, 1, None, None, 4, 5, None, 7, 8]
+    completa = simples.makima(problema(con_huecos))
+    assert np.allclose(completa, np.arange(9.0))
+
+
+def test_makima_calcula_las_pendientes_como_matlab():
+    # a mano con la fórmula de MATLAB: tramos 1, 3, 1; extrapolados -1, -3 a cada lado -> w = 4 y 4 en los extremos
+    d = simples._pendientes_makima(np.arange(4.0), np.array([0.0, 1.0, 4.0, 5.0]))
+    assert np.allclose(d, [0.0, 5 / 3, 5 / 3, 0.0])
+    d = simples._pendientes_makima(np.arange(4.0), np.array([0.0, 1.0, 2.0, 3.0]))     # una recta: pendiente 1 en todos
+    assert np.allclose(d, 1.0)
+
+
+def test_makima_con_pocos_datos_es_como_la_lineal():
+    assert simples.makima(problema([None, 1, None, 3, None])).tolist() == [1, 1, 2, 3, 3]
+    assert simples.makima(problema([None, 5, None, None])).tolist() == [5, 5, 5, 5]
+    assert simples.makima(problema([1, 2, 3, 4])).tolist() == [1, 2, 3, 4]

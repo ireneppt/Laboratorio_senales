@@ -119,3 +119,33 @@
 .sel-resumen dd { margin: 0; color: var(--ink-2); font-size: 0.9rem; }
 .sel-acciones { display: flex; gap: 10px; }
 .sel-acciones button { width: auto; padding: 0 16px; }
+
+/* todas las combinaciones probadas y el botón de añadir */
+.res-sugerencia-caja { overflow-x: auto; }
+.res-sugerencia-caja.con-scroll { max-height: 340px; overflow-y: auto; border: 1px solid var(--grid); border-radius: 8px; }
+.res-sugerencia-caja.con-scroll thead th { position: sticky; top: 0; background: var(--surface-2); z-index: 1; }
+.res-sugerencia-tabla th:last-child, .res-sugerencia-tabla td:last-child { text-align: center; }
+.res-sugerencia-anadir { width: auto; height: 26px; padding: 0 10px; font-size: 0.8rem; }
+.res-sugerencia-controles { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin: 8px 0 4px; }
+.res-sugerencia-controles button { width: auto; height: 30px; padding: 0 12px; font-size: 0.85rem; }
+.res-sugerencia-controles .res-sugerencia-pie { margin: 0; }
+
+/* Multivariante: barra «Manual | Stepwise | Empezar de cero», panel Manual y pestaña Resumen */
+.res-multi-caja { margin: 0 0 14px; padding: 8px 12px; border: 1px solid var(--axis); border-radius: 10px; background: var(--surface-2); }
+.res-multi-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.res-multi-etiqueta { margin-right: 6px; font-size: 0.82rem; font-weight: 650; color: var(--ink-2); }
+.res-multi-barra button { width: auto; height: 30px; padding: 0 14px; font-size: 0.85rem; }
+.res-multi-barra button[data-modo].activa { background: var(--surface); border-color: var(--ink-2); font-weight: 650; }
+.res-modo-manual { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin: 10px 0 2px; padding-top: 10px; border-top: 1px solid var(--grid); }
+.res-modo-manual button { width: auto; height: 30px; padding: 0 14px; font-size: 0.85rem; }
+.res-multi-aviso { color: var(--ink-2); }
+.res-multi-caja .res-sugerencia { margin: 10px 0 2px; padding: 10px 0 0; border: 0; border-top: 1px solid var(--grid); border-radius: 0; background: transparent; }
+.res-sugerencia-anadir.anadida { color: var(--ink-2); }
+.res-combinaciones .tab.res-resumen-tab { margin-left: auto; border-left: 1px solid var(--axis); border-radius: 0 8px 8px 0; }
+@keyframes destello-pestana { from { box-shadow: 0 0 0 3px var(--series-1); } to { box-shadow: 0 0 0 0 transparent; } }
+.res-combinaciones .tab.destello { animation: destello-pestana 1.4s ease-out; }
+
+/* cabeceras de la tabla de Stepwise que ordenan al pulsarlas */
+.res-ordenar { width: auto; height: auto; margin: 0; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; font-weight: 650; cursor: pointer; }
+.res-ordenar:hover { text-decoration: underline; }
+.res-ordenar.activa { text-decoration: underline; text-underline-offset: 3px; }

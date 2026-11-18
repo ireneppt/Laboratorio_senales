@@ -24,6 +24,7 @@ METODOS = {
     "interpolacion": ("Interpolación lineal", "referencia", False, simples.interpolacion),
     "polinomica": ("Interpolación polinómica (spline cúbica)", "referencia", False, simples.polinomica),
     "pchip": ("Interpolación PCHIP", "referencia", False, simples.pchip),
+    "makima": ("Interpolación makima", "referencia", False, simples.makima),
 }
 REFERENCIA = "interpolacion"  # con qué se compara la mejora de cada método
 
