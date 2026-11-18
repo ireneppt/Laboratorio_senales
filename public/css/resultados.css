@@ -149,3 +149,6 @@
 .res-ordenar { width: auto; height: auto; margin: 0; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; font-weight: 650; cursor: pointer; }
 .res-ordenar:hover { text-decoration: underline; }
 .res-ordenar.activa { text-decoration: underline; text-underline-offset: 3px; }
+
+/* Exhaustiva: el panel comparte aspecto con el de Manual */
+.res-modo-manual .res-multi-aviso { flex-basis: 100%; }

@@ -114,7 +114,7 @@ function empezarMultivarianteDeCero() {
   imputacion.combinaciones = [];
   for (const k of Object.keys(imputacion.metodos)) if (k.startsWith("multi:")) delete imputacion.metodos[k];
   if (resImp.dibujar) resImp.dibujar = new Set([...resImp.dibujar].filter((clave) => !clave.includes("@multi:")));
-  resImp.sugerencia = null;
+  resImp.busquedas = {};
   irAVentana(MULTI_VACIA);
 }
 
@@ -133,24 +133,42 @@ function irAVentana(id) {
 }
 
 // ----- Sugerir explicativas: el servidor prueba subconjuntos (validando por bloques) y los ordena por error -----
-const cuerpoSugerencia = () => {
+const cuerpoSugerencia = (series = explicativasConDatos()) => {
   const obj = objetivoDeExplicada();
-  return obj ? JSON.stringify({ y: obj.y, quitados: tramosQuitados(), explicativas: explicativasConDatos().map((x) => x.datos.y) }) : null;
+  return obj ? JSON.stringify({ y: obj.y, quitados: tramosQuitados(), explicativas: series.map((x) => x.datos.y) }) : null;
 };
 
-async function sugerirCombinacion() {
-  const cuerpo = cuerpoSugerencia();
+// Hasta cuántas explicativas se pueden marcar en la búsqueda exhaustiva: 8 son 247 combinaciones
+const MAX_EXHAUSTIVA = 8;
+// El resultado de la última búsqueda de cada modo: { huella, ids (las series que se probaron), datos }
+const busquedaDe = (modo) => (resImp.busquedas || {})[modo];
+
+// Busca combinaciones con la regresión. «stepwise»: con todas las explicativas (paso a paso si hay más de 8).
+// «exhaustiva»: solo con las marcadas (hasta 8), probando todas las combinaciones entre ellas.
+async function sugerirCombinacion(modo = "stepwise") {
   const panel = resImp.ui.sugerencia;
+  const todas = explicativasConDatos();
+  let series = todas;
+  if (modo === "exhaustiva") {
+    const marcadas = new Set(marcadasEnExhaustiva());
+    series = todas.filter((x) => marcadas.has(x.id));
+    if (series.length < 2 || series.length > MAX_EXHAUSTIVA) {
+      panel.hidden = false;
+      panel.textContent = `Marca entre 2 y ${MAX_EXHAUSTIVA} explicativas para la búsqueda exhaustiva.`;
+      return;
+    }
+  }
+  const cuerpo = cuerpoSugerencia(series);
   if (!cuerpo) return;
   panel.hidden = false;
-  if (explicativasConDatos().length < 2) { panel.textContent = "Hacen falta al menos 2 explicativas con datos para buscar combinaciones."; return; }
-  const ids = explicativasConDatos().map((x) => x.id);
+  if (todas.length < 2) { panel.textContent = "Hacen falta al menos 2 explicativas con datos para buscar combinaciones."; return; }
+  const ids = series.map((x) => x.id);
   panel.textContent = "Buscando combinaciones…";
   try {
     const respuesta = await fetch("/api/sugerir-explicativas", { method: "POST", headers: { "Content-Type": "application/json" }, body: cuerpo });
     const datos = await respuesta.json();
     if (!respuesta.ok) { panel.textContent = typeof datos.detail === "string" ? datos.detail : "No se han podido buscar combinaciones con estos datos."; return; }
-    resImp.sugerencia = { huella: huellaTexto(cuerpo), ids, datos };
+    resImp.busquedas = { ...(resImp.busquedas || {}), [modo]: { huella: huellaTexto(cuerpo), ids, datos } };
     resImp.sugerenciaTodas = false;
     resImp.sugerenciaOrden = ORDEN_SUGERENCIA_INICIAL();
     pintarSugerencia();
@@ -159,11 +177,15 @@ async function sugerirCombinacion() {
   }
 }
 
-// la búsqueda guardada, si sigue siendo para los datos que hay ahora
-function sugerenciaVigente() {
-  const s = resImp.sugerencia;
-  const cuerpo = cuerpoSugerencia();
-  return Boolean(s && cuerpo && s.huella === huellaTexto(cuerpo));
+// la búsqueda de ese modo, si sigue siendo para los datos que hay ahora (y para las mismas series)
+function sugerenciaVigente(modo = resImp.modoMulti) {
+  const s = busquedaDe(modo);
+  if (!s) return false;
+  const todas = explicativasConDatos();
+  const series = modo === "exhaustiva" ? s.ids.map((id) => todas.find((x) => x.id === id)) : todas;
+  if (series.some((x) => !x)) return false;
+  const cuerpo = cuerpoSugerencia(series);
+  return Boolean(cuerpo) && s.huella === huellaTexto(cuerpo);
 }
 
 // la combinación (pestaña de Multivariante) que usa justo estas explicativas, o undefined
@@ -196,7 +218,7 @@ function anadidaSinIr(id, veniaDeVacia) {
 
 // Stepwise: añade la combinación con la regresión marcada (es con lo que se ordenan)
 function anadirDeSugerencia(indices) {
-  const s = resImp.sugerencia;
+  const s = busquedaDe(resImp.modoMulti);
   if (!s) return;
   const subconjunto = indices.map((i) => s.ids[i]);
   if (combinacionConExplicativas(subconjunto) || imputacion.combinaciones.length >= MAX_COMBINACIONES) return;
@@ -221,10 +243,12 @@ function anadirManual() {
   irAVentana(`multi:${id}`);
 }
 
-// Abre o cierra Manual / Stepwise (solo uno a la vez). Al abrir Stepwise sin búsqueda vigente, busca.
+// Abre o cierra Manual / Stepwise / Exhaustiva (solo uno a la vez). Al abrir Stepwise sin búsqueda vigente, busca;
+// la Exhaustiva espera a que marques las explicativas y pulses «Buscar».
 function cambiarModoMulti(modo) {
   resImp.modoMulti = resImp.modoMulti === modo ? null : modo;
-  if (resImp.modoMulti === "stepwise" && !sugerenciaVigente()) sugerirCombinacion();
+  resImp.ui.sugerencia.hidden = true;                    // la tabla del modo anterior no se queda a la vista
+  if (resImp.modoMulti === "stepwise" && !sugerenciaVigente("stepwise")) sugerirCombinacion("stepwise");
   pintarSubpestanas();
 }
 
@@ -268,10 +292,58 @@ function pintarModoManual() {
   }
 }
 
-// El estado de la barra: qué modo está abierto y si hay algo que vaciar
+// Exhaustiva: las explicativas que se han marcado (solo las que existen)
+function marcadasEnExhaustiva() {
+  const existentes = new Set(explicativasConDatos().map((x) => x.id));
+  return [...(resImp.exhaustivaSel || [])].filter((id) => existentes.has(id));
+}
+
+// El panel de «Exhaustiva»: las casillas (hasta 8), cuántas combinaciones se probarían y el botón de buscar
+function pintarModoExhaustiva() {
+  const caja = resImp.ui.modoExhaustiva;
+  caja.hidden = resImp.modoMulti !== "exhaustiva";
+  caja.replaceChildren();
+  if (caja.hidden) return;
+  const todas = explicativasConDatos();
+  const marcadas = new Set(marcadasEnExhaustiva());
+  const lleno = marcadas.size >= MAX_EXHAUSTIVA;
+  const encabezado = document.createElement("span");
+  encabezado.className = "res-explicativas-titulo";
+  encabezado.textContent = `Elige entre 2 y ${MAX_EXHAUSTIVA} de las ${todas.length} explicativas:`;
+  caja.append(encabezado);
+  for (const x of todas) {
+    const etiqueta = document.createElement("label");
+    etiqueta.className = "toggle opcion res-multi";
+    const casilla = document.createElement("input");
+    casilla.type = "checkbox";
+    casilla.className = "alea";
+    casilla.dataset.exh = x.id;
+    casilla.checked = marcadas.has(x.id);
+    casilla.disabled = !casilla.checked && lleno;
+    etiqueta.append(casilla, crearPunto(x.color), ` ${nombreDe(x)}`);
+    caja.append(etiqueta);
+  }
+  const cuantas = marcadas.size;
+  const combinaciones = cuantas >= 2 ? 2 ** cuantas - cuantas - 1 : 0;
+  const contador = document.createElement("small");
+  contador.className = "res-multi-aviso";
+  contador.textContent = `Marcadas: ${cuantas} de ${MAX_EXHAUSTIVA} como máximo · ${combinaciones ? `se probarían ${combinaciones} combinaciones` : "marca al menos 2"}`;
+  const boton = document.createElement("button");
+  boton.type = "button";
+  boton.dataset.accion = "exhaustiva-buscar";
+  boton.textContent = "Buscar";
+  boton.disabled = cuantas < 2;
+  boton.title = cuantas < 2 ? "Marca al menos 2 explicativas" : "Probar todas las combinaciones entre las marcadas";
+  caja.append(boton, contador);
+}
+
+// El estado de la barra: qué modo está abierto, si «Exhaustiva» tiene sentido (más de 8 explicativas) y si hay algo que vaciar
 function pintarHerramientasMulti() {
   const caja = resImp.ui.multiCaja;
+  const hayMuchas = explicativasConDatos().length > MAX_EXHAUSTIVA;
+  if (!hayMuchas && resImp.modoMulti === "exhaustiva") resImp.modoMulti = null;       // con 8 o menos, Stepwise ya prueba todas
   for (const boton of caja.querySelectorAll("button[data-modo]")) {
+    if (boton.dataset.modo === "exhaustiva") boton.hidden = !hayMuchas;
     const abierto = boton.dataset.modo === resImp.modoMulti;
     boton.classList.toggle("activa", abierto);
     boton.setAttribute("aria-pressed", String(abierto));
@@ -279,6 +351,7 @@ function pintarHerramientasMulti() {
   const reiniciar = caja.querySelector('button[data-accion="reiniciar"]');
   if (reiniciar) reiniciar.disabled = multivarianteVacia();
   pintarModoManual();
+  pintarModoExhaustiva();
 }
 
 // Por qué columna se ordena la tabla de Stepwise. «natural» es el sentido en que va lo mejor primero: 1 = de menor a mayor
@@ -305,13 +378,14 @@ function ordenarSugerencia(col) {
   pintarSugerencia();
 }
 
-// la tabla de «Stepwise»: las combinaciones probadas, ordenadas por la columna elegida, con «Añadir a la lista»
+// la tabla de «Stepwise» / «Exhaustiva»: las combinaciones probadas, ordenadas por la columna elegida, con «Añadir a la lista»
 function pintarSugerencia() {
   const panel = resImp.ui.sugerencia;
-  if (resImp.modoMulti !== "stepwise") { panel.hidden = true; return; }
-  const s = resImp.sugerencia;
-  if (s && !sugerenciaVigente()) {                       // los datos cambiaron desde la búsqueda
-    resImp.sugerencia = null;
+  const modo = resImp.modoMulti;
+  if (modo !== "stepwise" && modo !== "exhaustiva") { panel.hidden = true; return; }
+  const s = busquedaDe(modo);
+  if (s && !sugerenciaVigente(modo)) {                   // los datos cambiaron desde la búsqueda
+    resImp.busquedas = { ...resImp.busquedas, [modo]: null };
     const aviso = document.createElement("p");
     aviso.className = "res-sugerencia-pie";
     aviso.textContent = "Los datos han cambiado desde la última búsqueda.";
@@ -325,7 +399,8 @@ function pintarSugerencia() {
   }
   if (!s) return;                                        // aún sin buscar (o buscando): no se toca lo que haya
   const cifra = (v, d = 2) => (v === null || v === undefined ? "—" : v.toLocaleString("es-ES", { minimumFractionDigits: d, maximumFractionDigits: d }));
-  const nombre = (i) => { const x = explicativasConDatos().find((e) => e.id === s.ids[i]); return x ? nombreDe(x) : "?"; };
+  const nombreDeId = (id) => { const x = explicativasConDatos().find((e) => e.id === id); return x ? nombreDe(x) : "?"; };
+  const nombre = (i) => nombreDeId(s.ids[i]);
   const d = s.datos;
   const POR_DEFECTO = 5;
   const todas = Boolean(resImp.sugerenciaTodas) && d.candidatos.length > POR_DEFECTO;
@@ -336,7 +411,7 @@ function pintarSugerencia() {
   const mejorNombre = mejorFila.indices.map(nombre).join(" + ");
   const titular = document.createElement("p");
   titular.className = "res-sugerencia-titular";
-  titular.textContent = `Mejor combinación para la regresión según ${ORDENES_SUGERENCIA[orden.col].texto}: ${mejorNombre}. Se han probado ${d.probados}.`;
+  titular.textContent = `${modo === "exhaustiva" ? `Búsqueda exhaustiva con ${s.ids.map(nombreDeId).join(", ")}. ` : ""}Mejor combinación para la regresión según ${ORDENES_SUGERENCIA[orden.col].texto}: ${mejorNombre}. Se han probado ${d.probados}.`;
 
   const tabla = document.createElement("table");
   tabla.className = "res-sugerencia-tabla";
@@ -561,6 +636,7 @@ function seccionesAyudaImputacion() {
     entradas: [
       ["Manual", "Marcas tú las explicativas (2 o más) y pulsas «Añadir combinación». Va a esa pestaña, con los métodos marcados de la que estabas viendo (o la regresión)."],
       ["Stepwise", "Prueba combinaciones con la regresión y las ordena por su error. Con 8 explicativas o menos prueba todas las posibles; con más, va añadiendo la que más baja el error (paso a paso), que no garantiza la mejor de todas. «Añadir a la lista» crea la pestaña con la regresión marcada y no te cambia de pestaña, para poder añadir varias seguidas."],
+      ["Exhaustiva", "Solo aparece con más de 8 explicativas (con 8 o menos, Stepwise ya prueba todas). Marcas entre 2 y 8 y prueba todas las combinaciones entre ellas (hasta 247), así que es la mejor entre las que marcas. Usa la misma tabla que Stepwise. Si dejas fuera una variable buena, no la verá: puedes mirar antes qué variables salen en Stepwise y marcar esas."],
       ["Ver todas", "La tabla enseña las 5 mejores; «Ver las N combinaciones» despliega todas las probadas."],
       ["Ordenar", "Por defecto va por RMSE. Pulsa la cabecera RMSE, MAE o R² ajustado para ordenar por esa columna (con la flecha ves el sentido); pulsa otra vez para invertir. La etiqueta «mejor» marca la mejor según la columna elegida."],
       ["Cómo valida", "Mide el error sobre los tramos que quitaste, igual que la tabla de resultados: el RMSE y el MAE de una combinación coinciden con los de su fila «Regresión». Si no has quitado tramos con valor real, esconde bloques seguidos de los datos conocidos y los predice con un modelo ajustado con el resto; entonces el RMSE no coincide con el de la tabla. Como se elige y se mide con los mismos puntos, el error sale algo optimista. El R² ajustado se calcula sobre los mismos datos con los que se ajusta, por eso puede no coincidir con el orden."],
@@ -600,9 +676,11 @@ function montarResultados() {
             <span class="res-multi-etiqueta">Añadir combinaciones</span>
             <button type="button" data-modo="manual" aria-pressed="false" aria-controls="res-modo-manual" title="Elige tú las explicativas de la combinación">Manual</button>
             <button type="button" data-modo="stepwise" aria-pressed="false" aria-controls="res-sugerencia" title="Prueba combinaciones con la regresión y las ordena por su error: añade a la lista las que quieras">Stepwise</button>
+            <button type="button" data-modo="exhaustiva" aria-pressed="false" aria-controls="res-modo-exhaustiva" hidden title="Marcas hasta 8 explicativas y prueba todas las combinaciones entre ellas">Exhaustiva</button>
             <button type="button" class="res-reiniciar" data-accion="reiniciar" title="Quitar todas las combinaciones y los métodos marcados en Multivariante">Empezar de cero</button>
           </div>
           <div class="res-modo-manual" id="res-modo-manual" hidden></div>
+          <div class="res-modo-manual" id="res-modo-exhaustiva" hidden></div>
           <div class="res-sugerencia" id="res-sugerencia" hidden></div>
         </div>
         <div class="pestanas res-combinaciones" id="res-combinaciones" role="tablist" aria-label="Combinaciones de explicativas" hidden></div>
@@ -639,7 +717,7 @@ function montarResultados() {
   const q = (sel) => raiz.querySelector(sel);
   resImp.ui = {
     raiz, metodos: q("#res-metodos"), ayudaLateral: q("#res-ayuda-lateral"), falta: q("#res-falta"), faltaTexto: q("#res-falta-texto"), faltaIr: q("#res-falta-ir"),
-    trabajo: q("#res-trabajo"), subpestanas: q("#res-subpestanas"), combinaciones: q("#res-combinaciones"), avisoCombinacion: q("#res-aviso-combinacion"), explicativas: q("#res-explicativas"), sugerencia: q("#res-sugerencia"), multiCaja: q("#res-multi-caja"), modoManual: q("#res-modo-manual"), info: q("#res-info"), bloques: q("#res-bloques"), estado: q("#res-estado"),
+    trabajo: q("#res-trabajo"), subpestanas: q("#res-subpestanas"), combinaciones: q("#res-combinaciones"), avisoCombinacion: q("#res-aviso-combinacion"), explicativas: q("#res-explicativas"), sugerencia: q("#res-sugerencia"), multiCaja: q("#res-multi-caja"), modoManual: q("#res-modo-manual"), modoExhaustiva: q("#res-modo-exhaustiva"), info: q("#res-info"), bloques: q("#res-bloques"), estado: q("#res-estado"),
     vistaComp: q("#res-vista-comp"), medida: q("#res-medida"), tablaComp: q("#res-tabla-comp"), graficaRanking: q("#res-grafica-ranking"), graficaComp: q("#res-grafica-comp"),
     vistaConjunto: q("#res-vista-conjunto"), tabla: q("#res-tabla"), grafica: q("#res-grafica"), detalle: q("#res-detalle"), tramos: q("#res-tramos"),
   };
@@ -686,16 +764,25 @@ function montarResultados() {
     if (anadir) { anadirDeSugerencia(anadir.dataset.sugIndices.split(",").map(Number)); return; }
     const ordenar = e.target.closest("button[data-sug-orden]");
     if (ordenar) { ordenarSugerencia(ordenar.dataset.sugOrden); return; }
-    if (e.target.closest("button[data-sug-buscar]")) { sugerirCombinacion(); return; }
+    if (e.target.closest("button[data-sug-buscar]")) { sugerirCombinacion(resImp.modoMulti); return; }
     if (e.target.closest("button[data-sug-todas]")) { resImp.sugerenciaTodas = !resImp.sugerenciaTodas; pintarSugerencia(); }
   });
   resImp.ui.multiCaja.addEventListener("click", (e) => {            // la barra «Manual | Stepwise | Empezar de cero» y el panel Manual
     const modo = e.target.closest("button[data-modo]");
     if (modo) { cambiarModoMulti(modo.dataset.modo); return; }
     if (e.target.closest('button[data-accion="reiniciar"]')) { empezarMultivarianteDeCero(); return; }
-    if (e.target.closest('button[data-accion="manual-anadir"]')) anadirManual();
+    if (e.target.closest('button[data-accion="manual-anadir"]')) { anadirManual(); return; }
+    if (e.target.closest('button[data-accion="exhaustiva-buscar"]')) sugerirCombinacion("exhaustiva");
   });
   resImp.ui.multiCaja.addEventListener("change", (e) => {
+    const exhaustiva = e.target.closest("input[data-exh]");
+    if (exhaustiva) {
+      const marcadas = new Set(marcadasEnExhaustiva());
+      if (exhaustiva.checked && marcadas.size < MAX_EXHAUSTIVA) marcadas.add(Number(exhaustiva.dataset.exh)); else marcadas.delete(Number(exhaustiva.dataset.exh));
+      resImp.exhaustivaSel = marcadas;
+      pintarModoExhaustiva();
+      return;
+    }
     const casilla = e.target.closest("input[data-manual]");
     if (!casilla) return;
     const marcadas = new Set(marcadasEnManual());
